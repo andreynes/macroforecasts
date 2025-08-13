@@ -1,3 +1,7 @@
 Flask==3.0.3
 gunicorn==22.0.0
 
+# данные/Excel
+pandas==2.2.2         # имеет wheels для Linux + Py3.10/3.12
+numpy==1.26.4         # совместимо с pandas 2.2.x и Py3.10
+openpyxl==3.1.5       # чтение .xlsx
