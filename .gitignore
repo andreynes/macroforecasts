@@ -9,17 +9,18 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Node (на всякий)
+# Node
 node_modules/
 
-# Data / exports / screenshots
-data/*.csv
-data/*.parquet
-data/*.zip
-data/*-large.*
+# Тяжёлые артефакты (не хранить в истории)
 *.png
 *.jpg
 *.jpeg
-
-# Jupyter
-.ipynb_checkpoints/
+*.gif
+*.zip
+*.tar
+*.gz
+*.7z
+exports/
+data/*.csv
+data/*.zip
