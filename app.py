@@ -386,6 +386,14 @@ def export_excel():
 def health():
     return jsonify({"status": "ok", "time": time.time()})
 
+
+from flask import send_from_directory
+import os
+
+@app.route('/robots.txt')
+def robots_txt():
+    return send_from_directory(os.path.join(app.root_path), 'robots.txt')
+
 # -----------------------------
 # Запуск
 # -----------------------------
