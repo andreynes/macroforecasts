@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <!-- Левая колонка: фильтры + таблица -->
+  <div class="col-12 col-lg-7">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+
+        <!-- Заголовок карточки -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+          <h5 class="card-title mb-0">Сводка показателя</h5>
+        </div>
+
+        <!-- ===== ФИЛЬТРЫ ===== -->
+        <!-- 1) Верхняя строка: дата "От/До" + Показатель (в одну линию) -->
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <div>
+              <label for="fromDate" class="form-label small text-muted mb-1">От</label>
+              <input type="date" class="form-control form-control-sm" id="fromDate" />
+            </div>
+            <div>
+              <label for="toDate" class="form-label small text-muted mb-1">До</label>
+              <input type="date" class="form-control form-control-sm" id="toDate" />
+            </div>
+          </div>
+
+          <div class="flex-grow-1">
+            <label class="form-label small text-muted d-block mb-1">Показатель</label>
+            <div id="indicatorsBox" class="d-flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+
+        <!-- 2) Частота просмотра -->
+        <div class="mb-2">
+          <label class="form-label small text-muted d-block mb-1">Частота просмотра</label>
+          <div class="btn-group" role="group" aria-label="freq-view">
+            <input type="radio" class="btn-check" name="freqRadios" id="freqAUTO" value="AUTO" autocomplete="off" checked>
+            <label class="btn btn-outline-light" for="freqAUTO">Авто</label>
+
+            <input type="radio" class="btn-check" name="freqRadios" id="freqM" value="M" autocomplete="off">
+            <label class="btn btn-outline-light" for="freqM">Месяц</label>
+
+            <input type="radio" class="btn-check" name="freqRadios" id="freqQ" value="Q" autocomplete="off">
+            <label class="btn btn-outline-light" for="freqQ">Квартал</label>
+
+            <input type="radio" class="btn-check" name="freqRadios" id="freqA" value="A" autocomplete="off">
+            <label class="btn btn-outline-light" for="freqA">Год</label>
+          </div>
+          <div id="freqHint" class="small text-warning mt-1" style="display:none"></div>
+        </div>
+
+        <!-- 3) Только кнопка «Применить» -->
+        <div class="mb-3">
+          <button class="btn btn-glass" id="applyBtn" type="button">Применить</button>
+        </div>
+
+        <!-- ===== Таблица ===== -->
+        <div class="table-responsive table-wrap">
+          <table class="table table-dark table-striped align-middle mb-2">
+            <thead>
+              <tr id="tableHead">
+                {% for c in columns %}
+                <th class="sticky-th">{{ c }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              {% for row in data %}
+              <tr>
+                {% for cell in row %}
+                <td>{{ cell }}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <small class="text-muted" id="totalRows">Всего строк: {{ total_rows }}</small>
+        <div id="toast" class="small text-warning mt-2" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Правая колонка: график -->
+  <div class="col-12 col-lg-5">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="card-title">График</h5>
+          <button class="btn btn-outline-light btn-sm" id="downloadPNG" type="button">Скачать PNG</button>
+        </div>
+        <div id="chart" class="chart mb-2"></div>
+        <div class="small text-muted">
+          <div id="legendUnits"></div>
+          <div>{{ source }}</div>
+          <div>{{ last_updated }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const grid    = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
+  const text80  = getComputedStyle(document.documentElement).getPropertyValue('--text-80').trim();
+  const bgCard  = getComputedStyle(document.documentElement).getPropertyValue('--card').trim();
+  const SERIES_COLOR = '#2F80ED';
+
+  const NATIVE_PREF = { 'Инфляция, % м/м': 'M', 'ВВП, % г/г': 'A' };
+
+  function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.style.display='block';setTimeout(()=>{el.style.display='none'},6000)}
+  function readQS(){const p=new URLSearchParams(location.search);const name=p.get('names')||'';return{name,from:p.get('from')||'',to:p.get('to')||'',freq_view:p.get('freq_view')||'{{ qs_freq }}'||'AUTO'}}
+  function writeQS(state){const p=new URLSearchParams();if(state.name)p.set('names',state.name);if(state.from)p.set('from',state.from);if(state.to)p.set('to',state.to);if(state.freq_view)p.set('freq_view',state.freq_view);history.replaceState(null,'',`${location.pathname}?${p.toString()}`)}
+  async function fetchJSON(url){const res=await fetch(url,{headers:{"Accept":"application/json"}});if(!res.ok){throw new Error(await res.text())}return await res.json()}
+
+  function ui_setFreqView(v){const id={'AUTO':'freqAUTO','M':'freqM','Q':'freqQ','A':'freqA'}[v];if(id&&document.getElementById(id))document.getElementById(id).checked=true}
+  function ui_disableFreq(allDisabled=false,allowOnly=''){const ids=['freqAUTO','freqM','freqQ','freqA'];ids.forEach(id=>{const input=document.getElementById(id);const label=document.querySelector(`label[for="${id}"]`);if(!input||!label)return;if(allDisabled){input.disabled=true;label.classList.add('disabled')}else if(allowOnly){const map={'M':'freqM','Q':'freqQ','A':'freqA'};input.disabled=!(id===map[allowOnly]);label.classList.toggle('disabled',input.disabled)}else{input.disabled=false;label.classList.remove('disabled')}})}
+  function enforceNativeIfNeeded(selectedName){const hint=document.getElementById('freqHint');if(NATIVE_PREF[selectedName]){const native=NATIVE_PREF[selectedName];ui_setFreqView(native);ui_disableFreq(false,native);hint.style.display='block';hint.textContent='Для этого показателя доступна только родная частота.';return native}else{ui_disableFreq(false);hint.style.display='none';return document.querySelector('input[name="freqRadios"]:checked')?.value||'AUTO'}}
+
+  async function initIndicators(state){
+    const indData=await fetchJSON('/api/indicators');
+    const box=document.getElementById('indicatorsBox'); box.innerHTML='';
+    indData.indicators.forEach((name,i)=>{
+      const id='ind_'+i;
+      const wrap=document.createElement('label');
+      wrap.className='badge rounded-pill bg-dark border border-light-subtle px-3 py-2 d-flex align-items-center gap-2';
+      wrap.style.cursor='pointer';
+      const rb=document.createElement('input');
+      rb.type='radio'; rb.name='indicatorRadio'; rb.className='form-check-input me-2'; rb.id=id; rb.value=name;
+      if(state.name){ if(state.name===name) rb.checked=true; } else if(i===0){ rb.checked=true; }
+      const span=document.createElement('span'); span.textContent=name;
+      wrap.appendChild(rb); wrap.appendChild(span); box.appendChild(wrap);
+    });
+
+    box.addEventListener('change',async(e)=>{
+      if(e.target&&e.target.name==='indicatorRadio'){
+        const newName=selectedIndicator(); const enforced=enforceNativeIfNeeded(newName);
+        const st={name:newName,from:fromDate.value,to:toDate.value,freq_view:enforced||ui_getFreqView()};
+        writeQS(st); const has=await loadTable(st); await loadChart(st);
+        if(!has){ fromDate.value=''; toDate.value=''; showToast('Нет данных за выбранный период — показан полный диапазон.'); const st2={...st,from:'',to:''}; writeQS(st2); await loadTable(st2); await loadChart(st2); }
+      }
+    });
+  }
+
+  function selectedIndicator(){const el=document.querySelector('input[name="indicatorRadio"]:checked'); return el?el.value:''}
+  function ui_getFreqView(){return document.querySelector('input[name="freqRadios"]:checked')?.value||'AUTO'}
+
+  async function loadTable(state){
+    const qs=new URLSearchParams(); if(state.from)qs.set('from',state.from); if(state.to)qs.set('to',state.to);
+    const name=selectedIndicator(); if(name)qs.set('names',name);
+    qs.set('freq_view',ui_getFreqView());
+    const data=await fetchJSON(`/table_data?${qs.toString()}`);
+
+    const native=data.native; if(native && (selectedIndicator() in NATIVE_PREF)){ ui_setFreqView(native); ui_disableFreq(false,native); const hint=document.getElementById('freqHint'); hint.style.display='block'; hint.textContent='Для этого показателя доступна только родная частота.'; }
+
+    const thead=document.getElementById("tableHead"); thead.innerHTML=""; data.columns.forEach(c=>{const th=document.createElement("th"); th.className="sticky-th"; th.textContent=c; thead.appendChild(th);});
+    const tbody=document.getElementById("tableBody"); tbody.innerHTML=""; for(const row of data.rows){const tr=document.createElement("tr"); for(const cell of row){const td=document.createElement("td"); td.textContent=(cell==null)?'':cell; tr.appendChild(td);} tbody.appendChild(tr); }
+    document.getElementById('totalRows').textContent=`Всего строк: ${data.total}`;
+    return data.total>0;
+  }
+
+  async function loadChart(state){
+    const name=selectedIndicator(); if(!name) return;
+    const qs=new URLSearchParams(); qs.set('names',name);
+    if(state.from)qs.set('from',state.from); if(state.to)qs.set('to',state.to);
+    qs.set('freq_view',ui_getFreqView());
+    const resp=await fetchJSON(`/api/series_multi?${qs.toString()}`);
+
+    if(resp?.meta?.native && (name in NATIVE_PREF)){ ui_setFreqView(resp.meta.native); ui_disableFreq(false,resp.meta.native); const hint=document.getElementById('freqHint'); hint.style.display='block'; hint.textContent='Для этого показателя доступна только родная частота.'; }
+
+    const x=resp.meta.x||[]; const series=(resp.series||[]); const s=series[0]||{y:[],name:''};
+    const trace={ x, y:s.y, type:'scatter', mode:'lines+markers', name:(s.name||name),
+      line:{width:3.5, shape:'linear', color:'#2F80ED'}, marker:{size:6, color:'#2F80ED'}, yaxis:'y' };
+
+    document.getElementById('legendUnits').textContent = 'Показатель: ' + (s.name || name);
+
+    const layout={
+      margin:{l:50,r:30,t:10,b:40}, paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      xaxis:{type:'date', tickformat:'%m.%y', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{gridcolor:grid, tickfont:{color:text80}, title:''},
+      legend:{orientation:'h', x:0, y:1.1}
+    };
+    await Plotly.newPlot('chart', [trace], layout, {displayModeBar:true, responsive:true});
+  }
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    try{
+      const state={ name:"{{ qs_names }}", from:"{{ qs_from }}", to:"{{ qs_to }}", freq_view:"{{ qs_freq }}"||"AUTO" };
+      fromDate.value = state.from || ''; toDate.value = state.to || '';
+
+      await initIndicators(state);
+
+      const enforcedFirst = (selectedIndicator() ? enforceNativeIfNeeded(selectedIndicator()) : null);
+      ui_setFreqView(enforcedFirst || state.freq_view || 'AUTO');
+
+      const hadData = await loadTable(state);
+      await loadChart(state);
+      writeQS({...state, name:selectedIndicator(), freq_view:ui_getFreqView()});
+
+      if(!hadData && (state.from || state.to)){
+        fromDate.value=''; toDate.value='';
+        showToast('Нет данных за выбранный период — показан полный диапазон.');
+        const st2={...state, from:'', to:''}; writeQS(st2);
+        await loadTable(st2); await loadChart(st2);
+      }
+
+      document.getElementById('applyBtn').addEventListener('click', async () => {
+        const enforced = enforceNativeIfNeeded(selectedIndicator());
+        const st={ name:selectedIndicator(), from:fromDate.value, to:toDate.value, freq_view: enforced || ui_getFreqView() };
+        writeQS(st); const ok=await loadTable(st); await loadChart(st);
+        if(!ok && (st.from||st.to)){ fromDate.value=''; toDate.value=''; showToast('Нет данных за выбранный период — показан полный диапазон.'); const st2={...st,from:'',to:''}; writeQS(st2); await loadTable(st2); await loadChart(st2); }
+      });
+
+      document.getElementById('downloadPNG').addEventListener('click', async () => {
+        await Plotly.downloadImage('chart', {format:'png', filename:'macro_chart'});
+      });
+
+    }catch(e){ console.error(e); showToast('Ошибка инициализации интерфейса.'); }
+  });
+</script>
+{% endblock %}

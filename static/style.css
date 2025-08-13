@@ -1,0 +1,248 @@
+:root {
+  --bgTop: #2b1c3d;
+  --bg1: #0f1220;
+  --bg2: #0b0f1b;
+  --card: #171c2a;
+  --grid: #263043;
+  --text-80: #b1b7c3;
+  --pink: #ff4d9a;
+  --pink-2: #ff72c0;
+  --violet: #9333ea;
+  --indigo: #4f46e5;
+  --blue: #2f80ed;
+}
+
+body {
+  font-family: "Montserrat", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: #e8ecf3;
+  background: radial-gradient(1200px 600px at 30% 0%, var(--bgTop) 0%, var(--bg1) 60%, var(--bg2) 100%) fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Шапка */
+.header-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--pink);
+  box-shadow: 0 0 12px var(--pink), 0 0 22px rgba(255, 77, 154, 0.45);
+}
+
+.header-title {
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.text-secondary,
+.text-muted,
+label.form-label,
+.small {
+  color: var(--text-80) !important;
+}
+
+.btn-excel {
+  display: inline-block;
+  padding: 0.62rem 1.15rem;
+  border-radius: 999px;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--pink) 0%, var(--pink-2) 45%, var(--violet) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 10px 26px rgba(255, 77, 154, 0.28), 0 6px 14px rgba(147, 51, 234, 0.22);
+}
+
+.btn-excel:hover {
+  filter: brightness(1.07);
+  color: #fff;
+}
+
+.btn-excel-glow {
+  position: absolute;
+  inset: auto 10px 0 0;
+  height: 10px;
+  width: 140px;
+  filter: blur(18px);
+  border-radius: 20px;
+  background: radial-gradient(60% 60% at 50% 50%, rgba(255, 77, 154, 0.45) 0%, rgba(255, 77, 154, 0) 70%);
+  pointer-events: none;
+}
+
+/* Карточки — принудительно тёмные */
+.card,
+.card.bg-white,
+.card.bg-light,
+.bg-white,
+.bg-light {
+  background: rgba(18, 22, 35, 0.72) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 18px !important;
+  color: #e8ecf3 !important;
+}
+
+.glass {
+  backdrop-filter: blur(6px);
+}
+
+/* Поля и селекты */
+.form-control,
+.form-select {
+  background: #121827;
+  color: #e8ecf3;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 12px;
+}
+
+.form-control::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.form-control:focus,
+.form-select:focus {
+  background: #121827;
+  color: #fff;
+  border-color: rgba(99, 102, 241, 0.55);
+  box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.15);
+}
+
+/* Кнопки */
+.btn-glass {
+  background: linear-gradient(180deg, var(--indigo) 0%, var(--violet) 100%);
+  border: none;
+  color: #fff;
+  border-radius: 12px;
+  padding: 0.55rem 1.1rem;
+  box-shadow: 0 6px 20px rgba(147, 51, 234, 0.25);
+}
+
+.btn-outline-light {
+  color: #d7dbe6;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+}
+
+.btn-outline-light:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.btn-check:focus + .btn,
+.btn:focus {
+  box-shadow: none;
+}
+
+/* Частота */
+.btn-group .btn {
+  border-radius: 10px !important;
+}
+
+.btn-group .btn-check:checked + .btn {
+  background: rgba(47, 128, 237, 0.18);
+  border-color: rgba(47, 128, 237, 0.45);
+  color: #dce9ff;
+}
+
+.btn-group label.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Бейджи показателей */
+#indicatorsBox label.badge {
+  background: #1f2637;
+  color: #d7dbe6;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  padding: 0.5rem 0.9rem;
+}
+
+#indicatorsBox label.badge:hover {
+  background: #242c41;
+  color: #eef2f9;
+}
+
+#indicatorsBox input[type=radio] {
+  accent-color: var(--blue);
+}
+
+#indicatorsBox input[type=radio]:checked + span {
+  color: #e6efff;
+  text-shadow: 0 0 10px rgba(47, 128, 237, 0.35);
+}
+
+/* Таблица */
+.table-wrap {
+  max-height: 520px;
+  overflow: auto;
+}
+
+.table {
+  color: #e8ecf3;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(18, 22, 35, 0.9) !important;
+  color: var(--text-80) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.table tbody td {
+  color: #e8ecf3;
+  white-space: nowrap;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  background: transparent !important;
+}
+
+.table tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.015) !important;
+}
+
+.table tr:hover td {
+  background: rgba(99, 102, 241, 0.07) !important;
+}
+
+.table-wrap {
+  scrollbar-color: #3b4460 transparent;
+  scrollbar-width: thin;
+}
+
+/* График — тёмный фон */
+.chart {
+  height: 420px;
+  background: var(--card) !important;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.modebar {
+  filter: brightness(0.92);
+}
+
+.js-plotly-plot .plotly .main-svg {
+  font-family: "Montserrat", system-ui, sans-serif;
+}
+
+.js-plotly-plot .xgrid,
+.js-plotly-plot .ygrid {
+  stroke: var(--grid) !important;
+}
+
+/* Подсказки */
+#freqHint {
+  color: #f5b84b !important;
+}
+
+#toast {
+  color: #f5b84b;
+}
+
+select.form-select-sm.w-auto {
+  background: #121827;
+  color: #e8ecf3;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
