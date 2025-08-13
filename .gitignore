@@ -1,0 +1,25 @@
+# OS / IDE
+.DS_Store
+.vscode/
+*.log
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Node (на всякий)
+node_modules/
+
+# Data / exports / screenshots
+data/*.csv
+data/*.parquet
+data/*.zip
+data/*-large.*
+*.png
+*.jpg
+*.jpeg
+
+# Jupyter
+.ipynb_checkpoints/
