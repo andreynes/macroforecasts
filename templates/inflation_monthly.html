@@ -1,0 +1,1112 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --surface-2:      #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6;
+    --stat-good:      #b9761f;
+    --stat-critical:  #2a78d6;
+    --band-bg:        #f3ddab;
+    --band-text:      #5c4415;
+    --wf-pos:         #e34948;
+    --wf-neg:         #2a78d6;
+    --wf-marker:      #c98a2f;
+    --wf-total:       #c0332f;
+    --wf-separate:    #8a5a2b;
+    --series-food:    #d0384a;
+    --series-nonfood: #2a78d6;
+    --series-services:#8a5fd6;
+    --series-headline:#9a9890;
+    --bucket-low:     #eda100;
+    --bucket-target:  #7fae6a;
+    --bucket-elevated:#d0384a;
+    --bucket-high:    #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1: #1a1a19; --surface-2: #0d0d0d; --text-primary: #ffffff;
+      --text-secondary: #c3c2b7; --text-muted: #898781; --gridline: #2c2c2a;
+      --border: rgba(255,255,255,0.10); --series-1: #3987e5;
+      --stat-good: #d3a24c; --stat-critical: #3987e5;
+      --band-bg: rgba(122, 92, 255, 0.18); --band-text: #e7e0ff;
+      --wf-pos: #e66767; --wf-neg: #3987e5;
+      --wf-marker: #dba24f; --wf-total: #e0554f; --wf-separate: #b98a52;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --surface-2: #0d0d0d; --text-primary: #ffffff;
+    --text-secondary: #c3c2b7; --text-muted: #898781; --gridline: #2c2c2a;
+    --border: rgba(255,255,255,0.10); --series-1: #3987e5;
+    --stat-good: #d3a24c; --stat-critical: #3987e5;
+    --band-bg: rgba(122, 92, 255, 0.18); --band-text: #e7e0ff;
+    --wf-pos: #e66767; --wf-neg: #3987e5;
+    --wf-marker: #dba24f; --wf-total: #e0554f; --wf-separate: #b98a52;
+  }
+
+  * { box-sizing: border-box; }
+  .viz-root { background: var(--surface-2); color: var(--text-primary); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; min-height: 100vh; padding: 24px 20px 64px; }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+
+  header.page-head { margin-bottom: 20px; }
+  header.page-head h1 { font-size: 22px; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header.page-head p { font-size: 13px; color: var(--text-secondary); margin: 0; max-width: 780px; line-height: 1.5; }
+
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px 20px; margin-bottom: 18px; }
+  .section-title { font-size: 15px; font-weight: 700; margin: 26px 0 10px; }
+  .section-note { font-size: 12px; color: var(--text-muted); margin: 0 0 14px; max-width: 780px; line-height: 1.5; }
+  .chart-head { margin-bottom: 8px; }
+  .chart-title { font-size: 14px; font-weight: 700; }
+  .chart-box { position: relative; }
+  .chart-box svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .axis-label { fill: var(--text-muted); font-size: 10px; }
+  .baseline { stroke: var(--text-muted); stroke-width: 1; }
+  .gridline { stroke: var(--gridline); stroke-width: 1; }
+  .ref-line { stroke: var(--bucket-target); stroke-width: 1.4; stroke-dasharray: 5 3; opacity: 0.85; }
+  .ref-label { fill: var(--bucket-target); font-size: 11px; font-weight: 700; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin: 0 0 8px; }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+  .legend .key { width: 14px; height: 2px; border-radius: 2px; display: inline-block; }
+  .legend .key.rect { width: 12px; height: 10px; border-radius: 2px; }
+
+  .tooltip {
+    position: absolute; pointer-events: none; z-index: 5;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    white-space: nowrap; opacity: 0; transition: opacity 0.08s;
+  }
+  .tooltip.show { opacity: 1; }
+  .tooltip .t-date { color: var(--text-muted); font-size: 11px; margin-bottom: 4px; }
+  .tooltip .t-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+  .tooltip .t-name { color: var(--text-secondary); }
+  .tooltip .t-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .filter-row .fr-label { font-size: 12px; color: var(--text-muted); }
+  .segctl { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .segctl button { font: inherit; font-size: 13px; color: var(--text-secondary); background: var(--surface-1); border: none; padding: 6px 12px; cursor: pointer; border-right: 1px solid var(--border); }
+  .segctl button:last-child { border-right: none; }
+  .segctl button:hover { background: var(--surface-2); }
+  .segctl button[aria-pressed="true"] { background: var(--series-1); color: #fff; font-weight: 600; }
+
+  .month-input {
+    font: inherit; font-size: 13px; color: var(--text-primary);
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 5px 8px; color-scheme: dark;
+  }
+
+  .constructor-checklist {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 6px 16px; max-height: 280px; overflow-y: auto;
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
+    font-size: 12.5px;
+  }
+  .constructor-checklist label { display: flex; align-items: center; gap: 7px; cursor: pointer; color: var(--text-secondary); }
+  .constructor-checklist label:hover { color: var(--text-primary); }
+  .constructor-checklist input[type=checkbox] { accent-color: var(--series-1); cursor: pointer; }
+
+  /* Карточка таблицы и сама таблица — приближено к общему стилю сайта (тёмное стекло, фиолетовый акцент) */
+  .card.table-card {
+    background: rgba(18, 22, 35, 0.72);
+    backdrop-filter: blur(6px);
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+  .table-wrap { overflow: auto; max-height: 640px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); }
+  table.datatab {
+    border-collapse: separate; border-spacing: 0; width: 100%;
+    font-family: "Montserrat", system-ui, -apple-system, sans-serif;
+    font-size: 14px; font-variant-numeric: tabular-nums;
+  }
+  table.datatab th, table.datatab td { padding: 10px 15px; text-align: right; border-bottom: 1px solid rgba(255, 255, 255, 0.06); white-space: nowrap; }
+
+  /* Закреплённая шапка (даты) при вертикальной прокрутке */
+  table.datatab thead th {
+    position: sticky; top: 0; z-index: 3;
+    background: rgba(18, 22, 35, 0.94);
+    vertical-align: bottom; padding-bottom: 12px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  table.datatab th.rot { height: 86px; }
+  table.datatab th.rot > div { position: absolute; bottom: 8px; right: -6px; transform-origin: bottom left; transform: rotate(-55deg); font-weight: 700; font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+
+  /* Закреплённая колонка названий строк при горизонтальной прокрутке */
+  table.datatab th.rowlabel, table.datatab td.rowlabel {
+    text-align: left; white-space: nowrap;
+    position: sticky; left: 0; z-index: 1;
+    background: rgba(18, 22, 35, 0.94); padding-right: 20px;
+  }
+  table.datatab thead th.rowlabel { z-index: 4; } /* угловая ячейка — поверх обеих осей */
+  table.datatab td.avg3, table.datatab th.avg3 { border-left: 2px solid rgba(255, 255, 255, 0.10); }
+
+  tr.band td {
+    background: var(--band-bg); color: var(--band-text); font-weight: 700;
+    font-size: 13px; padding: 9px 15px; border-bottom: none; text-align: left;
+    position: sticky; left: 0; z-index: 2;
+  }
+
+  tr.indent-0 td.rowlabel { font-weight: 700; }
+  tr.indent-1 td.rowlabel { padding-left: 26px; font-style: italic; color: var(--text-secondary); }
+  tr.indent-2 td.rowlabel { padding-left: 26px; }
+  tr.indent-0 { border-top: 1px solid rgba(255, 255, 255, 0.06); }
+
+  table.datatab tbody tr:not(.band):nth-child(even) td { background: rgba(255, 255, 255, 0.015); }
+  table.datatab tbody tr:not(.band):hover td { background: rgba(122, 92, 255, 0.12) !important; }
+
+  td.pos { color: var(--text-primary); }
+  td.neg { color: var(--stat-critical); }
+  td.na { color: var(--text-muted); }
+
+  footer.page-foot { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 30px; }
+</style>
+
+<div class="viz-root">
+  <div class="wrap">
+    <header class="page-head">
+      <h1>Месячная инфляция России</h1>
+    </header>
+
+    <div class="card table-card">
+      <div class="filter-row">
+        <span class="fr-label">Показатель:</span>
+        <div class="segctl" id="metricCtl" role="group" aria-label="Показатель"></div>
+      </div>
+      <div class="section-note" id="metricNote" style="margin-bottom:10px;"></div>
+      <div class="table-wrap" id="table1Wrap"></div>
+    </div>
+
+    <div class="section-title">Сезонно сглаженный рост цен, % м/м SAAR</div>
+    <div class="card">
+      <div class="legend" id="legendSaarHist"></div>
+      <div class="chart-box" id="chartSaarHist"></div>
+    </div>
+
+    <div class="section-title">Сезонно сглаженный рост цен в устойчивых компонентах, % SAAR</div>
+    <div class="section-note">Диапазон 20–80% перцентиль и среднее по: ИПЦ без плодоовощей/нефтепродуктов/ЖКУ, базовый ИПЦ, базовый ИПЦ без туризма, обе медианы, прирост без 20% волатильных, продовольствие без плодоовощей, непродовольствие без нефтепродуктов, услуги без ЖКУ. С начала 2024 — по 6 метрикам (indicators_cpd.xlsx); с августа 2025 — по всем 9 (медианы/триммированное среднее из бюллетеней ЦБ, в старых выпусках не парсятся).</div>
+    <div class="card">
+      <div class="legend" id="legendCoreBand"></div>
+      <div class="chart-box" id="chartCoreBand"></div>
+    </div>
+
+    <div class="section-title">Распределение месячных индексов цен по темпу роста</div>
+    <div class="section-note">Доля веса ~44 групп ЦБ (indicators_cpd.xlsx, без плодоовощной продукции и ЖКУ — слишком волатильны/сезонны для типичной картины) по корзинам годового темпа (SAAR). По месяцам за последние 2 года.</div>
+    <div class="card">
+      <div class="legend" id="legendDiffusion"></div>
+      <div class="chart-box" id="chartDiffusion"></div>
+    </div>
+
+    <div class="section-title">Декомпозиция инфляции на шоки спроса и предложения, % SAAR</div>
+    <div class="section-note">Вклад шоков спроса и предложения в инфляцию с сезонной корректировкой, аннуализировано (SAAR): итог — аннуализация факт. темпа месяца, вклады спроса/предложения — пропорциональное распределение итога по их доле в темпе м/м. По месяцам за последние 2 года. Источник: СберИндекс (sberindex.ru), полная история — с января 2012.</div>
+    <div class="card">
+      <div class="legend" id="legendDemandSupply"></div>
+      <div class="chart-box" id="chartDemandSupply"></div>
+    </div>
+
+    <div class="section-title">Декомпозиция* роста цен на шоки спроса и предложения, % к предыдущему периоду SAAR</div>
+    <div class="section-note">Официальная декомпозиция Банка России (бюллетень «О чём говорят тренды», рис. 8) на 4 типа шоков: положительный/отрицательный шок спроса (P+ Q+ / P− Q−) и положительный/отрицательный шок предложения (P− Q+ / P+ Q−) — в терминах изменения цены (P) и количества (Q) одновременно. Поквартально с 2016 г., последние 1-2 периода (ещё не закрытый квартал) — помесячно. Линия — фактический ИПЦ SAAR за тот же период.</div>
+    <div class="card">
+      <div class="legend" id="legendDemandSupplyCbr"></div>
+      <div class="chart-box" id="chartDemandSupplyCbr"></div>
+    </div>
+
+    <div class="section-title">Влияние курса на инфляцию, % SAAR</div>
+    <div class="section-note">Медианные значения ИПЦ по группам товаров и услуг в зависимости от чувствительности к динамике курса (% м/м SAAR) и изменение курса доллара США к рублю (%). По месяцам с января 2023. Оценка ДИП Банка России.</div>
+    <div class="card">
+      <div class="legend" id="legendFxSensitivity"></div>
+      <div class="chart-box" id="chartFxSensitivity"></div>
+    </div>
+
+    <div class="section-title">Влияние курса на инфляцию, % SAAR (ДДКП)</div>
+    <div class="section-note">Тот же показатель, но независимая оценка другого департамента Банка России (ДДКП, месячный бюллетень «Динамика потребительских цен») — своя методология группировки товаров по чувствительности к курсу, отличная от ДИП на графике выше. Готовых цифр в открытом доступе нет — ряд оцифрован по векторному графику бюллетеня; точность проверена сверкой с параллельным графиком «3 скользящих месяца» из того же источника (сходится с точностью до шума округления). По месяцам с января 2019.</div>
+    <div class="card">
+      <div class="legend" id="legendFxSensitivityDdkp"></div>
+      <div class="chart-box" id="chartFxSensitivityDdkp"></div>
+    </div>
+
+    <div class="section-title">Вклад групп в SAAR ИПЦ, п.п.</div>
+    <div class="card">
+      <div class="chart-head">
+        <div class="chart-title" id="contribLatestTitle">Компоненты SAAR ИПЦ</div>
+      </div>
+      <div class="chart-box" id="chartContribLatest"></div>
+    </div>
+    <div class="card">
+      <div class="chart-head">
+        <div class="chart-title" id="contribAvg3Title">Компоненты среднемесячного SAAR ИПЦ</div>
+      </div>
+      <div class="chart-box" id="chartContribAvg3"></div>
+    </div>
+
+    <div class="section-title">Компоненты прироста ИПЦ (водопад)</div>
+    <div class="card">
+      <div class="chart-head">
+        <div class="chart-title" id="wfLatestTitle">Компоненты прироста ИПЦ</div>
+      </div>
+      <div class="chart-box" id="chartWfLatest"></div>
+    </div>
+    <div class="card">
+      <div class="chart-head">
+        <div class="chart-title">Компоненты среднемесячного прироста ИПЦ (последние 3 мес.)</div>
+      </div>
+      <div class="chart-box" id="chartWfAvg3"></div>
+    </div>
+
+    <div class="section-title">Конструктор: SAAR по любому показателю</div>
+    <div class="section-note">Любые ряды из indicators_cpd.xlsx (Банк России), помесячно с января 2015. Отметьте показатели галочками, период можно сузить (не раньше января 2015).</div>
+    <div class="card">
+      <div class="filter-row">
+        <span class="fr-label">Период:</span>
+        <input type="month" id="constructorFrom" min="2015-01" class="month-input" />
+        <span class="fr-label">—</span>
+        <input type="month" id="constructorTo" min="2015-01" class="month-input" />
+      </div>
+      <div class="legend" id="legendConstructor"></div>
+      <div class="chart-box" id="chartConstructor"></div>
+      <div class="constructor-checklist" id="constructorChecklist"></div>
+    </div>
+
+    <footer class="page-foot">Источники: Росстат, Банк России · monthly_data.py</footer>
+  </div>
+</div>
+
+<script>
+const LATEST = "2026-09";
+const TABLE1 = {"columns": [{"type": "quarter", "key": "2025Q2", "label": "II кв. 25"}, {"type": "quarter", "key": "2025Q3", "label": "III кв. 25"}, {"type": "quarter", "key": "2025Q4", "label": "IV кв. 25"}, {"type": "quarter", "key": "2026Q1", "label": "I кв. 26"}, {"type": "month", "key": "2026-04", "label": "апр 26"}, {"type": "month", "key": "2026-05", "label": "май 26"}, {"type": "month", "key": "2026-06", "label": "июн 26"}, {"type": "month", "key": "2026-07", "label": "июл 26"}, {"type": "month", "key": "2026-08", "label": "авг 26"}, {"type": "month", "key": "2026-09", "label": "сен 26"}, {"type": "avg3", "key": "avg3", "label": "ср. 3 мес."}], "rows": [{"label": "ИПЦ, все товары и услуги", "indent": 0, "panels": ["mm", "saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": 0.34, "saar": 4.4, "yoy": 9.4, "yoy_estimated": false}, {"mm": 0.17, "saar": 6.0, "yoy": 7.98, "yoy_estimated": false}, {"mm": 0.41, "saar": 4.5, "yoy": 5.59, "yoy_estimated": false}, {"mm": 0.98, "saar": 8.6, "yoy": 5.86, "yoy_estimated": false}, {"mm": 0.14, "saar": 2.5, "yoy": 5.58, "yoy_estimated": false}, {"mm": 0.17, "saar": 2.0, "yoy": 5.31, "yoy_estimated": false}, {"mm": 0.87, "saar": 10.6, "yoy": 6.02, "yoy_estimated": false}, {"mm": 0.54, "saar": 10.0, "yoy": 5.98, "yoy_estimated": false}, {"mm": -0.08, "saar": 7.5, "yoy": 6.33, "yoy_estimated": false}, {"mm": 0.35, "saar": 6.5, "yoy": 6.35, "yoy_estimated": false}, {"mm": 0.27, "saar": 8.0, "yoy": null, "yoy_estimated": false}]}, {"label": "без плодоовощей, нефтепродуктов и ЖКУ", "indent": 1, "panels": ["mm", "saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": 0.44, "saar": 4.5, "yoy": 8.69, "yoy_estimated": false}, {"mm": 0.16, "saar": 4.3, "yoy": 7.63, "yoy_estimated": false}, {"mm": 0.3, "saar": 4.6, "yoy": 5.49, "yoy_estimated": false}, {"mm": 0.81, "saar": 7.4, "yoy": 5.23, "yoy_estimated": false}, {"mm": 0.31, "saar": 4.2, "yoy": 5.17, "yoy_estimated": false}, {"mm": 0.52, "saar": 4.2, "yoy": 5.07, "yoy_estimated": false}, {"mm": 0.41, "saar": 4.0, "yoy": 5.16, "yoy_estimated": false}, {"mm": 0.35, "saar": 6.9, "yoy": 5.43, "yoy_estimated": false}, {"mm": 0.17, "saar": 6.0, "yoy": 5.66, "yoy_estimated": false}, {"mm": 0.6, "saar": 6.9, "yoy": 5.83, "yoy_estimated": false}, {"mm": 0.37, "saar": 6.6, "yoy": null, "yoy_estimated": false}]}, {"label": "Базовый ИПЦ", "indent": 0, "panels": ["mm", "saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": 0.43, "saar": 4.4, "yoy": 8.7, "yoy_estimated": false}, {"mm": 0.26, "saar": 4.3, "yoy": 7.65, "yoy_estimated": false}, {"mm": 0.28, "saar": 4.8, "yoy": 5.44, "yoy_estimated": false}, {"mm": 0.67, "saar": 6.1, "yoy": 5.03, "yoy_estimated": false}, {"mm": 0.25, "saar": 4.0, "yoy": 4.96, "yoy_estimated": false}, {"mm": 0.55, "saar": 4.3, "yoy": 4.9, "yoy_estimated": false}, {"mm": 0.48, "saar": 4.3, "yoy": 5.02, "yoy_estimated": false}, {"mm": 0.44, "saar": 6.8, "yoy": 5.22, "yoy_estimated": false}, {"mm": 0.29, "saar": 5.9, "yoy": 5.37, "yoy_estimated": false}, {"mm": 0.49, "saar": 6.0, "yoy": 5.47, "yoy_estimated": false}, {"mm": 0.41, "saar": 6.2, "yoy": null, "yoy_estimated": false}]}, {"label": "базовый ИПЦ без туризма", "indent": 1, "panels": ["saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": null, "saar": 4.3, "yoy": 8.73, "yoy_estimated": false}, {"mm": null, "saar": 4.3, "yoy": 7.73, "yoy_estimated": false}, {"mm": null, "saar": 5.0, "yoy": 5.56, "yoy_estimated": false}, {"mm": null, "saar": 5.7, "yoy": 4.91, "yoy_estimated": false}, {"mm": null, "saar": 3.7, "yoy": 4.89, "yoy_estimated": false}, {"mm": null, "saar": 2.9, "yoy": 4.74, "yoy_estimated": false}, {"mm": null, "saar": 5.7, "yoy": 4.85, "yoy_estimated": false}, {"mm": null, "saar": 7.5, "yoy": 5.11, "yoy_estimated": false}, {"mm": null, "saar": 6.1, "yoy": 5.26, "yoy_estimated": false}, {"mm": null, "saar": 5.9, "yoy": 5.4, "yoy_estimated": false}, {"mm": null, "saar": 6.5, "yoy": null, "yoy_estimated": false}]}, {"label": "Медиана (с учетом весов)", "indent": 0, "panels": ["saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": null, "saar": 5.0, "yoy": 10.12, "yoy_estimated": false}, {"mm": null, "saar": 4.5, "yoy": 9.09, "yoy_estimated": false}, {"mm": null, "saar": 4.8, "yoy": 6.23, "yoy_estimated": false}, {"mm": null, "saar": 7.2, "yoy": 6.07, "yoy_estimated": false}, {"mm": null, "saar": 3.7, "yoy": 5.7, "yoy_estimated": false}, {"mm": null, "saar": 3.6, "yoy": 5.24, "yoy_estimated": false}, {"mm": null, "saar": 4.0, "yoy": 5.96, "yoy_estimated": false}, {"mm": null, "saar": 6.4, "yoy": 4.92, "yoy_estimated": false}, {"mm": null, "saar": 5.0, "yoy": 5.06, "yoy_estimated": false}, {"mm": null, "saar": 4.1, "yoy": 5.11, "yoy_estimated": false}, {"mm": null, "saar": 5.2, "yoy": null, "yoy_estimated": false}]}, {"label": "Медиана (без учета весов)", "indent": 0, "panels": ["saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": null, "saar": 4.2, "yoy": 6.69, "yoy_estimated": false}, {"mm": null, "saar": 3.7, "yoy": 6.25, "yoy_estimated": false}, {"mm": null, "saar": 3.9, "yoy": 4.94, "yoy_estimated": false}, {"mm": null, "saar": 5.0, "yoy": 4.41, "yoy_estimated": false}, {"mm": null, "saar": 4.3, "yoy": 4.31, "yoy_estimated": false}, {"mm": null, "saar": 3.0, "yoy": 4.13, "yoy_estimated": false}, {"mm": null, "saar": 3.1, "yoy": 3.99, "yoy_estimated": false}, {"mm": null, "saar": 4.6, "yoy": 3.97, "yoy_estimated": false}, {"mm": null, "saar": 4.8, "yoy": 4.24, "yoy_estimated": false}, {"mm": null, "saar": 4.5, "yoy": 4.54, "yoy_estimated": false}, {"mm": null, "saar": 4.6, "yoy": null, "yoy_estimated": false}]}, {"label": "Прирост цен без 20% волатильных компонентов", "indent": 0, "panels": ["saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": null, "saar": 4.3, "yoy": 8.77, "yoy_estimated": false}, {"mm": null, "saar": 7.4, "yoy": 7.93, "yoy_estimated": false}, {"mm": null, "saar": 5.1, "yoy": 6.66, "yoy_estimated": false}, {"mm": null, "saar": 6.9, "yoy": 6.98, "yoy_estimated": false}, {"mm": null, "saar": 4.3, "yoy": 6.92, "yoy_estimated": false}, {"mm": null, "saar": 3.5, "yoy": 7.13, "yoy_estimated": false}, {"mm": null, "saar": 3.5, "yoy": 5.72, "yoy_estimated": false}, {"mm": null, "saar": 5.5, "yoy": 4.51, "yoy_estimated": false}, {"mm": null, "saar": 5.9, "yoy": 4.53, "yoy_estimated": false}, {"mm": null, "saar": 5.9, "yoy": 4.29, "yoy_estimated": false}, {"mm": null, "saar": 5.8, "yoy": null, "yoy_estimated": false}]}, {"label": "Продовольственные товары", "indent": 0, "panels": ["mm", "saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": 0.36, "saar": 7.0, "yoy": 11.91, "yoy_estimated": false}, {"mm": -0.51, "saar": 2.8, "yoy": 9.46, "yoy_estimated": false}, {"mm": 0.72, "saar": 2.5, "yoy": 5.24, "yoy_estimated": false}, {"mm": 1.05, "saar": 7.6, "yoy": 4.97, "yoy_estimated": false}, {"mm": -0.2, "saar": -2.3, "yoy": 4.02, "yoy_estimated": false}, {"mm": -0.85, "saar": -5.1, "yoy": 2.86, "yoy_estimated": false}, {"mm": 0.65, "saar": 10.9, "yoy": 3.42, "yoy_estimated": false}, {"mm": 0.29, "saar": 13.2, "yoy": 4.39, "yoy_estimated": false}, {"mm": -0.26, "saar": 10.7, "yoy": 5.08, "yoy_estimated": false}, {"mm": 0.0, "saar": 5.3, "yoy": 5.05, "yoy_estimated": false}, {"mm": 0.01, "saar": 9.7, "yoy": null, "yoy_estimated": false}]}, {"label": "продовольственные товары без плодоовощей", "indent": 1, "panels": ["mm", "saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": 0.54, "saar": 8.1, "yoy": 11.41, "yoy_estimated": false}, {"mm": 0.38, "saar": 5.1, "yoy": 10.52, "yoy_estimated": false}, {"mm": 0.42, "saar": 3.7, "yoy": 7.39, "yoy_estimated": false}, {"mm": 0.62, "saar": 7.2, "yoy": 6.01, "yoy_estimated": false}, {"mm": 0.22, "saar": 2.9, "yoy": 5.61, "yoy_estimated": false}, {"mm": -0.08, "saar": 1.3, "yoy": 4.9, "yoy_estimated": false}, {"mm": 0.16, "saar": 4.1, "yoy": 4.62, "yoy_estimated": false}, {"mm": 0.67, "saar": 9.8, "yoy": 4.98, "yoy_estimated": false}, {"mm": 0.51, "saar": 7.0, "yoy": 5.15, "yoy_estimated": false}, {"mm": 0.56, "saar": 6.2, "yoy": 5.24, "yoy_estimated": false}, {"mm": 0.58, "saar": 7.7, "yoy": null, "yoy_estimated": false}]}, {"label": "плодоовощная продукция", "indent": 1, "panels": ["mm", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": -0.8, "saar": null, "yoy": 15.25, "yoy_estimated": false}, {"mm": -6.91, "saar": null, "yoy": 1.22, "yoy_estimated": false}, {"mm": 3.24, "saar": null, "yoy": -8.8, "yoy_estimated": false}, {"mm": 4.09, "saar": null, "yoy": -2.29, "yoy_estimated": false}, {"mm": -2.95, "saar": null, "yoy": -6.56, "yoy_estimated": false}, {"mm": -6.0, "saar": null, "yoy": -10.42, "yoy_estimated": false}, {"mm": 4.19, "saar": null, "yoy": -4.88, "yoy_estimated": false}, {"mm": -2.32, "saar": null, "yoy": 0.04, "yoy_estimated": false}, {"mm": -5.72, "saar": null, "yoy": 4.81, "yoy_estimated": false}, {"mm": -4.24, "saar": null, "yoy": 4.0, "yoy_estimated": false}, {"mm": -4.1, "saar": null, "yoy": null, "yoy_estimated": false}]}, {"label": "Непродовольственные товары", "indent": 0, "panels": ["mm", "saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": -0.08, "saar": 0.1, "yoy": 4.47, "yoy_estimated": false}, {"mm": 0.4, "saar": 3.0, "yoy": 3.85, "yoy_estimated": false}, {"mm": 0.39, "saar": 5.2, "yoy": 2.99, "yoy_estimated": false}, {"mm": 0.45, "saar": 6.6, "yoy": 3.54, "yoy_estimated": false}, {"mm": 0.26, "saar": 4.4, "yoy": 3.88, "yoy_estimated": false}, {"mm": 0.17, "saar": 3.7, "yoy": 4.19, "yoy_estimated": false}, {"mm": 1.0, "saar": 13.6, "yoy": 5.26, "yoy_estimated": false}, {"mm": 1.26, "saar": 10.2, "yoy": 6.39, "yoy_estimated": false}, {"mm": 0.53, "saar": 6.6, "yoy": 6.51, "yoy_estimated": false}, {"mm": 0.55, "saar": 5.8, "yoy": 6.47, "yoy_estimated": false}, {"mm": 0.78, "saar": 7.5, "yoy": null, "yoy_estimated": false}]}, {"label": "непродовольственные товары без нефтепродуктов", "indent": 1, "panels": ["mm", "saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": -0.17, "saar": -0.8, "yoy": 3.38, "yoy_estimated": false}, {"mm": 0.16, "saar": 1.4, "yoy": 2.53, "yoy_estimated": false}, {"mm": 0.37, "saar": 3.7, "yoy": 1.82, "yoy_estimated": false}, {"mm": 0.36, "saar": 4.5, "yoy": 2.2, "yoy_estimated": false}, {"mm": 0.2, "saar": 3.0, "yoy": 2.58, "yoy_estimated": false}, {"mm": 0.05, "saar": 2.1, "yoy": 2.82, "yoy_estimated": false}, {"mm": -0.04, "saar": 1.2, "yoy": 2.92, "yoy_estimated": false}, {"mm": 0.22, "saar": 3.5, "yoy": 3.14, "yoy_estimated": false}, {"mm": 0.53, "saar": 5.5, "yoy": 3.47, "yoy_estimated": false}, {"mm": 0.47, "saar": 4.4, "yoy": 3.69, "yoy_estimated": false}, {"mm": 0.41, "saar": 4.5, "yoy": null, "yoy_estimated": false}]}, {"label": "Услуги", "indent": 0, "panels": ["mm", "saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": 0.82, "saar": 5.9, "yoy": 12.02, "yoy_estimated": false}, {"mm": 0.84, "saar": 14.3, "yoy": 11.09, "yoy_estimated": false}, {"mm": 0.03, "saar": 6.6, "yoy": 9.3, "yoy_estimated": false}, {"mm": 1.5, "saar": 12.5, "yoy": 9.96, "yoy_estimated": false}, {"mm": 0.47, "saar": 7.2, "yoy": 9.9, "yoy_estimated": false}, {"mm": 1.55, "saar": 10.1, "yoy": 10.13, "yoy_estimated": false}, {"mm": 1.0, "saar": 6.8, "yoy": 10.58, "yoy_estimated": false}, {"mm": 0.07, "saar": 5.7, "yoy": 7.76, "yoy_estimated": false}, {"mm": -0.54, "saar": 4.3, "yoy": 7.85, "yoy_estimated": false}, {"mm": 0.58, "saar": 8.9, "yoy": 7.97, "yoy_estimated": false}, {"mm": 0.04, "saar": 6.3, "yoy": null, "yoy_estimated": false}]}, {"label": "услуги без ЖКУ", "indent": 1, "panels": ["mm", "saar", "yoy"], "proxy": false, "source": "cbr_bulletin", "cols": [{"mm": 1.18, "saar": 6.4, "yoy": 12.24, "yoy_estimated": false}, {"mm": -0.21, "saar": 7.4, "yoy": 10.55, "yoy_estimated": false}, {"mm": -0.02, "saar": 7.7, "yoy": 7.91, "yoy_estimated": false}, {"mm": 1.84, "saar": 12.3, "yoy": 8.63, "yoy_estimated": false}, {"mm": 0.64, "saar": 8.2, "yoy": 8.46, "yoy_estimated": false}, {"mm": 2.28, "saar": 13.1, "yoy": 8.87, "yoy_estimated": false}, {"mm": 1.46, "saar": 7.8, "yoy": 9.53, "yoy_estimated": false}, {"mm": -0.03, "saar": 6.6, "yoy": 9.69, "yoy_estimated": false}, {"mm": -0.94, "saar": 4.8, "yoy": 9.9, "yoy_estimated": false}, {"mm": 0.83, "saar": 11.5, "yoy": 10.07, "yoy_estimated": false}, {"mm": -0.05, "saar": 7.6, "yoy": null, "yoy_estimated": false}]}]};
+const CONTRIB_LATEST = {"bars": [{"name": "Услуги в системе образования", "value": 0.759}, {"name": "Прочее (вне 44 групп + округления)", "value": 0.742}, {"name": "Мясопродукты", "value": 0.722}, {"name": "Нефтепродукты", "value": 0.603}, {"name": "Рыбопродукты", "value": 0.524}, {"name": "Бытовые услуги", "value": 0.5}, {"name": "Жилищно-коммунальные услуги", "value": 0.379}, {"name": "Средства связи", "value": 0.368}, {"name": "Яйца", "value": 0.256}, {"name": "Услуги пассажирского транспорта", "value": 0.243}, {"name": "Санаторно-оздоровительные услуги", "value": 0.165}, {"name": "Медицинские услуги", "value": 0.16}, {"name": "Услуги в сфере зарубежного туризма", "value": 0.156}, {"name": "Легковые автомобили", "value": 0.149}, {"name": "Медицинские товары", "value": 0.147}, {"name": "Хлеб и хлебобулочные изделия", "value": 0.133}, {"name": "Макаронные и крупяные изделия", "value": 0.128}, {"name": "Персональные компьютеры", "value": 0.09}, {"name": "Парфюмерно-косметические товары", "value": 0.084}, {"name": "Масло и жиры", "value": 0.074}, {"name": "Моющие и чистящие средства", "value": 0.067}, {"name": "Мебель", "value": 0.066}, {"name": "Кондитерские изделия", "value": 0.055}, {"name": "Электротовары и другие бытовые приборы", "value": 0.054}, {"name": "Услуги связи", "value": 0.051}, {"name": "Строительные материалы", "value": 0.048}, {"name": "Алкогольные напитки", "value": 0.047}, {"name": "Молоко и молочная продукция", "value": 0.045}, {"name": "Табачные изделия", "value": 0.044}, {"name": "Телерадиотовары", "value": 0.044}, {"name": "Общественное питание", "value": 0.041}, {"name": "Услуги организаций культуры", "value": 0.041}, {"name": "Галантерея", "value": 0.012}, {"name": "Меха и меховые изделия", "value": 0.011}, {"name": "Печатные издания", "value": 0.01}, {"name": "Услуги гостиниц и прочих мест проживания", "value": 0.003}, {"name": "Инструменты и оборудование", "value": 0.002}, {"name": "Чай, кофе", "value": -0.014}, {"name": "Сахар", "value": -0.026}, {"name": "Сыр", "value": -0.034}, {"name": "Трикотажные изделия", "value": -0.045}, {"name": "Одежда и белье", "value": -0.069}, {"name": "Обувь кожаная, текстильная и комбинированная", "value": -0.08}, {"name": "Плодоовощная продукция, включая картофель", "value": -0.082}, {"name": "Экскурсионные услуги", "value": -0.147}], "total": 6.526};
+const CONTRIB_AVG3 = {"bars": [{"name": "Мясопродукты", "value": 1.153}, {"name": "Нефтепродукты", "value": 1.072}, {"name": "Плодоовощная продукция, включая картофель", "value": 1.062}, {"name": "Прочее (вне 44 групп + округления)", "value": 0.905}, {"name": "Бытовые услуги", "value": 0.534}, {"name": "Жилищно-коммунальные услуги", "value": 0.362}, {"name": "Услуги в системе образования", "value": 0.335}, {"name": "Рыбопродукты", "value": 0.334}, {"name": "Средства связи", "value": 0.296}, {"name": "Услуги в сфере зарубежного туризма", "value": 0.224}, {"name": "Услуги пассажирского транспорта", "value": 0.217}, {"name": "Общественное питание", "value": 0.159}, {"name": "Медицинские услуги", "value": 0.154}, {"name": "Макаронные и крупяные изделия", "value": 0.135}, {"name": "Сахар", "value": 0.131}, {"name": "Медицинские товары", "value": 0.124}, {"name": "Хлеб и хлебобулочные изделия", "value": 0.117}, {"name": "Яйца", "value": 0.101}, {"name": "Кондитерские изделия", "value": 0.099}, {"name": "Алкогольные напитки", "value": 0.094}, {"name": "Мебель", "value": 0.093}, {"name": "Молоко и молочная продукция", "value": 0.092}, {"name": "Парфюмерно-косметические товары", "value": 0.084}, {"name": "Персональные компьютеры", "value": 0.072}, {"name": "Строительные материалы", "value": 0.063}, {"name": "Табачные изделия", "value": 0.062}, {"name": "Одежда и белье", "value": 0.048}, {"name": "Услуги организаций культуры", "value": 0.04}, {"name": "Моющие и чистящие средства", "value": 0.037}, {"name": "Масло и жиры", "value": 0.031}, {"name": "Легковые автомобили", "value": 0.028}, {"name": "Электротовары и другие бытовые приборы", "value": 0.026}, {"name": "Телерадиотовары", "value": 0.02}, {"name": "Галантерея", "value": 0.017}, {"name": "Трикотажные изделия", "value": 0.013}, {"name": "Печатные издания", "value": 0.009}, {"name": "Меха и меховые изделия", "value": 0.004}, {"name": "Инструменты и оборудование", "value": 0.001}, {"name": "Услуги гостиниц и прочих мест проживания", "value": -0.013}, {"name": "Обувь кожаная, текстильная и комбинированная", "value": -0.015}, {"name": "Санаторно-оздоровительные услуги", "value": -0.021}, {"name": "Чай, кофе", "value": -0.024}, {"name": "Сыр", "value": -0.03}, {"name": "Услуги связи", "value": -0.079}, {"name": "Экскурсионные услуги", "value": -0.154}], "total": 8.012};
+const CONTRIB_LATEST_LABEL = "сен. 2026";
+const WATERFALL_LATEST = {"segments": [{"name": "Сыр", "y0": 0.0, "y1": -0.0341, "kind": "item"}, {"name": "Сахар", "y0": -0.0341, "y1": -0.0606, "kind": "item"}, {"name": "Чай, кофе", "y0": -0.0606, "y1": -0.0743, "kind": "item"}, {"name": "Общественное питание", "y0": -0.0743, "y1": -0.0335, "kind": "item"}, {"name": "Молоко и молочная продукция", "y0": -0.0335, "y1": 0.0116, "kind": "item"}, {"name": "Алкогольные напитки", "y0": 0.0116, "y1": 0.0585, "kind": "item"}, {"name": "Кондитерские изделия", "y0": 0.0585, "y1": 0.1135, "kind": "item"}, {"name": "Масло и жиры", "y0": 0.1135, "y1": 0.1877, "kind": "item"}, {"name": "Макаронные и крупяные изделия", "y0": 0.1877, "y1": 0.3157, "kind": "item"}, {"name": "Хлеб и хлебобулочные изделия", "y0": 0.3157, "y1": 0.4487, "kind": "item"}, {"name": "Яйца", "y0": 0.4487, "y1": 0.7043, "kind": "item"}, {"name": "Рыбопродукты", "y0": 0.7043, "y1": 1.2287, "kind": "item"}, {"name": "Мясопродукты", "y0": 1.2287, "y1": 1.9508, "kind": "item"}, {"name": "ПРОДОВОЛЬСТВИЕ БЕЗ ПЛОДООВОЩЕЙ", "y0": 0.0, "y1": 1.9508, "kind": "marker"}, {"name": "Обувь кожаная, текстильная и комбинированная", "y0": 1.9508, "y1": 1.871, "kind": "item"}, {"name": "Одежда и белье", "y0": 1.871, "y1": 1.8022, "kind": "item"}, {"name": "Трикотажные изделия", "y0": 1.8022, "y1": 1.7577, "kind": "item"}, {"name": "Инструменты и оборудование", "y0": 1.7577, "y1": 1.7596, "kind": "item"}, {"name": "Печатные издания", "y0": 1.7596, "y1": 1.7691, "kind": "item"}, {"name": "Меха и меховые изделия", "y0": 1.7691, "y1": 1.7798, "kind": "item"}, {"name": "Галантерея", "y0": 1.7798, "y1": 1.7919, "kind": "item"}, {"name": "Телерадиотовары", "y0": 1.7919, "y1": 1.8354, "kind": "item"}, {"name": "Табачные изделия", "y0": 1.8354, "y1": 1.8799, "kind": "item"}, {"name": "Строительные материалы", "y0": 1.8799, "y1": 1.9278, "kind": "item"}, {"name": "Электротовары и другие бытовые приборы", "y0": 1.9278, "y1": 1.9818, "kind": "item"}, {"name": "Мебель", "y0": 1.9818, "y1": 2.0482, "kind": "item"}, {"name": "Моющие и чистящие средства", "y0": 2.0482, "y1": 2.1155, "kind": "item"}, {"name": "Парфюмерно-косметические товары", "y0": 2.1155, "y1": 2.1995, "kind": "item"}, {"name": "Персональные компьютеры", "y0": 2.1995, "y1": 2.2893, "kind": "item"}, {"name": "Медицинские товары", "y0": 2.2893, "y1": 2.4364, "kind": "item"}, {"name": "Легковые автомобили", "y0": 2.4364, "y1": 2.5856, "kind": "item"}, {"name": "Средства связи", "y0": 2.5856, "y1": 2.954, "kind": "item"}, {"name": "НЕПРОДОВОЛЬСТВЕННЫЕ ТОВАРЫ БЕЗ НЕФТЕПРОДУКТОВ", "y0": 0.0, "y1": 2.954, "kind": "marker"}, {"name": "Экскурсионные услуги", "y0": 2.954, "y1": 2.8067, "kind": "item"}, {"name": "Услуги гостиниц и прочих мест проживания", "y0": 2.8067, "y1": 2.8092, "kind": "item"}, {"name": "Услуги организаций культуры", "y0": 2.8092, "y1": 2.8503, "kind": "item"}, {"name": "Услуги связи", "y0": 2.8503, "y1": 2.9015, "kind": "item"}, {"name": "Услуги в сфере зарубежного туризма", "y0": 2.9015, "y1": 3.0576, "kind": "item"}, {"name": "Медицинские услуги", "y0": 3.0576, "y1": 3.2178, "kind": "item"}, {"name": "Санаторно-оздоровительные услуги", "y0": 3.2178, "y1": 3.3832, "kind": "item"}, {"name": "Услуги пассажирского транспорта", "y0": 3.3832, "y1": 3.6266, "kind": "item"}, {"name": "Бытовые услуги", "y0": 3.6266, "y1": 4.1263, "kind": "item"}, {"name": "Услуги в системе образования", "y0": 4.1263, "y1": 4.8848, "kind": "item"}, {"name": "УСЛУГИ БЕЗ ЖКУ", "y0": 0.0, "y1": 4.8848, "kind": "marker"}, {"name": "ИПЦ БЕЗ ПЛОДООВОЩЕЙ, НЕФТЕПРОДУКТОВ И ЖКУ", "y0": 0.0, "y1": 4.8848, "kind": "marker"}, {"name": "Плодоовощи", "y0": 4.8848, "y1": 4.803, "kind": "item"}, {"name": "Нефтепродукты", "y0": 4.803, "y1": 5.4064, "kind": "item"}, {"name": "ЖКУ", "y0": 5.4064, "y1": 5.7852, "kind": "item"}, {"name": "ИНДЕКС ПОТРЕБИТЕЛЬСКИХ ЦЕН, ВСЕГО", "y0": 0.0, "y1": 6.5258, "kind": "total"}, {"name": "Базовый ИПЦ", "y0": 0.0, "y1": 5.9529, "kind": "separate"}], "total": 6.526};
+const WATERFALL_AVG3 = {"segments": [{"name": "Сыр", "y0": 0.0, "y1": -0.0303, "kind": "item"}, {"name": "Чай, кофе", "y0": -0.0303, "y1": -0.0541, "kind": "item"}, {"name": "Масло и жиры", "y0": -0.0541, "y1": -0.0231, "kind": "item"}, {"name": "Молоко и молочная продукция", "y0": -0.0231, "y1": 0.0685, "kind": "item"}, {"name": "Алкогольные напитки", "y0": 0.0685, "y1": 0.1623, "kind": "item"}, {"name": "Кондитерские изделия", "y0": 0.1623, "y1": 0.2615, "kind": "item"}, {"name": "Яйца", "y0": 0.2615, "y1": 0.3625, "kind": "item"}, {"name": "Хлеб и хлебобулочные изделия", "y0": 0.3625, "y1": 0.4792, "kind": "item"}, {"name": "Сахар", "y0": 0.4792, "y1": 0.6099, "kind": "item"}, {"name": "Макаронные и крупяные изделия", "y0": 0.6099, "y1": 0.745, "kind": "item"}, {"name": "Общественное питание", "y0": 0.745, "y1": 0.904, "kind": "item"}, {"name": "Рыбопродукты", "y0": 0.904, "y1": 1.2378, "kind": "item"}, {"name": "Мясопродукты", "y0": 1.2378, "y1": 2.3906, "kind": "item"}, {"name": "ПРОДОВОЛЬСТВИЕ БЕЗ ПЛОДООВОЩЕЙ", "y0": 0.0, "y1": 2.3906, "kind": "marker"}, {"name": "Обувь кожаная, текстильная и комбинированная", "y0": 2.3906, "y1": 2.3757, "kind": "item"}, {"name": "Инструменты и оборудование", "y0": 2.3757, "y1": 2.3763, "kind": "item"}, {"name": "Меха и меховые изделия", "y0": 2.3763, "y1": 2.3806, "kind": "item"}, {"name": "Печатные издания", "y0": 2.3806, "y1": 2.3897, "kind": "item"}, {"name": "Трикотажные изделия", "y0": 2.3897, "y1": 2.4029, "kind": "item"}, {"name": "Галантерея", "y0": 2.4029, "y1": 2.4201, "kind": "item"}, {"name": "Телерадиотовары", "y0": 2.4201, "y1": 2.4397, "kind": "item"}, {"name": "Электротовары и другие бытовые приборы", "y0": 2.4397, "y1": 2.4654, "kind": "item"}, {"name": "Легковые автомобили", "y0": 2.4654, "y1": 2.4935, "kind": "item"}, {"name": "Моющие и чистящие средства", "y0": 2.4935, "y1": 2.531, "kind": "item"}, {"name": "Одежда и белье", "y0": 2.531, "y1": 2.5785, "kind": "item"}, {"name": "Табачные изделия", "y0": 2.5785, "y1": 2.6408, "kind": "item"}, {"name": "Строительные материалы", "y0": 2.6408, "y1": 2.7036, "kind": "item"}, {"name": "Персональные компьютеры", "y0": 2.7036, "y1": 2.7759, "kind": "item"}, {"name": "Парфюмерно-косметические товары", "y0": 2.7759, "y1": 2.8599, "kind": "item"}, {"name": "Мебель", "y0": 2.8599, "y1": 2.9534, "kind": "item"}, {"name": "Медицинские товары", "y0": 2.9534, "y1": 3.0769, "kind": "item"}, {"name": "Средства связи", "y0": 3.0769, "y1": 3.3727, "kind": "item"}, {"name": "НЕПРОДОВОЛЬСТВЕННЫЕ ТОВАРЫ БЕЗ НЕФТЕПРОДУКТОВ", "y0": 0.0, "y1": 3.3727, "kind": "marker"}, {"name": "Экскурсионные услуги", "y0": 3.3727, "y1": 3.2182, "kind": "item"}, {"name": "Услуги связи", "y0": 3.2182, "y1": 3.1392, "kind": "item"}, {"name": "Санаторно-оздоровительные услуги", "y0": 3.1392, "y1": 3.1179, "kind": "item"}, {"name": "Услуги гостиниц и прочих мест проживания", "y0": 3.1179, "y1": 3.1048, "kind": "item"}, {"name": "Услуги организаций культуры", "y0": 3.1048, "y1": 3.1444, "kind": "item"}, {"name": "Медицинские услуги", "y0": 3.1444, "y1": 3.2984, "kind": "item"}, {"name": "Услуги пассажирского транспорта", "y0": 3.2984, "y1": 3.515, "kind": "item"}, {"name": "Услуги в сфере зарубежного туризма", "y0": 3.515, "y1": 3.7391, "kind": "item"}, {"name": "Услуги в системе образования", "y0": 3.7391, "y1": 4.0739, "kind": "item"}, {"name": "Бытовые услуги", "y0": 4.0739, "y1": 4.6079, "kind": "item"}, {"name": "УСЛУГИ БЕЗ ЖКУ", "y0": 0.0, "y1": 4.6079, "kind": "marker"}, {"name": "ИПЦ БЕЗ ПЛОДООВОЩЕЙ, НЕФТЕПРОДУКТОВ И ЖКУ", "y0": 0.0, "y1": 4.6079, "kind": "marker"}, {"name": "Плодоовощи", "y0": 4.6079, "y1": 5.6694, "kind": "item"}, {"name": "Нефтепродукты", "y0": 5.6694, "y1": 6.7412, "kind": "item"}, {"name": "ЖКУ", "y0": 6.7412, "y1": 7.1037, "kind": "item"}, {"name": "ИНДЕКС ПОТРЕБИТЕЛЬСКИХ ЦЕН, ВСЕГО", "y0": 0.0, "y1": 8.0116, "kind": "total"}, {"name": "Базовый ИПЦ", "y0": 0.0, "y1": 6.2463, "kind": "separate"}], "total": 8.012};
+const SAAR_HISTORY = [{"date": "2024-10-01", "headline": 10.2, "food": 11.18, "nonfood": 7.1, "services": 12.67}, {"date": "2024-11-01", "headline": 15.11, "food": 21.88, "nonfood": 6.53, "services": 16.71}, {"date": "2024-12-01", "headline": 15.13, "food": 24.36, "nonfood": 10.6, "services": 8.7}, {"date": "2025-01-01", "headline": 9.87, "food": 6.6, "nonfood": 5.78, "services": 19.95}, {"date": "2025-02-01", "headline": 7.1, "food": 9.71, "nonfood": 4.54, "services": 6.4}, {"date": "2025-03-01", "headline": 6.63, "food": 9.98, "nonfood": 2.27, "services": 7.38}, {"date": "2025-04-01", "headline": 5.37, "food": 8.69, "nonfood": 0.45, "services": 6.84}, {"date": "2025-05-01", "headline": 5.17, "food": 8.22, "nonfood": 0.59, "services": 6.67}, {"date": "2025-06-01", "headline": 2.55, "food": 4.17, "nonfood": -0.67, "services": 4.13}, {"date": "2025-07-01", "headline": 8.63, "food": 1.23, "nonfood": 0.46, "services": 30.93}, {"date": "2025-08-01", "headline": 3.25, "food": 1.77, "nonfood": 3.75, "services": 4.86}, {"date": "2025-09-01", "headline": 6.2, "food": 5.47, "nonfood": 4.87, "services": 8.73}, {"date": "2025-10-01", "headline": 7.1, "food": 9.03, "nonfood": 6.36, "services": 5.43}, {"date": "2025-11-01", "headline": 3.1, "food": 1.13, "nonfood": 3.18, "services": 5.8}, {"date": "2025-12-01", "headline": 3.42, "food": -2.45, "nonfood": 6.12, "services": 8.65}, {"date": "2026-01-01", "headline": 14.26, "food": 14.82, "nonfood": 8.16, "services": 20.83}, {"date": "2026-02-01", "headline": 5.86, "food": 4.26, "nonfood": 5.23, "services": 8.93}, {"date": "2026-03-01", "headline": 5.99, "food": 4.18, "nonfood": 6.5, "services": 8.18}, {"date": "2026-04-01", "headline": 2.61, "food": -2.23, "nonfood": 5.18, "services": 6.6}, {"date": "2026-05-01", "headline": 2.61, "food": -5.01, "nonfood": 4.73, "services": 11.25}, {"date": "2026-06-01", "headline": 9.45, "food": 10.97, "nonfood": 7.93, "services": 8.93}, {"date": "2026-07-01", "headline": 9.99, "food": 13.23, "nonfood": 10.16, "services": 5.65}, {"date": "2026-08-01", "headline": 7.54, "food": 10.74, "nonfood": 6.56, "services": 4.34}, {"date": "2026-09-01", "headline": 6.53, "food": 5.29, "nonfood": 5.83, "services": 8.89}];
+const CORE_SAAR_BAND = [{"date": "2024-01-01", "p20": 5.66, "p80": 6.03, "mean": 5.91, "n": 6}, {"date": "2024-02-01", "p20": 5.27, "p80": 6.16, "mean": 6.38, "n": 6}, {"date": "2024-03-01", "p20": 5.18, "p80": 5.61, "mean": 5.4, "n": 6}, {"date": "2024-04-01", "p20": 8.27, "p80": 9.27, "mean": 9.22, "n": 6}, {"date": "2024-05-01", "p20": 8.37, "p80": 10.01, "mean": 9.3, "n": 6}, {"date": "2024-06-01", "p20": 6.03, "p80": 7.7, "mean": 6.43, "n": 6}, {"date": "2024-07-01", "p20": 5.63, "p80": 6.85, "mean": 6.52, "n": 6}, {"date": "2024-08-01", "p20": 7.7, "p80": 9.62, "mean": 9.06, "n": 6}, {"date": "2024-09-01", "p20": 9.61, "p80": 11.33, "mean": 9.99, "n": 6}, {"date": "2024-10-01", "p20": 11.77, "p80": 13.41, "mean": 12.54, "n": 6}, {"date": "2024-11-01", "p20": 12.85, "p80": 14.82, "mean": 13.72, "n": 6}, {"date": "2024-12-01", "p20": 10.9, "p80": 14.31, "mean": 13.7, "n": 6}, {"date": "2025-01-01", "p20": 9.95, "p80": 14.22, "mean": 11.25, "n": 6}, {"date": "2025-02-01", "p20": 7.63, "p80": 9.12, "mean": 8.5, "n": 6}, {"date": "2025-03-01", "p20": 6.77, "p80": 9.31, "mean": 6.92, "n": 6}, {"date": "2025-04-01", "p20": 3.8, "p80": 7.55, "mean": 4.47, "n": 6}, {"date": "2025-05-01", "p20": 4.9, "p80": 7.14, "mean": 5.23, "n": 6}, {"date": "2025-06-01", "p20": 3.59, "p80": 4.33, "mean": 3.85, "n": 6}, {"date": "2025-07-01", "p20": 3.92, "p80": 5.5, "mean": 5.04, "n": 9}, {"date": "2025-08-01", "p20": 3.84, "p80": 4.65, "mean": 4.0, "n": 9}, {"date": "2025-09-01", "p20": 4.06, "p80": 5.89, "mean": 5.36, "n": 9}, {"date": "2025-10-01", "p20": 4.78, "p80": 6.42, "mean": 5.38, "n": 9}, {"date": "2025-11-01", "p20": 3.27, "p80": 4.01, "mean": 3.83, "n": 9}, {"date": "2025-12-01", "p20": 4.48, "p80": 5.59, "mean": 5.36, "n": 9}, {"date": "2026-01-01", "p20": 8.55, "p80": 12.57, "mean": 10.62, "n": 9}, {"date": "2026-02-01", "p20": 3.94, "p80": 5.18, "mean": 5.08, "n": 9}, {"date": "2026-03-01", "p20": 4.28, "p80": 5.19, "mean": 5.25, "n": 9}, {"date": "2026-04-01", "p20": 3.39, "p80": 4.3, "mean": 4.12, "n": 9}, {"date": "2026-05-01", "p20": 2.56, "p80": 4.68, "mean": 4.52, "n": 9}, {"date": "2026-06-01", "p20": 3.34, "p80": 5.38, "mean": 4.79, "n": 9}, {"date": "2026-07-01", "p20": 5.14, "p80": 7.12, "mean": 6.4, "n": 9}, {"date": "2026-08-01", "p20": 4.92, "p80": 6.05, "mean": 5.67, "n": 9}, {"date": "2026-09-01", "p20": 4.45, "p80": 6.49, "mean": 6.15, "n": 9}];
+const DEMAND_SUPPLY = [{"date": "2012-01-01", "demand": 1.4, "supply": 1.4, "total": 2.81}, {"date": "2012-02-01", "demand": 1.9, "supply": 1.9, "total": 3.8}, {"date": "2012-03-01", "demand": 3.23, "supply": 3.23, "total": 6.47}, {"date": "2012-04-01", "demand": 2.16, "supply": 2.16, "total": 4.33}, {"date": "2012-05-01", "demand": 3.04, "supply": 3.04, "total": 6.08}, {"date": "2012-06-01", "demand": 5.61, "supply": 5.61, "total": 11.22}, {"date": "2012-07-01", "demand": 8.2, "supply": 8.2, "total": 16.4}, {"date": "2012-08-01", "demand": 3.75, "supply": 3.75, "total": 7.5}, {"date": "2012-09-01", "demand": 4.45, "supply": 4.45, "total": 8.9}, {"date": "2012-10-01", "demand": 2.88, "supply": 2.88, "total": 5.76}, {"date": "2012-11-01", "demand": 1.62, "supply": 1.62, "total": 3.25}, {"date": "2012-12-01", "demand": 1.9, "supply": 1.9, "total": 3.8}, {"date": "2013-01-01", "demand": 4.41, "supply": 3.7, "total": 8.11}, {"date": "2013-02-01", "demand": 2.86, "supply": 2.84, "total": 5.7}, {"date": "2013-03-01", "demand": 2.87, "supply": 1.22, "total": 4.09}, {"date": "2013-04-01", "demand": 2.98, "supply": 3.45, "total": 6.44}, {"date": "2013-05-01", "demand": 2.5, "supply": 5.0, "total": 7.5}, {"date": "2013-06-01", "demand": 3.34, "supply": 1.9, "total": 5.25}, {"date": "2013-07-01", "demand": 2.34, "supply": 7.34, "total": 9.67}, {"date": "2013-08-01", "demand": 2.25, "supply": 4.03, "total": 6.27}, {"date": "2013-09-01", "demand": 2.75, "supply": 3.13, "total": 5.88}, {"date": "2013-10-01", "demand": 3.43, "supply": 4.29, "total": 7.73}, {"date": "2013-11-01", "demand": 2.52, "supply": 3.54, "total": 6.06}, {"date": "2013-12-01", "demand": 2.46, "supply": 0.65, "total": 3.12}, {"date": "2014-01-01", "demand": 2.57, "supply": 1.59, "total": 4.16}, {"date": "2014-02-01", "demand": 2.83, "supply": 4.41, "total": 7.24}, {"date": "2014-03-01", "demand": 7.58, "supply": 4.91, "total": 12.5}, {"date": "2014-04-01", "demand": 4.83, "supply": 6.6, "total": 11.43}, {"date": "2014-05-01", "demand": 8.75, "supply": 3.2, "total": 11.96}, {"date": "2014-06-01", "demand": 4.12, "supply": 4.26, "total": 8.38}, {"date": "2014-07-01", "demand": 4.98, "supply": 1.42, "total": 6.4}, {"date": "2014-08-01", "demand": 4.71, "supply": 3.51, "total": 8.22}, {"date": "2014-09-01", "demand": 3.55, "supply": 8.22, "total": 11.77}, {"date": "2014-10-01", "demand": 1.72, "supply": 9.32, "total": 11.04}, {"date": "2014-11-01", "demand": 4.63, "supply": 9.93, "total": 14.56}, {"date": "2014-12-01", "demand": 17.18, "supply": 14.53, "total": 31.71}, {"date": "2015-01-01", "demand": 9.88, "supply": 40.57, "total": 50.45}, {"date": "2015-02-01", "demand": 12.51, "supply": 14.59, "total": 27.11}, {"date": "2015-03-01", "demand": 6.53, "supply": 8.13, "total": 14.66}, {"date": "2015-04-01", "demand": 1.74, "supply": 4.21, "total": 5.94}, {"date": "2015-05-01", "demand": 3.22, "supply": 1.52, "total": 4.74}, {"date": "2015-06-01", "demand": 2.76, "supply": -0.06, "total": 2.71}, {"date": "2015-07-01", "demand": 3.09, "supply": 7.48, "total": 10.57}, {"date": "2015-08-01", "demand": 4.21, "supply": 5.88, "total": 10.09}, {"date": "2015-09-01", "demand": 2.95, "supply": 8.27, "total": 11.22}, {"date": "2015-10-01", "demand": 6.09, "supply": 3.06, "total": 9.15}, {"date": "2015-11-01", "demand": 4.56, "supply": 3.19, "total": 7.75}, {"date": "2015-12-01", "demand": 3.16, "supply": 3.22, "total": 6.38}, {"date": "2016-01-01", "demand": 4.33, "supply": 3.72, "total": 8.04}, {"date": "2016-02-01", "demand": 3.42, "supply": 2.48, "total": 5.9}, {"date": "2016-03-01", "demand": 0.23, "supply": 5.21, "total": 5.43}, {"date": "2016-04-01", "demand": 2.83, "supply": 2.63, "total": 5.46}, {"date": "2016-05-01", "demand": 3.08, "supply": 2.25, "total": 5.33}, {"date": "2016-06-01", "demand": 3.16, "supply": 1.67, "total": 4.83}, {"date": "2016-07-01", "demand": 3.96, "supply": 2.76, "total": 6.72}, {"date": "2016-08-01", "demand": 3.01, "supply": 0.98, "total": 3.98}, {"date": "2016-09-01", "demand": 2.46, "supply": 2.53, "total": 4.99}, {"date": "2016-10-01", "demand": 1.95, "supply": 3.6, "total": 5.55}, {"date": "2016-11-01", "demand": 1.75, "supply": 2.31, "total": 4.06}, {"date": "2016-12-01", "demand": 1.69, "supply": 0.47, "total": 2.16}, {"date": "2017-01-01", "demand": 1.74, "supply": 2.34, "total": 4.09}, {"date": "2017-02-01", "demand": 1.17, "supply": -0.24, "total": 0.93}, {"date": "2017-03-01", "demand": 0.71, "supply": 1.04, "total": 1.75}, {"date": "2017-04-01", "demand": 1.75, "supply": 2.42, "total": 4.17}, {"date": "2017-05-01", "demand": 1.22, "supply": 3.65, "total": 4.88}, {"date": "2017-06-01", "demand": 1.94, "supply": 5.5, "total": 7.43}, {"date": "2017-07-01", "demand": 1.47, "supply": -0.73, "total": 0.74}, {"date": "2017-08-01", "demand": 0.97, "supply": -2.3, "total": -1.33}, {"date": "2017-09-01", "demand": 0.83, "supply": 0.79, "total": 1.62}, {"date": "2017-10-01", "demand": 0.79, "supply": 1.69, "total": 2.48}, {"date": "2017-11-01", "demand": 1.1, "supply": 0.22, "total": 1.33}, {"date": "2017-12-01", "demand": 0.78, "supply": 1.71, "total": 2.49}, {"date": "2018-01-01", "demand": -0.37, "supply": 1.04, "total": 0.68}, {"date": "2018-02-01", "demand": 0.78, "supply": 0.47, "total": 1.25}, {"date": "2018-03-01", "demand": 2.6, "supply": 0.67, "total": 3.27}, {"date": "2018-04-01", "demand": 2.04, "supply": 2.37, "total": 4.41}, {"date": "2018-05-01", "demand": 0.15, "supply": 4.87, "total": 5.02}, {"date": "2018-06-01", "demand": 3.96, "supply": 1.82, "total": 5.78}, {"date": "2018-07-01", "demand": 2.75, "supply": 0.86, "total": 3.61}, {"date": "2018-08-01", "demand": 4.25, "supply": 1.47, "total": 5.72}, {"date": "2018-09-01", "demand": 3.45, "supply": 1.68, "total": 5.13}, {"date": "2018-10-01", "demand": 2.6, "supply": 1.7, "total": 4.3}, {"date": "2018-11-01", "demand": 2.75, "supply": 2.02, "total": 4.77}, {"date": "2018-12-01", "demand": 2.77, "supply": 4.7, "total": 7.48}, {"date": "2019-01-01", "demand": 2.74, "supply": 5.12, "total": 7.85}, {"date": "2019-02-01", "demand": 2.08, "supply": 1.79, "total": 3.86}, {"date": "2019-03-01", "demand": 2.06, "supply": 1.59, "total": 3.65}, {"date": "2019-04-01", "demand": 1.6, "supply": 1.71, "total": 3.31}, {"date": "2019-05-01", "demand": 1.46, "supply": 3.24, "total": 4.7}, {"date": "2019-06-01", "demand": 1.76, "supply": -1.04, "total": 0.72}, {"date": "2019-07-01", "demand": 1.44, "supply": 2.08, "total": 3.52}, {"date": "2019-08-01", "demand": 1.85, "supply": 0.36, "total": 2.21}, {"date": "2019-09-01", "demand": 0.45, "supply": 0.89, "total": 1.34}, {"date": "2019-10-01", "demand": 0.75, "supply": 0.81, "total": 1.56}, {"date": "2019-11-01", "demand": 1.17, "supply": 0.87, "total": 2.04}, {"date": "2019-12-01", "demand": 0.51, "supply": 0.93, "total": 1.44}, {"date": "2020-01-01", "demand": 1.26, "supply": 0.69, "total": 1.96}, {"date": "2020-02-01", "demand": 1.95, "supply": 0.46, "total": 2.41}, {"date": "2020-03-01", "demand": 4.36, "supply": 2.41, "total": 6.78}, {"date": "2020-04-01", "demand": 2.79, "supply": 7.35, "total": 10.14}, {"date": "2020-05-01", "demand": 2.01, "supply": 1.88, "total": 3.89}, {"date": "2020-06-01", "demand": 2.02, "supply": 1.67, "total": 3.69}, {"date": "2020-07-01", "demand": 2.09, "supply": 2.92, "total": 5.01}, {"date": "2020-08-01", "demand": 3.13, "supply": 1.28, "total": 4.42}, {"date": "2020-09-01", "demand": -0.32, "supply": 2.71, "total": 2.39}, {"date": "2020-10-01", "demand": 2.91, "supply": 2.12, "total": 5.03}, {"date": "2020-11-01", "demand": 2.36, "supply": 4.79, "total": 7.15}, {"date": "2020-12-01", "demand": 3.01, "supply": 3.66, "total": 6.67}, {"date": "2021-01-01", "demand": 2.52, "supply": 2.15, "total": 4.67}, {"date": "2021-02-01", "demand": 3.23, "supply": 3.51, "total": 6.75}, {"date": "2021-03-01", "demand": 3.9, "supply": 3.11, "total": 7.01}, {"date": "2021-04-01", "demand": 3.97, "supply": 3.25, "total": 7.23}, {"date": "2021-05-01", "demand": 4.81, "supply": 6.5, "total": 11.31}, {"date": "2021-06-01", "demand": 3.22, "supply": 5.85, "total": 9.07}, {"date": "2021-07-01", "demand": 1.41, "supply": 4.14, "total": 5.55}, {"date": "2021-08-01", "demand": 3.35, "supply": 3.82, "total": 7.17}, {"date": "2021-09-01", "demand": 2.03, "supply": 8.6, "total": 10.63}, {"date": "2021-10-01", "demand": 10.75, "supply": 2.93, "total": 13.69}, {"date": "2021-11-01", "demand": 2.23, "supply": 6.61, "total": 8.84}, {"date": "2021-12-01", "demand": 4.69, "supply": 3.42, "total": 8.11}, {"date": "2022-01-01", "demand": 4.02, "supply": 4.42, "total": 8.44}, {"date": "2022-02-01", "demand": 4.45, "supply": 7.58, "total": 12.02}, {"date": "2022-03-01", "demand": 58.12, "supply": 80.12, "total": 138.24}, {"date": "2022-04-01", "demand": 13.29, "supply": 6.87, "total": 20.16}, {"date": "2022-05-01", "demand": 2.16, "supply": 2.13, "total": 4.29}, {"date": "2022-06-01", "demand": 0.58, "supply": -4.08, "total": -3.49}, {"date": "2022-07-01", "demand": -0.83, "supply": -3.41, "total": -4.24}, {"date": "2022-08-01", "demand": -0.7, "supply": 0.28, "total": -0.42}, {"date": "2022-09-01", "demand": 1.52, "supply": 1.45, "total": 2.97}, {"date": "2022-10-01", "demand": 0.59, "supply": 1.48, "total": 2.07}, {"date": "2022-11-01", "demand": -0.47, "supply": 1.57, "total": 1.1}, {"date": "2022-12-01", "demand": 0.65, "supply": 7.9, "total": 8.55}, {"date": "2023-01-01", "demand": 4.65, "supply": 2.18, "total": 6.83}, {"date": "2023-02-01", "demand": 3.12, "supply": 0.16, "total": 3.28}, {"date": "2023-03-01", "demand": 1.7, "supply": 1.53, "total": 3.23}, {"date": "2023-04-01", "demand": 1.57, "supply": 3.24, "total": 4.81}, {"date": "2023-05-01", "demand": 2.81, "supply": 1.36, "total": 4.17}, {"date": "2023-06-01", "demand": 2.46, "supply": 2.81, "total": 5.27}, {"date": "2023-07-01", "demand": 3.85, "supply": 8.34, "total": 12.19}, {"date": "2023-08-01", "demand": 7.12, "supply": 4.76, "total": 11.88}, {"date": "2023-09-01", "demand": 3.13, "supply": 10.53, "total": 13.66}, {"date": "2023-10-01", "demand": 7.57, "supply": 2.28, "total": 9.85}, {"date": "2023-11-01", "demand": 3.9, "supply": 6.32, "total": 10.22}, {"date": "2023-12-01", "demand": 3.84, "supply": 3.62, "total": 7.45}, {"date": "2024-01-01", "demand": 2.0, "supply": 4.44, "total": 6.44}, {"date": "2024-02-01", "demand": 3.09, "supply": 2.42, "total": 5.51}, {"date": "2024-03-01", "demand": 2.77, "supply": 1.18, "total": 3.94}, {"date": "2024-04-01", "demand": 3.47, "supply": 4.03, "total": 7.51}, {"date": "2024-05-01", "demand": 5.83, "supply": 3.13, "total": 8.96}, {"date": "2024-06-01", "demand": 4.69, "supply": 3.43, "total": 8.12}, {"date": "2024-07-01", "demand": 3.44, "supply": 11.98, "total": 15.42}, {"date": "2024-08-01", "demand": 4.87, "supply": 6.41, "total": 11.28}, {"date": "2024-09-01", "demand": 4.47, "supply": 3.98, "total": 8.45}, {"date": "2024-10-01", "demand": 5.06, "supply": 4.98, "total": 10.04}, {"date": "2024-11-01", "demand": 8.0, "supply": 7.0, "total": 15.01}, {"date": "2024-12-01", "demand": 4.46, "supply": 10.67, "total": 15.13}, {"date": "2025-01-01", "demand": 6.33, "supply": 3.71, "total": 10.05}, {"date": "2025-02-01", "demand": 2.96, "supply": 4.01, "total": 6.97}, {"date": "2025-03-01", "demand": 3.18, "supply": 3.38, "total": 6.56}, {"date": "2025-04-01", "demand": 2.04, "supply": 3.27, "total": 5.3}, {"date": "2025-05-01", "demand": 2.81, "supply": 2.21, "total": 5.02}, {"date": "2025-06-01", "demand": 0.31, "supply": 2.66, "total": 2.96}, {"date": "2025-07-01", "demand": 1.82, "supply": 7.25, "total": 9.07}, {"date": "2025-08-01", "demand": 1.17, "supply": 2.03, "total": 3.21}, {"date": "2025-09-01", "demand": 2.67, "supply": 3.23, "total": 5.9}, {"date": "2025-10-01", "demand": 4.77, "supply": 2.29, "total": 7.06}, {"date": "2025-11-01", "demand": 1.84, "supply": 0.85, "total": 2.69}, {"date": "2025-12-01", "demand": 3.43, "supply": -0.47, "total": 2.96}, {"date": "2026-01-01", "demand": 5.35, "supply": 9.08, "total": 14.44}, {"date": "2026-02-01", "demand": 1.24, "supply": 4.37, "total": 5.61}, {"date": "2026-03-01", "demand": 3.17, "supply": 2.72, "total": 5.88}, {"date": "2026-04-01", "demand": 2.15, "supply": 0.28, "total": 2.43}, {"date": "2026-05-01", "demand": 2.67, "supply": -0.36, "total": 2.3}, {"date": "2026-06-01", "demand": 2.4, "supply": 8.95, "total": 11.35}, {"date": "2026-07-01", "demand": 4.89, "supply": 5.14, "total": 10.03}, {"date": "2026-08-01", "demand": 4.22, "supply": 3.1, "total": 7.31}, {"date": "2026-09-01", "demand": 3.83, "supply": 2.72, "total": 6.55}];
+const DEMAND_SUPPLY_CBR = [{"date": "2016-01-01", "pos_demand": 3.24, "neg_demand": -0.474, "pos_supply": -1.166, "neg_supply": 3.851, "cpi": 6.455}, {"date": "2016-04-01", "pos_demand": 3.199, "neg_demand": -0.115, "pos_supply": -1.263, "neg_supply": 2.92, "cpi": 5.205}, {"date": "2016-07-01", "pos_demand": 3.263, "neg_demand": -0.067, "pos_supply": -0.384, "neg_supply": 2.715, "cpi": 5.802}, {"date": "2016-10-01", "pos_demand": 1.831, "neg_demand": -0.699, "pos_supply": -0.692, "neg_supply": 3.228, "cpi": 3.873}, {"date": "2017-01-01", "pos_demand": 1.543, "neg_demand": -0.675, "pos_supply": -1.625, "neg_supply": 2.491, "cpi": 2.316}, {"date": "2017-04-01", "pos_demand": 2.612, "neg_demand": -0.071, "pos_supply": -0.617, "neg_supply": 4.17, "cpi": 5.469}, {"date": "2017-07-01", "pos_demand": 1.891, "neg_demand": -0.444, "pos_supply": -2.705, "neg_supply": 1.332, "cpi": 0.28}, {"date": "2017-10-01", "pos_demand": 1.59, "neg_demand": -0.57, "pos_supply": -0.553, "neg_supply": 1.703, "cpi": 2.177}, {"date": "2018-01-01", "pos_demand": 1.751, "neg_demand": -0.537, "pos_supply": -0.819, "neg_supply": 1.126, "cpi": 1.741}, {"date": "2018-04-01", "pos_demand": 3.374, "neg_demand": -0.527, "pos_supply": -0.211, "neg_supply": 3.363, "cpi": 5.187}, {"date": "2018-07-01", "pos_demand": 4.551, "neg_demand": -0.284, "pos_supply": -0.441, "neg_supply": 1.412, "cpi": 4.725}, {"date": "2018-10-01", "pos_demand": 4.649, "neg_demand": -0.128, "pos_supply": -0.654, "neg_supply": 1.776, "cpi": 5.452}, {"date": "2019-01-01", "pos_demand": 1.874, "neg_demand": -0.391, "pos_supply": -0.539, "neg_supply": 4.519, "cpi": 5.592}, {"date": "2019-04-01", "pos_demand": 3.023, "neg_demand": -0.246, "pos_supply": -1.378, "neg_supply": 1.854, "cpi": 2.933}, {"date": "2019-07-01", "pos_demand": 1.519, "neg_demand": -0.466, "pos_supply": -0.939, "neg_supply": 1.746, "cpi": 2.013}, {"date": "2019-10-01", "pos_demand": 1.463, "neg_demand": -0.291, "pos_supply": -0.896, "neg_supply": 1.266, "cpi": 1.675}, {"date": "2020-01-01", "pos_demand": 2.678, "neg_demand": -0.226, "pos_supply": -0.735, "neg_supply": 1.593, "cpi": 3.658}, {"date": "2020-04-01", "pos_demand": 2.369, "neg_demand": -0.248, "pos_supply": -0.991, "neg_supply": 5.149, "cpi": 5.839}, {"date": "2020-07-01", "pos_demand": 3.008, "neg_demand": -0.15, "pos_supply": -0.982, "neg_supply": 2.153, "cpi": 3.99}, {"date": "2020-10-01", "pos_demand": 4.847, "neg_demand": -0.004, "pos_supply": -0.631, "neg_supply": 2.635, "cpi": 6.351}, {"date": "2021-01-01", "pos_demand": 5.125, "neg_demand": -0.275, "pos_supply": -1.26, "neg_supply": 2.432, "cpi": 6.268}, {"date": "2021-04-01", "pos_demand": 4.299, "neg_demand": -0.044, "pos_supply": -0.287, "neg_supply": 5.739, "cpi": 9.269}, {"date": "2021-07-01", "pos_demand": 5.326, "neg_demand": -0.095, "pos_supply": -0.87, "neg_supply": 4.01, "cpi": 7.768}, {"date": "2021-10-01", "pos_demand": 7.024, "neg_demand": -0.641, "pos_supply": -0.926, "neg_supply": 5.161, "cpi": 10.279}, {"date": "2022-01-01", "pos_demand": 15.324, "neg_demand": -0.156, "pos_supply": -0.202, "neg_supply": 21.572, "cpi": 42.537}, {"date": "2022-04-01", "pos_demand": 4.181, "neg_demand": -1.973, "pos_supply": -4.685, "neg_supply": 8.083, "cpi": 6.348}, {"date": "2022-07-01", "pos_demand": 2.011, "neg_demand": -0.791, "pos_supply": -3.906, "neg_supply": 1.561, "cpi": -0.412}, {"date": "2022-10-01", "pos_demand": 2.267, "neg_demand": -0.849, "pos_supply": -1.096, "neg_supply": 2.858, "cpi": 3.052}, {"date": "2023-01-01", "pos_demand": 3.029, "neg_demand": -0.295, "pos_supply": -1.054, "neg_supply": 2.362, "cpi": 4.473}, {"date": "2023-04-01", "pos_demand": 5.66, "neg_demand": -0.312, "pos_supply": -0.89, "neg_supply": 1.401, "cpi": 4.749}, {"date": "2023-07-01", "pos_demand": 7.639, "neg_demand": -0.094, "pos_supply": -0.155, "neg_supply": 6.522, "cpi": 12.582}, {"date": "2023-10-01", "pos_demand": 6.318, "neg_demand": -0.33, "pos_supply": -0.559, "neg_supply": 3.453, "cpi": 9.19}, {"date": "2024-01-01", "pos_demand": 3.377, "neg_demand": -0.199, "pos_supply": -1.228, "neg_supply": 2.254, "cpi": 5.318}, {"date": "2024-04-01", "pos_demand": 5.375, "neg_demand": -0.067, "pos_supply": -0.376, "neg_supply": 3.923, "cpi": 8.191}, {"date": "2024-07-01", "pos_demand": 5.473, "neg_demand": -0.038, "pos_supply": -0.353, "neg_supply": 7.753, "cpi": 11.612}, {"date": "2024-10-01", "pos_demand": 6.867, "neg_demand": -0.225, "pos_supply": -0.434, "neg_supply": 6.73, "cpi": 13.426}, {"date": "2025-01-01", "pos_demand": 3.747, "neg_demand": -0.697, "pos_supply": -1.632, "neg_supply": 4.772, "cpi": 7.915}, {"date": "2025-04-01", "pos_demand": 3.815, "neg_demand": -0.376, "pos_supply": -1.836, "neg_supply": 3.151, "cpi": 4.44}, {"date": "2025-07-01", "pos_demand": 3.107, "neg_demand": -0.901, "pos_supply": -1.311, "neg_supply": 5.818, "cpi": 5.972}, {"date": "2025-10-01", "pos_demand": 3.246, "neg_demand": -0.478, "pos_supply": -1.347, "neg_supply": 2.393, "cpi": 4.266}, {"date": "2026-01-01", "pos_demand": 3.07, "neg_demand": -0.323, "pos_supply": -0.321, "neg_supply": 4.777, "cpi": 8.642}, {"date": "2026-04-01", "pos_demand": 3.511, "neg_demand": -0.327, "pos_supply": -1.7, "neg_supply": 4.345, "cpi": 5.254}, {"date": "2026-07-01", "pos_demand": 5.86, "neg_demand": -0.186, "pos_supply": -0.586, "neg_supply": 7.429, "cpi": 11.679}, {"date": "2026-08-01", "pos_demand": 4.063, "neg_demand": -0.02, "pos_supply": -0.541, "neg_supply": 4.966, "cpi": 6.884}];
+const FX_SENSITIVITY = [{"date": "2019-01-01", "strong": 4.81, "weak": 4.546, "usd": 0.045}, {"date": "2019-02-01", "strong": 2.795, "weak": 3.382, "usd": -2.188}, {"date": "2019-03-01", "strong": 1.503, "weak": 2.795, "usd": -1.088}, {"date": "2019-04-01", "strong": 2.549, "weak": 2.738, "usd": -0.807}, {"date": "2019-05-01", "strong": 2.767, "weak": 3.042, "usd": 0.307}, {"date": "2019-06-01", "strong": 2.182, "weak": 2.918, "usd": -0.911}, {"date": "2019-07-01", "strong": 1.328, "weak": 2.962, "usd": -1.598}, {"date": "2019-08-01", "strong": 1.311, "weak": 2.475, "usd": 3.686}, {"date": "2019-09-01", "strong": 1.221, "weak": 2.232, "usd": -0.837}, {"date": "2019-10-01", "strong": 1.693, "weak": 1.895, "usd": -0.963}, {"date": "2019-11-01", "strong": 2.296, "weak": 2.194, "usd": -0.76}, {"date": "2019-12-01", "strong": 1.267, "weak": 2.32, "usd": -1.455}, {"date": "2020-01-01", "strong": 0.942, "weak": 1.693, "usd": -1.835}, {"date": "2020-02-01", "strong": 0.86, "weak": 1.753, "usd": 3.394}, {"date": "2020-03-01", "strong": 3.506, "weak": 3.034, "usd": 14.513}, {"date": "2020-04-01", "strong": 5.738, "weak": 2.711, "usd": 2.828}, {"date": "2020-05-01", "strong": 3.274, "weak": 2.654, "usd": -3.465}, {"date": "2020-06-01", "strong": 2.795, "weak": 3.368, "usd": -4.668}, {"date": "2020-07-01", "strong": 2.672, "weak": 2.795, "usd": 2.977}, {"date": "2020-08-01", "strong": 2.974, "weak": 3.215, "usd": 3.528}, {"date": "2020-09-01", "strong": 5.158, "weak": 2.844, "usd": 2.513}, {"date": "2020-10-01", "strong": 5.473, "weak": 3.176, "usd": 2.561}, {"date": "2020-11-01", "strong": 4.872, "weak": 3.868, "usd": -0.716}, {"date": "2020-12-01", "strong": 4.41, "weak": 3.254, "usd": -3.872}, {"date": "2021-01-01", "strong": 3.908, "weak": 3.165, "usd": 0.235}, {"date": "2021-02-01", "strong": 3.682, "weak": 3.582, "usd": 0.208}, {"date": "2021-03-01", "strong": 4.044, "weak": 4.176, "usd": 0.04}, {"date": "2021-04-01", "strong": 3.987, "weak": 4.791, "usd": 2.262}, {"date": "2021-05-01", "strong": 6.033, "weak": 5.337, "usd": -2.695}, {"date": "2021-06-01", "strong": 4.033, "weak": 4.877, "usd": -2.071}, {"date": "2021-07-01", "strong": 4.157, "weak": 4.348, "usd": 1.943}, {"date": "2021-08-01", "strong": 4.907, "weak": 5.174, "usd": -0.439}, {"date": "2021-09-01", "strong": 4.407, "weak": 5.536, "usd": -0.954}, {"date": "2021-10-01", "strong": 6.549, "weak": 5.942, "usd": -1.919}, {"date": "2021-11-01", "strong": 4.198, "weak": 6.309, "usd": 1.531}, {"date": "2021-12-01", "strong": 5.705, "weak": 5.455, "usd": 1.557}, {"date": "2022-01-01", "strong": 5.782, "weak": 4.782, "usd": 2.919}, {"date": "2022-02-01", "strong": 7.666, "weak": 6.619, "usd": 1.942}, {"date": "2022-03-01", "strong": 151.194, "weak": 66.956, "usd": 34.056}, {"date": "2022-04-01", "strong": 6.069, "weak": 17.278, "usd": -24.953}, {"date": "2022-05-01", "strong": -2.55, "weak": 7.059, "usd": -16.926}, {"date": "2022-06-01", "strong": -5.667, "weak": 3.289, "usd": -11.545}, {"date": "2022-07-01", "strong": -5.354, "weak": 2.643, "usd": 1.588}, {"date": "2022-08-01", "strong": -2.491, "weak": 1.887, "usd": 3.898}, {"date": "2022-09-01", "strong": -0.837, "weak": 2.4, "usd": -0.923}, {"date": "2022-10-01", "strong": -0.598, "weak": 1.934, "usd": 1.793}, {"date": "2022-11-01", "strong": -0.038, "weak": 1.282, "usd": 0.019}, {"date": "2022-12-01", "strong": -0.231, "weak": 2.866, "usd": 7.337}, {"date": "2023-01-01", "strong": 0.722, "weak": 2.157, "usd": 5.946}, {"date": "2023-02-01", "strong": -1.667, "weak": 1.207, "usd": 5.458}, {"date": "2023-03-01", "strong": 1.328, "weak": 1.328, "usd": 4.216}, {"date": "2023-04-01", "strong": 1.815, "weak": 1.094, "usd": 6.306}, {"date": "2023-05-01", "strong": 0.661, "weak": 1.938, "usd": -2.403}, {"date": "2023-06-01", "strong": 2.549, "weak": 2.237, "usd": 5.334}, {"date": "2023-07-01", "strong": 8.343, "weak": 3.711, "usd": 8.743}, {"date": "2023-08-01", "strong": 8.602, "weak": 4.535, "usd": 5.36}, {"date": "2023-09-01", "strong": 8.602, "weak": 5.622, "usd": 1.455}, {"date": "2023-10-01", "strong": 7.442, "weak": 6.701, "usd": 0.37}, {"date": "2023-11-01", "strong": 6.041, "weak": 5.911, "usd": -6.634}, {"date": "2023-12-01", "strong": 5.084, "weak": 6.168, "usd": 0.208}, {"date": "2024-01-01", "strong": 5.032, "weak": 5.399, "usd": -1.958}, {"date": "2024-02-01", "strong": 3.66, "weak": 5.377, "usd": 2.953}, {"date": "2024-03-01", "strong": 4.531, "weak": 4.743, "usd": 0.091}, {"date": "2024-04-01", "strong": 3.531, "weak": 5.555, "usd": 1.299}, {"date": "2024-05-01", "strong": 3.908, "weak": 5.53, "usd": -2.17}, {"date": "2024-06-01", "strong": 3.165, "weak": 4.836, "usd": -3.108}, {"date": "2024-07-01", "strong": 3.412, "weak": 5.069, "usd": -0.736}, {"date": "2024-08-01", "strong": 3.95, "weak": 5.105, "usd": 1.798}, {"date": "2024-09-01", "strong": 4.922, "weak": 5.662, "usd": 2.617}, {"date": "2024-10-01", "strong": 6.906, "weak": 6.952, "usd": 5.276}, {"date": "2024-11-01", "strong": 5.032, "weak": 5.635, "usd": 4.368}, {"date": "2024-12-01", "strong": 8.662, "weak": 6.903, "usd": 2.127}, {"date": "2025-01-01", "strong": 6.931, "weak": 5.788, "usd": -1.557}, {"date": "2025-02-01", "strong": 4.907, "weak": 6.506, "usd": -7.958}, {"date": "2025-03-01", "strong": 2.795, "weak": 6.295, "usd": -7.281}, {"date": "2025-04-01", "strong": -0.359, "weak": 5.174, "usd": -3.211}, {"date": "2025-05-01", "strong": -1.084, "weak": 3.784, "usd": -3.417}, {"date": "2025-06-01", "strong": 0.776, "weak": 4.282, "usd": -2.161}, {"date": "2025-07-01", "strong": 1.937, "weak": 4.282, "usd": 0.02}, {"date": "2025-08-01", "strong": 1.815, "weak": 3.429, "usd": 1.808}, {"date": "2025-09-01", "strong": 1.45, "weak": 2.918, "usd": 3.491}, {"date": "2025-10-01", "strong": 0.602, "weak": 4.205, "usd": -2.353}, {"date": "2025-11-01", "strong": 2.625, "weak": 3.042, "usd": -0.815}, {"date": "2025-12-01", "strong": 4.5, "weak": 3.929, "usd": -2.387}, {"date": "2026-01-01", "strong": 6.803, "weak": 6.422, "usd": -1.107}, {"date": "2026-02-01", "strong": 3.66, "weak": 2.893, "usd": -0.91}, {"date": "2026-03-01", "strong": 3.784, "weak": 3.908, "usd": 4.6}, {"date": "2026-04-01", "strong": 1.352, "weak": 4.282, "usd": -4.321}, {"date": "2026-05-01", "strong": 0.3, "weak": 2.913, "usd": -5.101}, {"date": "2026-06-01", "strong": 1.987, "weak": 2.427, "usd": 0.732}, {"date": "2026-07-01", "strong": 4.407, "weak": 3.83, "usd": 5.814}, {"date": "2026-08-01", "strong": 5.032, "weak": 4.407, "usd": 6.784}, {"date": "2026-09-01", "strong": 4.344, "weak": 4.033, "usd": 2.355}];
+const FX_SENSITIVITY_DDKP = [{"date": "2019-01-01", "strong": 5.0, "weak": 10.45}, {"date": "2019-02-01", "strong": 2.47, "weak": 3.62}, {"date": "2019-03-01", "strong": 1.69, "weak": 3.55}, {"date": "2019-04-01", "strong": 2.34, "weak": 2.74}, {"date": "2019-05-01", "strong": 4.2, "weak": 3.85}, {"date": "2019-06-01", "strong": 3.33, "weak": -1.57}, {"date": "2019-07-01", "strong": 1.5, "weak": 1.97}, {"date": "2019-08-01", "strong": 0.0, "weak": 2.46}, {"date": "2019-09-01", "strong": -0.03, "weak": 0.71}, {"date": "2019-10-01", "strong": 2.51, "weak": -0.07}, {"date": "2019-11-01", "strong": 1.92, "weak": 1.03}, {"date": "2019-12-01", "strong": -0.37, "weak": 1.29}, {"date": "2020-01-01", "strong": -0.23, "weak": 2.16}, {"date": "2020-02-01", "strong": 0.23, "weak": 2.37}, {"date": "2020-03-01", "strong": 6.22, "weak": 5.72}, {"date": "2020-04-01", "strong": 15.91, "weak": 6.4}, {"date": "2020-05-01", "strong": 2.25, "weak": 3.96}, {"date": "2020-06-01", "strong": 3.55, "weak": 1.99}, {"date": "2020-07-01", "strong": 3.78, "weak": 3.97}, {"date": "2020-08-01", "strong": 1.6, "weak": 4.95}, {"date": "2020-09-01", "strong": 3.29, "weak": 1.48}, {"date": "2020-10-01", "strong": 6.29, "weak": 3.24}, {"date": "2020-11-01", "strong": 7.37, "weak": 5.87}, {"date": "2020-12-01", "strong": 4.74, "weak": 6.99}, {"date": "2021-01-01", "strong": 3.75, "weak": 4.23}, {"date": "2021-02-01", "strong": 3.78, "weak": 7.42}, {"date": "2021-03-01", "strong": 4.41, "weak": 7.42}, {"date": "2021-04-01", "strong": 6.43, "weak": 6.76}, {"date": "2021-05-01", "strong": 9.86, "weak": 11.45}, {"date": "2021-06-01", "strong": 7.7, "weak": 8.33}, {"date": "2021-07-01", "strong": 7.51, "weak": 2.91}, {"date": "2021-08-01", "strong": 6.15, "weak": 7.04}, {"date": "2021-09-01", "strong": 8.05, "weak": 11.05}, {"date": "2021-10-01", "strong": 10.35, "weak": 14.58}, {"date": "2021-11-01", "strong": 8.49, "weak": 7.3}, {"date": "2021-12-01", "strong": 6.43, "weak": 8.68}, {"date": "2022-01-01", "strong": 8.76, "weak": 7.27}, {"date": "2022-02-01", "strong": 15.65, "weak": 9.22}, {"date": "2022-03-01", "strong": 347.18, "weak": 69.19}, {"date": "2022-04-01", "strong": 12.2, "weak": 23.66}, {"date": "2022-05-01", "strong": 0.16, "weak": 4.44}, {"date": "2022-06-01", "strong": -5.71, "weak": -3.28}, {"date": "2022-07-01", "strong": -10.19, "weak": -1.32}, {"date": "2022-08-01", "strong": -5.12, "weak": 1.45}, {"date": "2022-09-01", "strong": -2.18, "weak": 4.65}, {"date": "2022-10-01", "strong": 1.24, "weak": 1.73}, {"date": "2022-11-01", "strong": 1.17, "weak": 0.12}, {"date": "2022-12-01", "strong": 1.19, "weak": 7.11}, {"date": "2023-01-01", "strong": 4.1, "weak": 7.09}, {"date": "2023-02-01", "strong": 0.82, "weak": 3.33}, {"date": "2023-03-01", "strong": 2.32, "weak": 2.79}, {"date": "2023-04-01", "strong": 3.66, "weak": 4.2}, {"date": "2023-05-01", "strong": 1.74, "weak": 4.3}, {"date": "2023-06-01", "strong": 0.75, "weak": 6.41}, {"date": "2023-07-01", "strong": 16.71, "weak": 9.24}, {"date": "2023-08-01", "strong": 14.67, "weak": 9.5}, {"date": "2023-09-01", "strong": 12.65, "weak": 12.96}, {"date": "2023-10-01", "strong": 9.08, "weak": 9.1}, {"date": "2023-11-01", "strong": 5.4, "weak": 11.67}, {"date": "2023-12-01", "strong": 4.64, "weak": 7.67}, {"date": "2024-01-01", "strong": 5.33, "weak": 5.99}, {"date": "2024-02-01", "strong": 2.53, "weak": 5.8}, {"date": "2024-03-01", "strong": 2.34, "weak": 3.66}, {"date": "2024-04-01", "strong": 5.16, "weak": 7.53}, {"date": "2024-05-01", "strong": 7.14, "weak": 8.76}, {"date": "2024-06-01", "strong": 5.56, "weak": 8.19}, {"date": "2024-07-01", "strong": 4.93, "weak": 19.6}, {"date": "2024-08-01", "strong": 3.94, "weak": 13.28}, {"date": "2024-09-01", "strong": 6.33, "weak": 8.28}, {"date": "2024-10-01", "strong": 8.9, "weak": 9.5}, {"date": "2024-11-01", "strong": 9.29, "weak": 16.76}, {"date": "2024-12-01", "strong": 13.56, "weak": 14.86}, {"date": "2025-01-01", "strong": 5.21, "weak": 11.33}, {"date": "2025-02-01", "strong": 2.81, "weak": 8.02}, {"date": "2025-03-01", "strong": 2.14, "weak": 7.63}, {"date": "2025-04-01", "strong": -0.03, "weak": 6.8}, {"date": "2025-05-01", "strong": 0.63, "weak": 5.98}, {"date": "2025-06-01", "strong": 0.63, "weak": 3.01}, {"date": "2025-07-01", "strong": 0.94, "weak": 11.88}, {"date": "2025-08-01", "strong": -0.92, "weak": 3.8}, {"date": "2025-09-01", "strong": 0.02, "weak": 7.49}, {"date": "2025-10-01", "strong": 3.47, "weak": 7.7}, {"date": "2025-11-01", "strong": 2.72, "weak": 1.74}, {"date": "2025-12-01", "strong": 2.27, "weak": 2.25}, {"date": "2026-01-01", "strong": 5.49, "weak": 17.76}, {"date": "2026-02-01", "strong": 3.57, "weak": 5.65}, {"date": "2026-03-01", "strong": 3.22, "weak": 6.08}, {"date": "2026-04-01", "strong": -0.17, "weak": 2.49}, {"date": "2026-05-01", "strong": -0.38, "weak": 2.49}, {"date": "2026-06-01", "strong": 1.67, "weak": 14.79}, {"date": "2026-07-01", "strong": 4.79, "weak": 13.78}, {"date": "2026-08-01", "strong": 7.25, "weak": 5.68}, {"date": "2026-09-01", "strong": 5.0, "weak": 7.2}];
+const ALL_SAAR = {"dates": ["2015-01-01", "2015-02-01", "2015-03-01", "2015-04-01", "2015-05-01", "2015-06-01", "2015-07-01", "2015-08-01", "2015-09-01", "2015-10-01", "2015-11-01", "2015-12-01", "2016-01-01", "2016-02-01", "2016-03-01", "2016-04-01", "2016-05-01", "2016-06-01", "2016-07-01", "2016-08-01", "2016-09-01", "2016-10-01", "2016-11-01", "2016-12-01", "2017-01-01", "2017-02-01", "2017-03-01", "2017-04-01", "2017-05-01", "2017-06-01", "2017-07-01", "2017-08-01", "2017-09-01", "2017-10-01", "2017-11-01", "2017-12-01", "2018-01-01", "2018-02-01", "2018-03-01", "2018-04-01", "2018-05-01", "2018-06-01", "2018-07-01", "2018-08-01", "2018-09-01", "2018-10-01", "2018-11-01", "2018-12-01", "2019-01-01", "2019-02-01", "2019-03-01", "2019-04-01", "2019-05-01", "2019-06-01", "2019-07-01", "2019-08-01", "2019-09-01", "2019-10-01", "2019-11-01", "2019-12-01", "2020-01-01", "2020-02-01", "2020-03-01", "2020-04-01", "2020-05-01", "2020-06-01", "2020-07-01", "2020-08-01", "2020-09-01", "2020-10-01", "2020-11-01", "2020-12-01", "2021-01-01", "2021-02-01", "2021-03-01", "2021-04-01", "2021-05-01", "2021-06-01", "2021-07-01", "2021-08-01", "2021-09-01", "2021-10-01", "2021-11-01", "2021-12-01", "2022-01-01", "2022-02-01", "2022-03-01", "2022-04-01", "2022-05-01", "2022-06-01", "2022-07-01", "2022-08-01", "2022-09-01", "2022-10-01", "2022-11-01", "2022-12-01", "2023-01-01", "2023-02-01", "2023-03-01", "2023-04-01", "2023-05-01", "2023-06-01", "2023-07-01", "2023-08-01", "2023-09-01", "2023-10-01", "2023-11-01", "2023-12-01", "2024-01-01", "2024-02-01", "2024-03-01", "2024-04-01", "2024-05-01", "2024-06-01", "2024-07-01", "2024-08-01", "2024-09-01", "2024-10-01", "2024-11-01", "2024-12-01", "2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01", "2025-05-01", "2025-06-01", "2025-07-01", "2025-08-01", "2025-09-01", "2025-10-01", "2025-11-01", "2025-12-01", "2026-01-01", "2026-02-01", "2026-03-01", "2026-04-01", "2026-05-01", "2026-06-01", "2026-07-01", "2026-08-01", "2026-09-01"], "series": {"ИПЦ, все товары и услуги": [51.53, 28.05, 14.97, 6.04, 4.73, 2.84, 7.41, 10.58, 10.87, 9.76, 8.16, 6.61, 7.97, 6.11, 5.3, 5.5, 5.26, 4.83, 6.59, 5.68, 5.15, 5.61, 4.01, 2.05, 4.31, 1.3, 1.36, 4.05, 4.9, 7.47, 0.68, -1.27, 1.47, 2.68, 1.4, 2.47, 0.66, 1.3, 3.25, 4.45, 5.14, 5.95, 3.35, 5.67, 5.19, 4.25, 4.74, 7.42, 9.27, 3.94, 3.63, 3.32, 4.69, 0.8, 2.52, 2.32, 1.23, 1.56, 2.06, 1.43, 2.05, 2.35, 6.61, 10.29, 4.09, 3.24, 4.63, 4.5, 2.89, 5.05, 7.11, 6.93, 4.79, 6.89, 7.11, 7.36, 11.62, 8.82, 5.17, 7.44, 10.84, 13.9, 8.42, 8.62, 8.49, 12.07, 138.08, 20.16, 3.61, -3.44, -3.85, -0.21, 3.01, 2.32, 1.2, 5.71, 6.83, 3.36, 3.51, 4.85, 4.1, 5.1, 11.98, 11.55, 13.69, 10.07, 10.6, 7.45, 6.35, 5.56, 4.07, 7.5, 9.0, 7.92, 15.25, 11.04, 8.75, 10.2, 15.11, 15.13, 9.87, 7.1, 6.63, 5.37, 5.17, 2.55, 8.63, 3.25, 6.2, 7.1, 3.1, 3.42, 14.26, 5.86, 5.99, 2.61, 2.61, 9.45, 9.99, 7.54, 6.53], "ИПЦ без плодоовощей, нефтепродуктов и ЖКУ": [49.51, 30.67, 17.16, 8.69, 6.31, 5.27, 5.23, 10.11, 9.39, 9.14, 7.5, 6.49, 9.16, 7.82, 7.25, 6.49, 6.22, 5.62, 5.55, 5.19, 5.48, 5.22, 4.65, 3.84, 4.39, 2.55, 1.32, 2.0, 2.06, 2.45, 2.39, 1.44, 2.06, 1.76, 1.48, 1.8, 1.83, 1.4, 1.53, 3.46, 3.47, 4.85, 3.59, 3.99, 6.68, 5.53, 5.06, 6.71, 7.59, 3.82, 3.25, 3.3, 3.94, 2.88, 3.14, 2.58, 1.8, 1.9, 2.4, 1.88, 1.73, 1.61, 6.43, 7.9, 4.85, 2.63, 3.48, 3.77, 3.85, 6.71, 6.85, 5.9, 5.64, 6.31, 9.1, 8.26, 11.05, 7.41, 6.84, 6.76, 8.79, 11.51, 11.31, 10.7, 9.17, 12.04, 163.01, 26.18, 5.17, 1.82, -1.2, 0.99, 3.07, 1.63, 0.16, 2.03, 3.06, 1.22, 3.18, 4.15, 5.48, 6.0, 7.92, 10.19, 11.75, 12.62, 10.81, 7.43, 5.92, 6.16, 5.18, 8.6, 9.33, 6.44, 6.55, 8.28, 9.81, 11.77, 12.85, 13.95, 11.46, 8.66, 6.77, 4.38, 5.26, 3.92, 3.73, 3.76, 5.41, 5.15, 3.41, 5.19, 10.93, 5.64, 5.61, 4.01, 4.64, 4.88, 6.85, 6.04, 6.88], "Продовольственные товары": [75.11, 39.17, 17.46, 3.45, 1.43, -3.58, 4.07, 6.78, 12.68, 11.01, 9.07, 6.4, 5.15, 2.99, 2.73, 4.39, 5.51, 3.3, 7.11, 7.2, 4.84, 7.3, 3.69, -0.23, 2.08, -2.15, -0.19, 6.05, 7.89, 14.38, -3.7, -7.52, -2.02, 2.6, -2.24, 0.0, -1.48, -0.42, 4.32, 3.29, 0.34, 6.75, 4.19, 10.08, 5.26, 3.92, 7.11, 13.78, 7.74, 4.53, 4.54, 3.18, 6.5, -3.29, 4.82, 2.67, 0.47, -0.65, 0.22, 0.58, 0.71, 1.7, 10.46, 20.27, 4.02, 5.04, 8.45, 5.15, 0.91, 4.24, 10.77, 10.85, 3.8, 9.23, 8.95, 7.69, 15.34, 11.62, 3.34, 8.13, 18.99, 24.17, 9.03, 8.24, 8.52, 13.25, 116.07, 38.54, 11.06, -9.28, -9.27, -4.14, -0.09, -0.37, -1.33, -0.34, 7.16, 3.55, 0.86, 2.71, 0.23, 3.41, 16.72, 14.22, 16.97, 12.52, 11.47, 9.0, 6.12, 3.5, 1.58, 5.65, 9.92, 11.44, 14.66, 14.94, 9.87, 11.18, 21.88, 24.36, 6.6, 9.71, 9.98, 8.69, 8.22, 4.17, 1.23, 1.77, 5.47, 9.03, 1.13, -2.45, 14.82, 4.26, 4.18, -2.23, -5.01, 10.97, 13.23, 10.74, 5.29], "Продовольственные товары без плодоовощей": [52.51, 37.78, 20.64, 12.3, 5.91, 4.91, 4.06, 6.2, 8.44, 8.7, 6.47, 4.8, 5.95, 5.48, 7.15, 6.72, 7.27, 5.86, 7.0, 5.48, 5.1, 6.0, 4.94, 4.76, 3.21, 1.48, 0.94, 1.65, 1.51, 2.36, 1.49, 0.3, -0.4, 0.68, -1.04, 0.37, 0.99, 0.31, 0.08, 1.68, 3.42, 6.46, 4.68, 5.11, 8.18, 7.32, 7.76, 10.08, 8.19, 3.39, 3.1, 2.77, 4.51, 2.87, 3.31, 3.63, 2.18, 0.28, 1.25, 2.2, 1.19, -0.1, 8.7, 11.47, 5.13, 4.95, 4.48, 3.67, 3.21, 7.37, 8.76, 7.26, 6.34, 7.72, 14.11, 8.92, 11.09, 7.15, 6.56, 7.63, 10.64, 15.65, 15.8, 11.92, 9.2, 12.09, 90.1, 49.28, 15.6, 4.53, -0.55, -0.27, -0.11, -2.28, -3.14, -1.27, 0.64, -0.48, 0.93, 1.19, 4.79, 6.25, 5.15, 10.55, 11.23, 14.11, 11.25, 8.55, 5.26, 5.27, 5.37, 8.27, 10.01, 7.7, 6.85, 7.7, 11.33, 13.39, 14.82, 20.14, 14.22, 14.04, 10.7, 7.55, 9.64, 7.24, 5.24, 4.86, 5.26, 6.76, 2.2, 2.05, 12.56, 4.87, 4.37, 2.95, 1.31, 4.17, 9.78, 7.01, 6.23], "Мясопродукты": [42.74, 24.46, 13.22, 7.83, 3.54, 1.09, 2.43, 3.04, 5.03, 2.55, 0.0, 0.36, 2.18, -2.14, 0.0, -0.84, 1.57, -0.6, 2.8, 4.78, 7.83, 7.06, 5.03, 5.28, 2.92, -0.24, -2.26, 1.33, 0.0, 0.36, -0.12, 0.6, 0.0, -0.12, -2.26, 0.96, -0.48, -2.73, -2.84, 2.06, 4.41, 12.68, 11.35, 12.42, 17.6, 13.08, 13.89, 12.15, 7.96, 0.12, 1.21, -0.6, 4.78, -0.48, 4.28, 3.41, 1.09, -0.84, -0.48, 0.48, -1.55, -4.7, 9.12, 11.75, -3.43, 2.8, 4.66, 4.28, 0.48, 4.53, 4.66, 8.73, 7.06, 13.62, 31.37, 10.43, 14.44, 9.51, 6.93, 13.76, 19.56, 24.9, 16.08, 8.47, 4.78, 3.91, 58.63, 33.55, 8.47, -0.84, -2.73, -3.19, -1.67, -0.72, -3.31, -0.48, -2.26, -2.96, -3.19, 3.66, 12.28, 14.3, 11.75, 32.92, 28.63, 26.82, 15.12, 5.66, -0.36, 2.18, 5.41, 3.41, 11.09, 4.53, 2.92, 4.78, 5.54, 5.91, 6.8, 21.41, 7.83, 4.91, 4.91, 3.78, 14.71, 5.28, 4.78, 8.6, 10.03, 10.82, 4.03, 2.92, 7.57, -0.12, 0.6, 1.94, -0.12, 7.96, 23.43, 10.03, 8.47], "Рыбопродукты": [109.53, 86.06, 45.17, 18.17, 1.07, 2.38, 0.87, 3.57, 11.06, 19.13, 14.38, 8.68, 11.66, 17.18, 15.65, 13.14, 11.77, 7.43, 8.97, 2.34, 1.53, 4.02, 3.81, 6.24, 4.82, 2.52, 3.64, 0.31, 0.55, 0.25, -0.26, 2.82, 3.67, 6.56, 7.04, 7.29, 3.82, 2.71, 0.99, 1.6, 2.66, 2.11, 3.1, 3.99, 1.6, 2.67, 4.9, 6.61, 8.14, 5.35, 5.77, 5.21, 4.98, 3.02, 3.8, 5.34, 3.72, 3.89, 5.89, 4.64, 2.79, 1.54, 4.62, 9.01, 5.33, 0.8, 1.64, 1.68, 5.93, 8.18, 13.41, 13.77, 9.53, 10.27, 12.85, 8.99, 13.42, 12.73, 7.95, 5.82, 5.66, 12.46, 18.15, 18.86, 14.17, 12.03, 89.98, 43.8, 14.45, 3.54, 2.13, -1.15, 2.98, 6.18, 5.19, 4.0, 2.09, 2.32, 6.04, 3.66, 4.23, 3.49, 6.65, 2.32, 5.4, 7.46, 10.69, 9.38, 9.44, 6.46, 7.51, 7.03, 5.39, 4.79, 5.54, 7.45, 21.78, 31.99, 39.9, 36.75, 24.47, 26.62, 21.7, 15.63, 11.1, 8.11, 6.1, 5.06, 3.46, 4.69, 4.21, 4.07, 7.52, 5.51, 6.13, 6.4, 7.51, 6.67, 7.87, 12.83, 23.94], "Масло и жиры": [86.25, 68.5, 32.1, 13.65, 7.01, 1.84, 4.4, 8.49, 26.44, 27.54, 11.69, 7.03, 9.1, 9.73, 12.59, 15.48, 12.14, 8.44, 10.38, 10.18, 10.32, 21.57, 19.94, 15.92, 11.48, 7.06, 4.78, -1.31, -3.19, -2.61, 1.33, 1.21, 3.29, 2.3, 0.36, 4.66, 2.18, 0.72, 0.6, -2.61, -0.84, 0.24, 0.84, 3.41, 5.16, 7.57, 9.12, 11.22, 5.28, 4.66, 3.17, 1.81, 6.93, 3.41, 4.28, 3.91, 6.55, 8.47, 5.79, 7.19, 2.18, 0.24, 10.95, 8.08, 4.66, 5.79, 2.8, 3.54, 12.55, 34.33, 42.24, 12.01, 2.8, 5.41, 10.16, 9.77, 12.95, 5.79, 4.03, 7.06, 8.34, 13.49, 27.27, 30.45, 14.98, 20.98, 102.59, 64.03, 15.12, 4.41, -7.19, -7.19, 0.12, -3.54, -10.82, -1.9, 1.69, -5.04, 0.96, -3.43, -8.31, -4.35, -9.85, 5.16, 12.82, 16.9, 14.03, 13.62, 17.04, 9.38, 7.44, 14.16, 10.56, 11.35, 18.58, 30.76, 52.16, 76.94, 62.33, 48.5, 17.74, 8.47, 1.33, -3.89, -7.19, -7.75, -5.5, -5.95, -4.93, 0.48, -4.58, -4.58, -0.96, -12.0, -9.63, -4.58, -9.41, -11.9, -2.84, 4.53, 6.29], "Молоко и молочная продукция": [29.28, 36.2, 14.85, 11.16, 10.29, 6.62, 6.89, 6.77, 3.56, 2.61, 6.39, 8.6, 7.91, 6.13, 8.63, 8.9, 8.4, 7.41, 8.54, 8.57, 9.45, 16.06, 11.65, 13.07, 9.25, 6.4, 7.5, 8.64, 8.32, 7.17, 6.07, 3.38, 1.94, 0.92, 2.43, 0.39, 1.36, 0.73, 1.76, 1.5, 3.41, 3.9, 4.79, 4.35, 2.8, 2.54, 2.38, 5.3, 5.25, 5.28, 6.12, 6.48, 8.96, 11.02, 11.38, 8.32, 6.48, 0.71, 2.33, 1.55, 2.42, 4.52, 5.66, 8.13, 7.37, 5.88, 4.22, 5.17, -1.2, -0.29, 1.35, -0.09, 2.53, 2.34, 4.87, 4.78, 11.1, 11.47, 11.56, 9.78, 13.87, 14.35, 15.62, 17.21, 14.58, 25.72, 73.05, 67.74, 24.89, 7.59, 2.55, 1.76, -0.5, -3.09, -2.01, -0.94, -0.09, -0.48, -0.09, -0.6, 0.25, 1.2, 1.2, 0.19, -0.79, 0.42, 2.37, 2.6, 7.2, 5.66, 7.78, 12.84, 11.32, 9.65, 9.29, 15.75, 35.5, 26.45, 29.4, 22.32, 13.78, 19.69, 14.4, 8.68, 8.32, 11.82, 4.63, 4.91, 0.28, 1.3, -2.61, -3.48, 3.5, -6.65, -3.31, -2.54, 0.74, 2.02, 4.04, 3.45, 1.45], "Сыр": [72.12, 40.86, 9.77, -5.05, -9.61, 0.06, 2.52, 4.78, 7.18, 4.26, 0.44, -1.76, -0.48, 0.51, 11.08, 16.25, 15.93, 15.98, 13.45, 10.58, 4.42, 8.27, 11.97, 12.17, 12.5, 8.84, 5.98, 3.7, 0.51, 1.35, 5.61, 4.06, 2.86, 4.72, -3.49, -1.01, -0.49, -2.5, -0.78, 1.48, 3.08, 10.74, 10.27, 5.19, 5.61, 3.48, 6.69, 7.85, 6.77, 2.91, 4.59, 6.85, 7.62, 8.25, 11.06, 10.73, 6.12, 8.54, 5.42, 4.19, 2.66, 5.27, 8.92, 9.04, 7.36, 8.0, 5.87, 4.69, 3.37, 1.04, 4.92, -0.42, 1.07, 6.66, 5.97, 5.2, 7.75, 5.69, 10.8, 9.16, 9.33, 9.44, 14.68, 11.88, 13.31, 20.09, 75.79, 53.26, 36.55, 12.87, 3.48, 5.95, 0.56, -5.64, -4.18, -0.54, -1.55, 5.9, 0.66, 3.69, 3.81, -0.83, -0.43, -1.29, 5.62, 1.16, 4.05, 7.59, 7.54, 1.44, 10.88, 9.43, 7.87, 6.45, 7.92, 9.68, 17.7, 26.85, 34.36, 32.64, 18.8, 17.01, 15.58, 6.59, 8.39, 7.74, 6.63, 4.19, 3.5, 4.85, -6.56, -7.99, 1.2, -5.27, -7.03, -1.77, -1.18, -4.01, -5.71, 1.84, -2.41], "Яйца": [117.64, 39.33, -16.89, -21.38, -22.26, 29.24, -19.05, -4.62, 4.65, 51.05, 13.35, 11.57, 27.01, 0.98, -32.29, -33.62, 22.6, -10.23, 53.68, -2.49, 2.39, 22.5, -4.24, -18.91, -3.13, -7.62, -28.18, -27.8, -12.19, 57.45, -22.4, -31.53, -27.11, 13.37, -28.26, -20.16, 6.61, 26.92, 61.81, 15.73, 20.24, 36.47, -17.68, -9.38, 118.02, 3.09, -20.72, 184.31, 21.03, -32.51, -39.74, -8.94, -0.02, 19.1, 20.53, 97.47, -28.98, -38.26, -6.61, 4.64, -22.36, -40.72, 11.58, 131.55, 71.03, -1.13, 38.45, -4.86, -28.54, -5.71, 39.31, 120.25, 6.73, 52.74, 56.86, 114.36, 27.0, -47.86, 6.56, -28.19, 22.77, 86.47, 19.45, -20.9, -22.81, 9.26, 48.37, -12.49, -33.72, 53.07, -18.2, 6.34, -10.35, 1.63, -26.24, -30.91, 6.83, 46.64, 28.58, -10.12, 20.65, 82.38, 72.95, 25.01, 55.06, 95.12, 224.93, 264.93, -10.45, -2.08, -35.81, -1.28, 48.16, 32.64, -8.07, -10.42, -38.57, -46.88, -12.5, -1.86, 16.95, -21.34, -48.39, -51.92, 28.41, -15.29, -24.99, -3.8, 2.69, 0.03, -30.51, -44.17, 25.28, 182.99, 163.81, 10.54, 22.65, -24.26, -3.34, 13.51, 63.46], "Сахар": [437.04, -4.37, -34.22, -17.2, -15.85, -20.73, -12.64, 84.41, 63.76, 12.16, -10.53, -13.23, -11.91, 17.89, -12.88, -7.74, -9.01, 28.64, 26.07, 4.49, -30.34, -4.51, -15.45, -34.53, -50.72, -46.62, -33.23, 6.9, 5.09, 50.34, 61.65, -34.58, -57.29, -34.18, -42.03, -23.73, -1.98, -1.87, -10.54, 28.89, 83.35, 80.5, -1.69, -19.69, 30.48, 63.13, 93.29, 67.33, 23.85, -7.96, -29.83, -27.79, -23.47, -27.6, -42.31, -39.84, -33.34, -51.33, -59.79, -16.28, -6.51, -3.75, 250.07, 89.37, -11.58, -4.31, 26.26, 36.07, 177.5, 587.26, 197.33, -19.96, -10.08, -3.98, -1.68, 3.74, -1.48, 15.52, 2.75, 3.58, 22.38, 16.56, 56.02, 70.11, 48.15, 37.11, 5996.98, -15.13, -36.3, -58.53, -36.82, 30.29, -30.69, -41.45, -32.89, -26.61, -9.2, 2.22, -10.32, 6.84, 91.64, 80.29, 62.24, 12.3, 2.09, -14.06, -24.58, -8.0, 3.25, 10.51, 1.02, 7.34, -1.72, 26.25, 16.78, -7.03, -24.84, -14.36, 3.41, 38.08, 16.55, 9.59, -24.55, -17.33, -4.39, -11.47, -12.46, -2.46, 20.51, -25.24, -14.09, 1.27, 4.25, 21.55, 4.39, 17.05, 22.81, 42.67, 123.36, 90.59, -9.04], "Кондитерские изделия": [51.99, 62.15, 36.07, 25.19, 24.6, 14.3, 8.73, 9.12, 14.84, 25.93, 18.86, 10.3, 8.86, 8.99, 10.82, 7.96, 12.28, 9.12, 5.79, 4.03, 4.03, 3.54, 3.29, 4.16, 2.3, 1.57, 1.69, 1.45, 0.96, 1.21, 0.84, -0.36, 0.84, 1.69, -0.24, 0.12, 1.69, 1.21, -0.96, 1.81, 0.0, -0.24, 0.96, 2.06, 1.09, 2.3, 6.04, 6.29, 9.51, 12.82, 8.73, 8.21, 4.41, 4.41, 1.57, 0.72, 2.3, 2.43, 3.29, 2.8, 1.69, 1.94, 2.43, 4.66, 7.44, 8.21, 4.28, 2.43, 4.53, 3.17, 7.44, 6.8, 6.42, 2.92, 6.17, 9.38, 11.62, 12.28, 9.25, 9.25, 7.44, 12.55, 18.86, 14.57, 10.3, 20.7, 136.85, 92.73, 29.23, 18.02, 5.54, 0.6, 4.53, -2.26, 1.81, 0.12, 3.04, 0.96, -0.72, -1.55, 2.43, 1.57, 0.12, 1.45, 2.06, 6.55, 10.82, 7.31, 11.35, 8.21, 7.44, 13.62, 13.08, 7.31, 4.91, 5.91, 9.51, 16.08, 16.77, 20.56, 15.12, 19.28, 14.71, 13.89, 8.47, 10.56, 5.79, 2.92, 3.66, 6.8, 6.55, 5.41, 14.03, 4.41, 3.29, 0.12, -1.19, -0.36, 5.79, 3.41, 2.06], "Чай, кофе": [99.86, 110.76, 61.59, 54.47, 20.13, 9.38, 7.06, 7.57, 10.82, 14.3, 11.09, 10.3, 7.96, 21.7, 27.57, 22.71, 14.84, 8.6, 3.41, 5.54, 4.66, 3.17, 6.42, 6.29, 3.91, 2.3, 3.78, 0.36, -1.55, 0.12, -0.48, 0.6, 2.55, -2.37, -2.84, 2.18, 1.45, 1.45, 0.24, 2.55, 4.16, 1.09, 1.09, 0.0, 2.67, 2.43, 0.24, 1.45, 7.06, 4.53, 5.03, 4.53, 1.21, 2.18, -2.02, -3.08, -2.02, 1.57, 1.69, 2.67, 0.12, 0.84, 6.17, 5.66, 14.98, 10.16, 4.91, 1.45, 4.78, 3.78, 4.41, 3.04, 9.25, 4.91, 9.77, 2.3, 5.54, 3.29, 0.0, -0.96, 4.53, 7.7, 11.35, 8.6, 3.04, 16.49, 241.98, 125.72, 39.13, 9.64, -7.86, -0.84, -1.43, -7.64, -2.26, -0.12, -1.67, -12.85, 4.66, -3.89, -5.84, -2.37, 0.48, 4.28, 6.04, 7.19, 4.16, 0.96, -1.79, -1.9, -0.96, 10.03, 7.7, 5.79, 4.03, 8.6, 1.45, 10.95, 7.96, 15.39, 12.01, 25.19, 30.76, 23.29, 11.09, 12.28, 10.03, 11.88, 3.66, 14.3, 12.42, 2.8, 10.43, -3.08, -4.47, -2.14, -4.35, -0.24, -0.72, -4.24, -1.19], "Хлеб и хлебобулочные изделия": [52.69, 36.55, 18.86, 10.3, 6.68, 4.91, 3.66, 3.17, 5.41, 7.96, 8.47, 9.12, 5.91, 5.28, 8.86, 10.03, 8.34, 4.78, 5.03, 4.41, 5.66, 3.54, 4.28, 4.66, 3.91, 3.66, 4.03, 4.16, 1.69, 2.55, 0.84, 2.92, 2.3, 1.94, 2.3, 2.55, 3.17, 1.33, 1.09, 1.33, 3.41, 3.66, 3.29, 3.91, 6.17, 11.75, 9.77, 14.16, 10.56, 12.15, 10.82, 9.51, 7.57, 3.91, 4.66, 4.03, 3.41, 2.92, 1.57, 5.28, 3.91, 3.78, 6.55, 5.54, 6.29, 10.69, 6.42, 6.55, 6.04, 9.12, 11.62, 11.62, 5.66, 5.91, 7.19, 10.16, 8.21, 6.8, 5.28, 6.8, 6.93, 18.44, 26.38, 17.46, 10.16, 12.82, 59.73, 45.59, 16.9, 9.38, 2.67, 3.17, 4.78, 1.09, 1.45, 2.43, 0.48, 1.33, 1.33, 3.41, 0.36, 0.6, 0.0, 1.94, 10.56, 19.84, 16.49, 8.99, 8.73, 5.54, 4.41, 14.16, 18.86, 12.42, 13.76, 12.55, 17.74, 16.77, 16.77, 18.3, 12.01, 13.22, 18.16, 14.98, 9.9, 10.3, 10.3, 5.66, 8.86, 11.88, 8.86, 9.9, 12.68, 10.16, 9.77, 3.17, 2.3, 9.64, 8.21, 6.17, 8.86], "Макаронные и крупяные изделия": [119.97, 74.92, 28.48, 1.57, -8.64, -10.28, -3.77, 12.15, 13.89, 15.8, 7.06, 3.41, 3.04, 5.79, 18.02, 21.99, 26.68, 18.44, 11.22, 7.31, -7.19, -16.89, -6.63, -2.96, -1.31, -3.54, -12.43, -12.32, -11.47, -12.75, -6.63, -8.53, -9.19, -9.41, -9.85, -9.63, -8.53, -8.53, -6.97, -6.63, -5.15, 2.55, 3.91, -0.72, 4.03, 15.12, 16.63, 14.3, 13.35, 19.99, 17.46, 11.35, 12.68, 7.44, 6.29, 5.28, 6.68, 14.71, 17.6, 9.9, 0.84, 3.04, 38.32, 84.78, 50.93, 24.46, 3.78, -0.48, -2.26, 10.56, 13.08, 8.99, 8.47, 7.31, 9.64, 13.22, 10.69, 7.57, 8.73, 5.16, 9.38, 28.17, 49.02, 40.43, 24.02, 17.18, 188.79, 90.34, 14.16, -0.6, -12.32, -14.11, -13.7, -19.49, -14.32, -13.7, -15.46, -15.46, -6.97, -10.17, -5.95, -4.35, -2.96, 1.45, 2.92, 12.55, 6.17, 5.79, 2.8, 0.96, 2.67, -0.48, 2.18, 2.67, 4.03, 3.78, 2.18, 6.29, 2.43, 10.03, 1.69, 3.04, -2.02, -0.6, -5.15, 0.0, -4.0, -4.81, 1.09, 2.3, 0.96, -2.73, 2.8, -1.67, -1.9, 4.53, -1.67, 0.6, 7.83, 18.86, 12.15], "Плодоовощная продукция, включая картофель": [426.29, 49.99, -2.0, -41.76, -25.41, -47.76, 5.04, 10.92, 54.17, 29.14, 33.02, 20.94, -0.35, -14.21, -25.67, -11.86, -7.86, -14.06, 8.19, 22.79, 2.59, 20.51, -8.28, -37.22, -7.88, -28.88, -9.19, 50.44, 74.1, 156.28, -34.15, -50.84, -16.03, 22.13, -12.07, -3.32, -20.53, -5.69, 45.03, 16.07, -21.04, 9.34, 0.24, 59.91, -16.95, -23.19, 0.42, 53.9, 3.98, 13.9, 16.29, 5.69, 22.46, -38.39, 16.93, -4.52, -13.99, -9.27, -8.68, -13.35, -2.79, 17.67, 24.96, 113.27, -3.09, 5.55, 41.99, 17.08, -16.68, -19.91, 29.71, 45.58, -13.55, 20.38, -21.46, -0.13, 49.95, 48.6, -16.33, 12.43, 112.5, 117.93, -30.78, -16.13, 4.28, 21.0, 385.14, -12.92, -14.4, -65.48, -54.39, -31.09, 0.76, 19.71, 17.77, 8.57, 74.22, 37.14, 1.19, 13.13, -26.02, -14.2, 139.37, 43.32, 69.34, 0.53, 13.75, 11.93, 12.35, -8.03, -20.61, -10.45, 10.34, 41.02, 84.16, 79.41, -1.01, -4.78, 90.28, 57.25, -33.22, -14.58, 5.43, 16.28, -1.01, -13.63, -22.61, -18.76, 7.65, 30.17, -6.6, -32.34, 31.86, 0.48, 2.66, -30.67, -38.75, 73.39, 39.68, 40.5, -1.71], "Алкогольные напитки": [24.9, 16.63, 22.71, 14.98, 7.19, 8.86, 6.42, 4.66, 7.57, 6.29, 6.42, 4.41, 5.54, 8.99, 11.75, 9.64, 5.28, 7.06, 6.68, 5.16, 5.03, 4.28, 3.91, 3.41, 6.29, 3.54, 7.83, 3.54, 5.16, 1.33, 1.21, 0.96, 1.21, 1.69, 1.81, 0.36, 0.96, 1.81, 1.69, 1.81, 1.57, 1.33, 0.12, 1.69, 0.84, 1.69, 0.6, 1.94, 7.96, 0.36, 2.18, 2.06, 1.45, 0.96, -0.36, -0.48, 0.0, -0.72, 0.48, 1.09, 5.66, 5.54, 6.55, 4.41, 3.78, 2.55, 1.21, 0.6, 0.96, 0.24, 0.36, 2.18, 7.7, 1.09, 5.91, 1.57, 4.16, 1.45, 0.72, 0.96, -0.12, 4.03, 0.36, 3.29, 9.12, 8.6, 55.91, 26.82, 13.35, 2.55, 2.18, -0.48, 1.94, -2.61, -6.74, -0.48, 7.31, 1.09, 5.28, 2.43, 2.06, 3.78, -0.12, 2.8, 0.84, 3.54, 0.12, 1.09, 5.66, 9.38, 8.73, 10.69, 6.93, 9.9, 12.42, 4.78, 9.38, 6.29, 5.41, 10.3, 28.32, 29.99, 18.72, 16.49, 9.9, 12.42, 7.06, 2.67, 2.06, 4.66, 0.0, 5.79, 41.91, 20.27, 11.35, 11.62, 3.04, 4.03, 4.41, 1.09, 1.09], "Общественное питание": [32.92, 19.56, 13.49, 12.68, 5.91, 6.17, 5.41, 6.55, 6.42, 3.29, 10.16, 6.29, 9.38, 6.29, 5.66, 4.78, 5.03, 5.03, 5.16, 3.29, 4.41, 3.66, 3.78, 3.66, 0.0, 3.04, 2.67, 3.17, 3.54, 2.43, 1.94, 2.92, 1.81, 1.21, 0.12, 1.21, 1.94, 1.81, 1.57, 1.33, 2.8, 4.41, 2.43, 4.03, 2.8, 4.91, 3.54, 2.92, 5.28, 3.29, 3.17, 2.3, 2.55, 4.16, 1.45, 2.43, 8.21, 1.21, 2.55, 1.69, 0.6, -2.02, 1.94, 3.66, 2.55, 1.69, 1.33, 4.03, 2.43, 3.91, 3.41, 4.78, 3.91, 7.19, 7.7, 4.16, 11.09, 7.96, 5.79, 5.54, 6.8, 6.93, 12.95, 5.66, 7.96, 5.79, 74.32, 42.58, 12.95, 5.91, 5.54, 5.28, 3.54, 6.55, 4.91, 3.29, 4.28, 4.53, 4.03, 4.41, 6.68, 5.54, 4.78, 5.41, 9.25, 27.57, 16.49, 10.56, 10.3, 9.64, 8.08, 10.43, 7.57, 8.99, 6.04, 7.06, 9.12, 13.76, 12.15, 14.44, 15.25, 11.62, 16.21, 12.28, 11.62, 10.82, 14.3, 7.19, 11.09, 11.09, 7.96, 8.47, 17.46, 9.25, 10.82, 2.67, 3.78, 11.48, 7.57, 8.34, 1.45], "Непродовольственные товары": [46.42, 27.98, 17.97, 11.08, 7.32, 5.56, 7.31, 9.65, 12.44, 10.72, 7.84, 5.49, 8.61, 9.89, 9.82, 7.63, 5.78, 7.04, 5.92, 5.01, 5.66, 5.11, 4.34, 3.83, 6.07, 2.54, 2.34, 2.24, 2.43, 2.58, 2.24, 1.59, 1.86, 2.21, 3.03, 3.98, 3.91, 1.67, 1.68, 4.72, 11.79, 6.25, 2.61, 2.55, 3.27, 4.15, 3.95, 3.09, 8.16, 3.24, 2.79, 2.52, 3.21, 3.19, 3.18, 1.85, 1.25, 2.5, 2.04, 1.83, 3.04, 0.96, 5.67, 5.8, 3.91, 5.46, 4.33, 4.42, 5.65, 7.09, 6.44, 4.95, 6.78, 7.62, 8.76, 8.64, 10.21, 9.89, 10.46, 9.35, 6.72, 8.39, 8.27, 7.91, 8.52, 10.21, 258.8, 7.0, -0.11, -3.49, -4.5, -1.28, 0.65, -0.8, 0.04, 0.53, 3.6, 0.63, 2.52, 3.16, 5.31, 5.53, 10.0, 11.45, 10.76, 5.75, 7.53, 5.85, 6.58, 4.67, 4.05, 6.23, 7.35, 4.02, 5.82, 5.4, 5.31, 7.1, 6.53, 10.6, 5.78, 4.54, 2.27, 0.45, 0.59, -0.67, 0.46, 3.75, 4.87, 6.36, 3.18, 6.12, 8.16, 5.23, 6.5, 5.18, 4.73, 7.93, 10.16, 6.56, 5.83], "Непродовольственные товары без нефтепродуктов": [52.55, 31.95, 19.6, 11.86, 7.99, 5.14, 5.22, 8.78, 12.56, 11.38, 8.57, 6.86, 10.1, 11.15, 9.93, 7.52, 6.22, 6.51, 5.22, 5.18, 6.03, 5.63, 4.69, 3.84, 5.61, 2.05, 1.84, 1.69, 1.74, 1.4, 2.19, 1.48, 1.56, 2.28, 2.76, 2.42, 3.7, 1.88, 1.84, 3.55, 3.48, 3.31, 3.18, 3.25, 3.43, 4.05, 4.11, 3.94, 8.25, 4.11, 3.38, 2.92, 3.23, 2.55, 3.28, 1.89, 1.45, 2.63, 2.09, 2.01, 3.08, 1.04, 6.39, 7.07, 4.52, 4.5, 3.29, 4.65, 6.3, 7.93, 7.31, 5.54, 6.01, 6.91, 7.79, 9.04, 11.29, 10.3, 10.59, 7.5, 8.45, 8.65, 7.78, 7.7, 8.16, 11.58, 331.42, 8.44, 0.26, -3.67, -4.93, -1.97, 0.41, -0.97, -0.18, 0.49, 3.09, -0.45, 1.64, 2.45, 3.79, 4.74, 9.9, 10.53, 9.63, 9.58, 8.16, 5.82, 6.03, 4.12, 3.34, 5.43, 7.07, 3.7, 4.09, 4.96, 5.37, 7.03, 4.12, 8.78, 5.08, 3.17, 0.82, -1.51, -0.84, 0.11, 0.88, 1.51, 1.82, 2.55, 3.08, 5.5, 6.15, 3.13, 4.18, 3.0, 2.06, 1.26, 3.49, 5.53, 4.39], "Одежда и белье": [19.62, 19.93, 18.53, 12.04, 10.81, 8.83, 8.96, 11.37, 13.51, 11.55, 10.29, 8.82, 8.86, 9.28, 9.55, 8.27, 7.38, 6.11, 4.78, 5.69, 8.29, 7.13, 6.99, 5.3, 4.13, 3.59, 3.52, 3.33, 2.82, 3.53, 3.76, 2.62, 1.55, 3.18, 2.24, 2.46, 2.49, 2.35, 1.74, 2.33, 2.13, 2.83, 2.39, 1.66, 1.87, 2.86, 2.72, 2.26, 3.33, 2.6, 1.87, 2.7, 2.65, 2.68, 2.65, 1.75, 0.91, 1.59, 2.37, 1.3, 1.64, 1.02, 1.58, -0.09, 2.09, 2.95, 2.46, 1.83, 1.96, 1.64, 1.68, 0.42, 2.79, 2.58, 3.17, 4.35, 3.94, 3.67, 2.06, 2.85, 3.25, 3.62, 2.96, 5.19, 3.89, 4.77, 77.53, 15.06, 4.97, 0.87, 2.29, 1.67, 2.66, -0.74, -0.52, 0.68, 2.12, 1.02, 2.11, 1.42, 1.59, 1.96, 3.94, 6.38, 4.16, 5.58, 4.32, 3.86, 2.99, 4.57, 3.31, 4.26, 4.51, 4.15, 3.13, 3.69, 3.16, 3.02, 2.01, 3.98, 3.69, 1.91, 1.7, 0.3, -1.07, 1.64, 2.44, 5.21, -2.94, 0.31, 2.75, 1.48, -0.59, -2.77, 1.35, 2.56, 4.32, -1.26, 1.2, 4.32, -1.75], "Меха и меховые изделия": [28.26, 15.83, 4.29, 5.06, 4.26, 3.39, 3.28, 5.26, 4.9, 7.09, 4.59, 2.07, 3.66, -0.22, 2.9, 3.48, 3.42, 2.75, 2.75, 0.93, 1.06, -1.77, -4.83, -0.56, 2.6, 0.28, 2.08, 0.98, 0.38, 0.85, 0.78, 1.43, 0.11, 0.44, 0.34, 1.94, 0.03, 0.39, -0.93, -0.23, 1.07, 0.53, 0.8, 1.24, 1.78, -1.01, 1.18, 0.78, 1.15, 2.98, 2.32, 1.44, 0.4, 0.53, 1.16, 0.24, 0.46, 1.65, -0.37, -3.53, -0.91, 1.66, 2.99, 1.54, 0.8, 1.84, -0.16, 1.45, -1.24, 11.91, -3.21, -7.92, -0.47, 1.73, 2.44, 1.68, 1.23, 2.05, 1.4, 0.01, 2.33, 5.1, -13.0, 5.61, -6.92, 3.09, 39.75, -5.14, 7.64, 0.63, -2.58, -2.76, 0.47, -6.06, -7.51, 1.65, -0.83, -3.18, 10.17, -1.06, 1.45, 0.22, 3.7, 6.81, 2.36, 3.97, 9.23, -0.59, 1.67, 0.8, -1.33, 0.97, -5.26, 3.57, 3.68, 0.3, 2.11, -0.0, 3.18, 2.05, -4.81, 1.83, 0.62, -0.02, -1.95, -1.98, 0.07, 11.01, 0.42, 6.29, -6.29, 1.8, -5.3, 0.46, 1.39, 3.17, 3.45, 1.76, -2.98, 5.42, 12.0], "Трикотажные изделия": [19.83, 20.68, 20.21, 12.0, 11.23, 8.44, 8.42, 9.98, 14.51, 12.32, 10.63, 8.31, 8.89, 10.12, 9.41, 7.74, 6.99, 6.59, 6.45, 6.81, 7.91, 6.52, 6.68, 6.2, 4.4, 3.77, 3.82, 3.36, 3.19, 4.27, 3.65, 4.0, 2.9, 2.43, 1.97, 1.82, 2.57, 2.39, 1.69, 3.21, 2.99, 3.04, 2.91, 2.31, 1.85, 2.41, 1.93, 2.86, 3.74, 3.09, 2.29, 3.12, 3.33, 3.03, 2.72, 1.59, 0.82, 0.24, 2.05, 2.17, 2.31, 2.0, 1.49, 0.27, 2.06, 3.38, 2.98, 2.41, 1.18, 2.14, 1.64, 1.88, 3.57, 4.3, 3.86, 3.76, 4.17, 4.65, 2.63, 5.38, 3.58, 4.48, 5.36, 3.8, 4.63, 6.01, 88.26, 18.9, 5.86, 3.74, 3.11, 2.06, 3.91, 0.69, -1.33, 2.14, 1.84, 0.75, 0.6, 1.8, 1.49, 1.98, 4.77, 6.72, 6.91, 6.12, 5.74, 3.87, 3.68, 5.43, 5.14, 5.46, 5.25, 3.68, 3.17, 3.89, 4.08, 5.54, -0.01, 4.95, 3.67, 2.65, 1.71, -1.3, -1.06, 2.04, 1.35, 4.22, -1.95, -0.37, 1.21, 1.37, -0.46, -1.54, 1.85, 3.69, 3.9, -0.87, 1.12, 7.36, -4.28], "Обувь кожаная, текстильная и комбинированная": [22.4, 20.23, 24.62, 16.13, 11.15, 8.68, 7.65, 11.64, 18.18, 20.14, 13.28, 8.53, 10.18, 10.85, 12.55, 11.28, 9.46, 7.53, 7.03, 7.17, 11.33, 9.64, 7.43, 5.68, 4.54, 6.65, 4.24, 4.52, 3.14, 4.3, 3.87, 3.56, 3.07, 2.85, 4.14, 3.24, 4.07, 0.66, 1.31, 1.84, 2.55, 2.22, 3.38, 1.45, 1.72, 0.82, 0.94, 1.77, 1.22, 2.38, 0.78, 1.47, 2.1, 2.58, 3.12, 1.15, -1.15, 0.37, 1.02, -0.07, 2.27, 0.8, 0.65, -1.02, 1.54, 3.04, 1.4, 1.31, 0.86, 0.49, 1.68, 1.38, 2.48, 0.93, 2.52, 3.98, 3.69, 2.39, 2.61, 1.06, 3.17, 2.55, 2.46, 2.78, 0.4, 2.41, 100.24, 12.61, 1.83, 0.98, -0.83, -1.76, -3.09, -0.71, -3.15, -2.93, -1.14, -1.51, 0.64, 1.35, -2.61, -0.58, 1.27, 4.91, 2.64, 0.07, 0.74, 3.62, 4.1, 5.07, 1.57, 3.36, 2.69, 2.49, 3.74, 5.47, 5.11, 5.31, 3.56, 10.03, -0.9, 0.13, 1.18, -3.67, -2.42, 0.59, -0.6, -2.04, -6.59, -1.44, 0.79, 1.67, 0.75, -4.71, 0.41, 1.34, 1.61, -0.69, 0.65, 1.63, -5.0], "Моющие и чистящие средства": [46.1, 35.12, 55.73, 56.45, 34.33, 6.17, 4.91, 2.8, 4.91, 11.48, 18.44, 10.56, 8.99, 8.34, 12.95, 12.42, 8.86, 4.66, 4.41, 3.41, 3.91, 3.17, 3.17, 2.43, -0.84, 3.17, 3.41, 0.6, 2.18, -1.9, -0.96, -2.14, -1.31, 2.55, -0.6, 3.04, 3.04, -0.84, -1.19, 1.21, 4.03, 1.94, 4.41, 5.28, 2.8, 2.67, 7.06, 7.7, 6.29, 8.47, 8.86, 6.8, 3.17, 0.96, 5.79, -1.43, 3.78, 4.78, 7.7, 3.78, 2.8, 0.24, 6.93, 16.35, 7.06, 7.83, 3.66, 1.09, 3.29, 13.49, 8.86, 1.94, 3.78, 5.79, 8.34, 10.69, 8.99, 8.99, 6.29, 0.96, 5.54, 8.73, 14.84, 6.8, 8.47, 15.12, 357.04, 157.76, 29.69, 8.08, 1.81, 0.0, 4.91, 1.57, 2.67, -0.24, 0.12, -0.48, -2.73, -2.49, 0.36, -3.43, 3.17, 5.66, 3.17, 6.04, 9.25, 8.08, 2.3, -1.31, 1.33, 1.21, -0.48, 2.3, -4.24, -0.96, -1.55, 2.92, 5.54, 12.55, -4.35, 0.96, 4.28, -2.02, -1.07, 8.08, 2.43, -5.04, 7.83, 7.7, 5.91, 5.16, 6.04, 2.55, 2.8, -1.55, -1.9, 4.28, 2.43, 3.29, 8.73], "Парфюмерно-косметические товары": [50.59, 49.41, 41.58, 35.04, 21.97, 10.18, 9.42, 10.56, 9.92, 13.02, 11.47, 10.36, 10.34, 13.23, 13.29, 13.34, 11.87, 8.75, 9.59, 10.16, 8.43, 7.06, 4.29, 3.38, 4.42, 1.04, 5.98, 2.07, 3.58, 3.72, 1.91, 2.84, 2.7, 2.04, 3.49, 2.58, 1.21, 1.3, 2.39, 1.97, 2.73, 3.18, 3.75, 6.49, 0.07, 4.98, 4.56, 5.93, 8.3, 5.42, 5.27, 5.21, 3.7, 4.96, 5.36, -3.29, 5.43, 10.23, -0.35, 6.76, 1.05, 0.92, 6.41, 4.88, 6.86, 8.11, 4.91, -0.25, 4.56, 5.13, 4.66, -1.4, -0.22, 6.98, 6.7, 5.4, 10.3, 6.77, 4.55, 7.11, 7.35, 10.16, 3.29, 7.25, 7.06, 8.88, 268.08, 107.78, 49.1, 24.56, 7.46, 4.89, 8.43, -0.53, 7.42, 3.11, 3.4, -1.31, 1.36, 2.17, 2.52, 1.81, 5.71, 5.34, -1.41, 6.51, 0.81, 4.37, 11.45, 9.09, 4.33, 8.06, 8.44, 3.48, 0.46, 3.8, 4.7, 2.29, 6.6, 8.45, -0.31, 3.01, 5.73, 1.68, 1.55, 6.29, 5.13, 7.8, 4.94, 5.27, 5.95, 7.75, 11.7, 6.24, 3.38, 6.53, -0.65, 1.72, 5.26, 4.87, 5.06], "Галантерея": [29.77, 30.42, 25.4, 21.17, 14.51, 11.73, 8.11, 12.18, 14.58, 14.88, 10.07, 9.23, 10.87, 10.88, 12.57, 11.97, 8.42, 9.75, 7.81, 7.63, 8.13, 6.4, 5.83, 5.45, 4.94, 5.93, 4.79, 3.42, 2.61, 3.51, 3.84, 3.75, 2.15, 3.21, 3.7, 2.89, 3.18, 1.81, 1.08, 0.77, 2.59, 2.28, 2.43, 2.42, 2.68, 1.43, 3.46, 2.96, 9.0, 4.26, 3.15, 2.75, 3.06, 2.53, 2.87, 1.11, 2.11, 0.63, 2.98, 1.43, 0.12, 2.39, 3.01, 2.89, 3.05, 3.77, 4.08, 3.08, 2.88, 3.22, 2.89, 2.21, 3.14, 4.63, 3.49, 3.17, 5.42, 4.16, 4.17, 3.21, 5.28, 4.99, 5.16, 4.23, 4.47, 5.52, 136.43, 38.02, 7.59, 5.19, 1.8, 0.28, 1.0, 0.95, -0.69, 2.16, 1.47, 1.46, 1.64, 2.72, -0.92, 1.52, 4.74, 4.16, 2.85, 3.79, 4.06, 5.56, 4.27, 3.82, 6.23, 3.36, 3.1, 4.77, 2.98, 3.39, 3.36, 4.43, 3.56, 5.88, 2.62, 2.48, 2.38, 0.81, 0.42, 1.23, 4.21, 2.74, -2.4, 0.17, 1.85, 3.35, 4.82, 0.91, 0.82, 2.51, 3.46, 0.05, 1.5, 3.22, 1.42], "Табачные изделия": [21.27, 25.78, 24.02, 20.98, 26.82, 27.57, 40.1, 35.44, 25.64, 33.08, 25.19, 15.12, 21.84, 14.84, 19.0, 20.98, 19.42, 16.08, 15.39, 18.72, 23.43, 15.66, 15.25, 13.35, 12.15, 7.96, 10.43, 5.66, 5.91, 8.08, 7.7, 5.66, 5.03, 12.28, 14.03, 8.47, 11.62, 11.88, 11.09, 8.21, 8.73, 12.42, 10.56, 11.62, 8.73, 8.99, 8.21, 8.73, 9.9, 10.95, 7.44, 6.17, 11.22, 11.75, 11.22, 12.95, 13.35, 11.75, 14.16, 11.09, 9.9, 6.17, 9.25, 9.25, 8.6, 10.43, 6.55, 7.06, 7.31, 7.31, 7.96, 8.08, 11.48, 22.56, 17.46, 28.93, 26.53, 26.38, 24.16, 18.02, 8.6, 5.54, 5.16, 5.54, 8.21, 7.57, 12.01, 5.54, 7.7, 10.95, 8.34, 11.88, 14.03, 16.63, 10.16, 10.16, 12.15, 7.31, 9.51, 8.86, 9.25, 7.83, 8.73, 3.66, 5.03, 3.66, 3.29, 5.41, 7.31, 7.44, 4.91, 4.78, 3.91, 3.54, 8.08, 6.93, 7.83, 7.83, 6.29, 5.28, 8.08, 5.54, 10.56, 7.31, 7.7, 6.17, 5.41, 4.41, 9.9, 9.77, 6.17, 4.03, 7.83, 6.17, 10.56, 11.35, 10.03, 12.42, 7.7, 6.17, 4.28], "Мебель": [46.18, 23.62, 16.87, 5.98, 6.23, 4.52, 3.03, 3.9, 4.45, 2.0, 2.97, 2.47, 4.09, 4.52, 6.64, 4.1, 4.52, 4.37, 2.22, 1.94, 2.03, 0.71, 2.02, 2.49, 0.46, 0.66, 1.46, 2.54, 2.63, 1.99, 2.77, 2.48, 0.75, 2.4, 2.7, 1.95, 0.44, 1.96, 1.67, 3.48, 3.93, 4.15, 4.04, 3.34, 4.77, 5.44, 4.47, 3.71, 6.11, 6.57, 4.58, 4.29, 4.67, 3.66, 2.44, 2.13, 1.02, -0.44, 0.36, 0.9, 0.5, 0.49, 3.4, 3.35, 3.24, 4.38, 3.95, 4.71, 6.94, 9.32, 10.57, 12.13, 8.5, 12.67, 13.87, 12.31, 12.49, 14.45, 12.95, 12.6, 16.7, 9.14, 7.37, 9.05, 9.05, 7.71, 237.63, 22.33, -1.46, -6.99, -7.06, -5.72, -4.98, -6.14, -1.62, -2.15, -1.47, -3.63, -0.83, 0.12, 1.77, 3.69, 6.25, 9.78, 14.18, 16.46, 13.96, 9.34, 7.5, 6.87, 5.19, 6.55, 6.0, 6.0, 4.37, 8.25, 7.39, 6.51, 6.43, 9.87, 10.34, 8.28, 3.68, 2.95, 3.33, 3.62, 5.31, 3.5, 1.33, 2.03, 5.41, 4.91, 8.2, 6.77, 5.39, 7.82, 6.3, 6.19, 9.4, 6.47, 4.85], "Электротовары и другие бытовые приборы": [100.17, 29.82, 11.32, 3.71, 2.41, 3.96, 4.08, 12.95, 24.38, 16.48, 8.33, 9.55, 10.46, 18.0, 9.09, 5.97, 5.27, 4.96, 2.72, 3.16, 3.36, 1.95, 2.79, 1.49, -0.67, -2.27, -4.03, -1.38, -0.97, -0.44, 1.01, 1.81, 0.43, -0.59, 0.72, -1.27, 1.01, 2.41, 0.22, 5.34, 3.28, 5.21, 3.83, 3.28, 5.23, 7.96, 3.65, 3.33, 3.7, 4.52, 1.43, 1.62, 4.27, 0.28, 0.16, 0.11, -1.72, -2.13, -3.43, -3.15, -2.77, 7.07, 30.93, 16.17, 3.98, 9.19, -1.3, -0.75, 0.9, 6.89, 6.12, 4.34, 1.63, 2.65, 0.08, 5.98, 10.53, 5.59, 1.94, 4.23, 5.7, 5.0, 0.68, 8.0, 1.51, 43.36, 2054.31, -56.9, -2.44, -5.38, -35.58, -8.08, -4.39, -10.61, -4.27, -8.89, -5.2, -4.65, 2.27, -7.83, -5.0, 0.27, 12.52, 11.79, 7.34, 9.2, -4.04, -2.19, 0.78, -1.48, -3.12, 9.73, 5.75, 10.11, 5.03, -0.99, -4.4, 1.42, 6.24, 37.17, -0.42, 4.15, -5.77, -12.52, -7.27, -10.95, -6.37, -4.14, -4.06, -8.76, -2.06, -0.18, 5.58, -6.14, -0.63, -4.88, -1.61, -3.88, -1.18, 3.24, 4.81], "Печатные издания": [21.04, 10.15, 10.92, 10.03, 11.24, 9.27, 11.34, 12.06, 13.0, 9.15, 9.75, 9.36, 11.48, 8.21, 8.44, 8.72, 7.76, 8.17, 7.8, 9.64, 8.57, 8.86, 7.97, 6.82, 7.21, 6.85, 6.59, 6.05, 6.62, 6.43, 7.05, 6.5, 4.46, 5.93, 5.34, 4.66, 2.77, 4.95, 3.7, 5.93, 5.0, 4.73, 3.5, 2.11, 4.09, 4.77, 5.73, 5.89, 18.18, 10.79, 5.61, 5.16, 4.77, 4.2, 3.7, 3.14, 4.55, 4.65, 3.54, 4.05, 2.82, 2.93, 3.26, 2.74, 3.89, 3.47, 4.51, 6.07, 4.05, 3.98, 4.56, 3.58, 3.55, 3.75, 3.61, 4.64, 5.17, 3.36, 2.71, 5.58, 3.69, 6.06, 8.38, 7.41, 8.02, 8.49, 19.93, 23.64, 33.6, 14.17, 12.93, 9.27, 10.43, 5.96, 5.41, 5.96, 3.04, 1.54, 7.88, 3.95, 0.48, 4.51, 3.76, -2.2, 6.0, 7.29, 6.18, 8.99, 6.77, 6.89, 3.0, 7.5, 8.72, 6.61, 8.4, 7.9, 8.31, 9.58, 7.92, 5.94, 10.2, 27.98, 10.22, 5.68, 9.18, 9.53, 8.0, 5.55, 5.68, 5.33, 18.55, 7.65, 23.55, 22.06, 7.44, 9.59, 6.22, 3.71, 5.54, 6.12, 6.32], "Телерадиотовары": [53.58, 8.73, -6.74, -6.52, -8.86, -2.73, 1.69, 9.51, 33.7, 20.7, 17.04, 12.68, 14.3, 12.55, -2.26, -8.08, -6.06, -5.84, -2.96, -4.58, -1.31, 1.33, 4.66, 3.41, 0.24, -4.58, -6.18, -2.61, -3.77, -3.43, -1.07, 0.0, -2.14, 0.48, -0.36, -3.43, 5.79, -5.27, -5.15, 2.3, -6.74, -4.12, -1.07, 4.66, 1.21, -0.12, -0.36, 3.04, 2.92, -8.97, -3.89, -6.06, -7.19, -10.39, -3.54, -5.38, -5.27, -7.08, -6.29, -7.08, -6.52, -13.07, 27.12, 3.04, -4.93, -9.85, 3.91, 1.09, 1.94, -3.54, 1.09, -2.49, 23.43, 0.12, 14.16, 13.89, 14.57, -11.58, 12.42, 29.99, 15.39, 16.08, 18.3, 11.88, 16.08, 57.17, 1143.12, -85.1, -29.84, -28.0, -22.77, -23.99, -17.3, 12.15, -24.55, -15.36, 8.34, -41.8, -35.51, -27.19, -30.62, -22.77, 72.53, 14.03, -8.31, 20.7, 7.96, 23.87, 10.69, -3.08, 14.16, -8.86, -2.14, -11.58, 2.8, 6.8, -4.81, -9.19, -4.0, 47.13, 7.83, -4.7, -28.09, -26.65, -28.7, -23.62, 1.69, -2.73, 0.12, 2.18, -1.55, 16.77, 10.03, 7.96, 7.19, -13.07, -16.89, -2.37, 1.81, 8.47, 32.46], "Персональные компьютеры": [59.18, 14.98, 6.68, -0.48, -6.18, -4.47, 1.33, 14.3, 26.68, 12.28, 10.82, 8.86, 10.82, 11.62, 4.91, -0.24, -4.24, -2.49, -3.66, -2.49, -0.6, 0.12, -0.48, -1.67, 0.36, -6.06, -4.0, -5.84, -4.81, -6.4, -6.85, -2.49, -2.26, -1.43, -2.14, -1.67, 1.21, -2.14, -1.79, 0.6, -0.84, -4.7, -2.37, -1.79, 5.28, 1.45, 0.0, 3.54, 5.03, -1.07, 0.84, -0.72, -1.19, -4.47, -0.96, -1.9, -0.36, 0.72, 0.36, -4.24, 0.6, -6.74, 20.56, 14.44, 2.92, 0.12, -3.19, 2.92, 9.64, 8.47, 4.53, 5.79, 3.29, -0.84, -0.12, -2.26, -0.84, 0.6, 2.18, 8.21, 10.16, 8.34, 6.04, 6.68, 2.92, 19.0, 961.83, -75.3, -32.9, -10.93, -13.17, -7.53, 13.22, -5.95, -12.11, -11.58, 2.55, -7.75, -3.43, 0.36, -9.95, -12.75, 12.82, -6.97, 5.28, 4.41, 1.21, 1.57, 2.8, -6.29, -2.02, 0.48, -0.96, -8.2, -3.19, -8.2, 1.57, 2.06, -5.04, 8.73, 6.8, -11.04, -12.43, -19.19, -19.78, -17.4, 0.84, -4.93, 7.96, -5.95, 0.6, 17.46, 11.62, -0.36, 6.04, 7.7, 2.8, -0.72, 16.9, 19.7, 26.68], "Средства связи": [43.24, 28.02, 17.18, 13.08, -1.67, -7.08, -3.77, -1.07, 7.19, 7.31, 2.92, 5.91, 8.21, 6.04, 3.66, -7.97, -3.19, -1.55, -0.96, -4.0, 0.84, -0.48, -0.84, -3.31, 0.36, -6.18, -7.3, -7.64, -6.63, -5.72, -7.53, -5.61, -1.31, -1.07, -2.73, -2.37, 1.45, -2.26, -2.61, -3.31, -5.27, -5.38, -5.38, -3.89, 0.12, -4.12, -7.86, -0.48, 0.6, -6.29, -4.81, -6.06, -4.24, -9.3, -7.3, -4.24, -4.12, -3.89, -4.12, -8.75, -0.36, -6.29, -1.67, -3.19, 2.8, -0.72, 3.29, -0.84, 5.54, 2.3, 4.16, 4.53, 1.69, -2.37, -3.43, 0.36, -6.29, -12.11, 4.28, 5.66, 1.81, 6.42, -11.47, 12.28, 6.17, 26.38, 555.98, -47.45, -32.65, -16.99, -23.52, -29.58, -14.01, -30.7, -16.99, -13.38, 1.94, -23.24, -2.14, -9.52, 20.27, -9.19, 27.72, 8.21, 6.68, -0.12, -15.36, 0.0, -8.2, -16.38, -22.96, -5.15, 1.21, -4.47, -3.77, -2.61, 10.56, -4.35, -3.66, 23.43, 4.91, 2.8, -31.72, -30.19, -23.05, -22.96, 6.55, 21.13, 5.28, -11.58, -3.66, 17.04, -5.04, -4.58, 1.57, -9.85, -3.19, -3.54, 19.0, 50.93, 51.28], "Строительные материалы": [37.19, 22.85, 23.0, 10.03, 6.17, 4.16, 2.92, 3.91, 6.55, 5.16, 5.41, 2.67, 6.04, 7.44, 6.68, 8.21, 9.51, 7.31, 6.29, 5.54, 3.41, 3.04, 3.17, 2.67, 2.92, 2.18, 2.8, 3.17, 3.29, 1.57, 3.29, 3.04, 4.16, 3.54, 4.03, 3.04, 2.92, 3.78, 5.54, 5.28, 6.29, 6.93, 6.42, 5.16, 5.41, 4.16, 3.66, 3.66, 5.79, 5.41, 3.29, 3.91, 4.16, 3.04, 2.06, 0.96, 1.94, 1.45, 0.72, -0.24, 0.84, -0.12, 2.92, 7.31, 6.17, 3.91, 2.43, 5.16, 6.17, 9.38, 9.64, 11.09, 12.01, 18.86, 22.13, 34.65, 79.38, 118.99, 82.48, 5.03, -14.64, -8.31, -2.02, 2.06, 5.66, 11.35, 212.14, 22.28, -4.7, -25.01, -20.17, -15.15, -9.95, -10.17, -7.75, -5.95, -3.77, -5.04, -0.48, 2.18, 9.25, 13.76, 11.09, 12.01, 10.95, 10.43, 3.91, 3.41, 4.03, 6.04, 7.96, 11.48, 14.71, 12.82, 14.16, 6.04, 4.53, 4.91, 4.41, 4.53, 5.66, 6.42, 6.29, 5.16, 1.81, 3.66, 1.57, -0.48, -0.6, -1.43, 2.18, 0.96, 4.53, 3.04, 0.0, 3.54, 3.66, 1.45, 8.34, 6.55, 5.03], "Легковые автомобили": [93.17, 39.29, 11.09, 5.03, 1.94, -1.19, -2.14, 4.03, 9.9, 7.7, 3.66, 3.78, 12.68, 14.57, 12.68, 7.19, 3.04, 8.73, 4.66, 4.03, 4.41, 4.41, 2.67, 1.81, 12.68, 0.48, -0.24, 1.94, 2.18, 0.12, 1.81, 0.48, 4.16, 3.29, 5.03, 4.53, 7.44, 2.18, 2.67, 6.29, 5.91, 3.29, 1.94, 4.16, 4.16, 6.42, 7.31, 4.28, 20.98, 2.92, 4.78, 0.96, 1.21, 0.72, 3.91, 2.18, -0.72, 4.41, 0.72, 1.57, 7.31, 0.24, 5.54, 5.54, 5.54, 4.53, 2.55, 6.93, 10.82, 17.46, 13.49, 11.22, 10.56, 7.96, 12.55, 12.42, 15.12, 12.42, 16.77, 12.15, 21.56, 19.14, 20.7, 13.35, 19.56, 10.82, 1075.93, 15.94, -6.4, -11.47, -6.06, -0.36, -1.07, -2.37, -0.48, 1.33, 1.81, 0.6, 4.03, 8.47, 8.99, 13.22, 19.84, 22.42, 21.41, 17.18, 24.9, 6.55, 5.54, 0.12, -2.14, 5.66, 9.77, -0.48, 2.43, 6.93, 1.69, 10.16, -1.55, 4.53, 8.34, -0.48, -2.96, -5.15, -1.9, -4.35, -7.75, -5.27, 0.24, 1.81, 2.3, 7.44, 10.95, 2.18, 3.41, 1.81, -0.48, -2.02, -2.61, 1.45, 2.8], "Инструменты и оборудование": [177.57, 74.32, 26.68, 14.57, -4.35, -1.19, -2.96, 8.47, 24.16, 22.28, 10.56, 4.03, 15.94, 22.85, 16.9, 17.18, 8.08, 5.41, 5.03, 0.36, -2.61, 2.06, 3.66, 0.96, -1.07, -3.54, -1.19, -0.36, -0.6, 0.24, -0.36, 0.48, -2.49, 0.72, -1.9, 0.48, -0.84, -1.9, -2.14, 2.8, 4.91, 3.41, -4.93, 6.17, -1.43, 6.29, 6.68, 2.18, 12.01, 1.69, 3.29, 3.78, 1.81, 2.55, 0.36, -2.96, -3.08, -2.61, 0.12, -0.24, -1.67, -1.55, 16.49, 23.87, 9.9, 5.16, -1.07, 3.91, 3.29, 7.96, 12.42, 7.44, 3.66, 11.48, 14.16, 16.49, 6.42, 3.66, 5.91, 2.8, -2.96, -1.79, -1.67, 5.16, 5.16, 22.85, 1420.77, -28.17, -36.94, -32.81, -14.64, -22.96, -18.5, -4.47, -2.73, 1.09, 9.38, -1.19, 18.86, 18.86, 5.41, 7.19, 15.66, 15.53, 10.3, 6.55, -5.27, 2.8, 15.66, 6.55, 5.54, 2.92, -3.08, 3.04, -2.14, 5.03, -7.75, 8.73, 15.39, 43.08, 22.71, 5.41, -3.54, -5.61, -8.97, -8.97, -10.28, -15.67, -7.97, -6.63, 0.24, 5.91, 1.21, -4.0, 1.09, -4.24, -2.96, -2.02, -1.55, 1.57, 1.45], "Нефтепродукты": [-4.19, -7.65, 1.44, 2.81, 0.25, 10.59, 33.48, 19.49, 11.05, 3.74, 0.22, -8.52, -4.97, -1.76, 8.74, 8.67, 1.45, 12.47, 13.15, 3.33, 2.09, -0.02, 0.84, 3.78, 10.25, 7.03, 6.89, 7.1, 8.66, 13.39, 2.69, 2.54, 4.44, 1.63, 5.37, 18.28, 5.47, 0.12, 0.51, 13.71, 93.51, 28.79, -1.17, -2.11, 2.21, 4.82, 2.9, -2.55, 7.54, -2.65, -1.25, -0.27, 3.07, 7.86, 2.44, 1.58, -0.13, 1.57, 1.68, 0.56, 2.76, 0.42, 0.79, -2.69, -0.27, 12.47, 11.95, 2.84, 1.25, 1.4, 0.47, 0.8, 12.21, 12.59, 15.54, 6.0, 3.16, 7.16, 9.53, 22.72, -4.31, 6.63, 11.69, 9.37, 10.93, 1.54, -3.32, -3.36, -2.9, -2.12, -1.09, 4.17, 2.51, 0.44, 1.76, 0.87, 6.96, 7.86, 8.33, 7.87, 15.66, 10.71, 10.67, 17.41, 17.99, -14.94, 3.71, 6.06, 10.03, 8.16, 8.55, 11.31, 9.09, 5.97, 16.92, 8.06, 4.96, 7.51, 21.82, 21.88, 10.27, 13.47, 11.63, 13.39, 9.76, -5.31, -2.04, 18.13, 24.56, 30.91, 3.74, 9.67, 20.6, 18.11, 20.79, 18.51, 21.22, 53.73, 52.39, 11.83, 13.28], "Медицинские товары": [114.35, 74.52, 31.37, 13.49, 5.03, 5.41, 4.53, 6.42, 8.86, 12.01, 8.73, 3.17, 7.7, 7.7, 3.41, 1.33, 3.29, 1.81, 3.91, 5.54, 4.28, 11.88, 8.34, 4.41, 10.56, 2.55, -3.66, -5.72, -5.5, -7.08, -4.58, -5.27, -5.72, -2.37, -3.08, -2.02, 3.29, 2.43, 4.16, 5.28, 5.03, 3.78, 3.41, 3.41, 3.78, 5.16, 6.42, 7.96, 9.64, 9.12, 5.54, 8.21, 7.31, 5.79, 4.53, 4.03, 5.03, 5.66, 7.96, 7.7, 6.55, 4.41, 14.71, 42.58, 7.31, -1.19, 1.57, 4.53, 11.22, 12.01, 13.62, 8.86, 6.04, 5.16, 2.67, 3.91, 3.41, 1.81, 3.78, 0.36, 3.66, 10.16, 4.78, 3.78, 2.3, 8.86, 216.59, -6.4, -10.17, -7.42, -2.96, -0.84, 6.04, 7.83, 3.17, 8.73, 9.51, 3.04, 1.33, -0.36, 2.67, 7.57, 8.21, 9.77, 13.35, 13.08, 8.08, 12.15, 20.41, 10.43, 12.28, 11.35, 11.62, 6.8, 6.04, 5.03, 15.39, 12.82, 5.79, 4.28, 8.34, 10.3, 15.8, 10.82, 8.73, 7.19, 5.28, 4.03, 13.49, 12.82, 5.16, 10.3, 8.86, 8.6, 10.56, 9.12, 5.79, 4.03, 6.93, 2.8, 6.42], "Услуги": [28.75, 12.77, 6.81, 2.63, 6.08, 9.15, 13.2, 17.94, 5.95, 6.49, 7.15, 8.47, 11.33, 5.49, 3.01, 4.28, 4.2, 3.77, 6.71, 4.53, 5.18, 3.64, 4.0, 2.79, 5.44, 4.81, 2.38, 3.72, 4.01, 4.34, 5.3, 4.44, 6.2, 3.21, 4.55, 4.05, -0.3, 3.23, 3.76, 5.68, 3.67, 4.41, 3.03, 3.9, 7.77, 4.65, 2.84, 4.41, 12.93, 4.16, 3.57, 4.37, 3.87, 3.68, -1.25, 2.73, 2.11, 3.14, 4.52, 2.01, 2.73, 4.93, 2.78, 3.32, 4.58, -2.05, -0.15, 3.61, 2.0, 3.7, 3.45, 4.16, 3.76, 3.05, 2.65, 5.12, 8.47, 3.29, 1.02, 4.03, 5.37, 7.21, 7.53, 10.12, 8.23, 12.89, 55.07, 14.34, -1.94, 6.15, 5.96, 7.31, 10.85, 11.07, 6.68, 23.05, 10.95, 7.02, 8.3, 10.04, 8.16, 6.98, 8.38, 8.35, 13.14, 12.32, 13.16, 7.57, 6.28, 9.46, 7.52, 11.62, 9.83, 7.84, 28.44, 12.61, 11.46, 12.67, 16.71, 8.7, 19.95, 6.4, 7.38, 6.84, 6.67, 4.13, 30.93, 4.86, 8.73, 5.43, 5.8, 8.65, 20.83, 8.93, 8.18, 6.6, 11.25, 8.93, 5.65, 4.34, 8.89], "Услуги без ЖКУ": [38.34, 13.85, 6.16, -1.13, 5.33, 9.65, 10.34, 21.32, 4.76, 4.8, 7.07, 8.83, 14.11, 6.18, 2.62, 4.32, 4.03, 3.3, 3.25, 4.88, 5.68, 2.43, 3.77, 1.84, 4.79, 5.6, 1.26, 3.43, 3.88, 4.46, 4.38, 3.91, 8.17, 2.48, 4.47, 3.61, 0.5, 2.8, 3.67, 6.61, 3.45, 4.51, 1.97, 3.37, 9.95, 4.55, 1.95, 4.8, 5.47, 4.33, 3.56, 4.57, 3.82, 3.68, 2.74, 2.28, 1.37, 3.32, 5.11, 0.87, 0.76, 5.78, 2.43, 3.12, 5.32, -4.94, 1.78, 2.37, 0.54, 3.53, 2.93, 3.82, 3.89, 2.95, 2.31, 5.57, 10.88, 2.7, 0.74, 3.88, 6.13, 8.53, 8.83, 13.78, 11.06, 12.65, 94.01, 20.84, -5.25, 7.42, 5.18, 9.56, 15.25, 15.82, 8.15, 12.23, 8.14, 8.21, 10.23, 12.97, 9.92, 7.9, 9.95, 9.31, 16.52, 14.87, 14.43, 8.35, 6.76, 11.03, 7.72, 14.51, 12.11, 8.33, 10.1, 14.64, 14.1, 16.5, 23.62, 10.9, 16.84, 7.63, 9.31, 8.18, 7.14, 3.92, 5.51, 5.3, 11.45, 6.16, 6.48, 10.64, 15.21, 11.19, 10.41, 7.43, 14.94, 11.34, 6.59, 4.76, 11.52], "Бытовые услуги": [15.26, 10.53, 9.87, 8.69, 7.78, 4.9, 6.58, 6.63, 8.08, 7.17, 5.5, 3.93, 4.34, 5.25, 3.4, 3.02, 3.74, 7.56, 5.82, 5.73, 5.4, 5.51, 5.13, 6.18, 3.2, 2.74, 3.67, 2.61, 3.31, 2.42, 3.04, 2.47, 2.83, 2.89, 3.04, 2.84, 1.86, 2.53, 2.26, 3.03, 2.26, 3.33, 2.79, 3.05, 3.26, 3.18, 3.16, 3.61, 5.11, 3.73, 2.69, 3.71, 3.03, 3.12, 2.51, 3.24, 2.2, 2.36, 2.32, 2.56, 1.6, 2.8, 2.63, 1.54, 3.33, 4.45, 5.67, 4.47, 3.45, 2.88, 2.71, 3.27, 3.55, 5.66, 6.26, 5.84, 6.58, 6.37, 5.44, 8.32, 8.54, 7.07, 10.48, 8.7, 8.84, 7.39, 45.12, 21.48, 13.39, 5.99, 7.7, 5.35, 5.34, 5.16, 5.78, 5.96, 5.23, 6.54, 6.07, 7.52, 5.58, 9.1, 6.96, 8.57, 11.49, 10.97, 16.01, 8.44, 7.37, 7.71, 9.4, 11.66, 12.22, 9.25, 11.17, 10.33, 11.85, 14.47, 11.4, 11.89, 13.72, 12.93, 11.33, 11.83, 12.05, 10.78, 10.69, 11.64, 9.87, 10.13, 11.34, 12.96, 13.65, 12.52, 13.44, 10.91, 11.25, 12.11, 11.58, 10.75, 10.08], "Услуги пассажирского транспорта": [17.13, 29.92, 9.91, 2.09, 3.6, 12.47, 7.7, 9.22, 9.67, 11.59, 24.96, 0.19, 4.99, 6.66, 7.02, 11.66, 7.85, 1.42, 8.12, 5.24, 11.79, 4.87, 4.53, 1.86, 21.71, 28.51, -10.33, 2.6, 3.4, 7.6, 5.09, 6.68, 4.79, 6.11, 4.83, 3.8, -8.59, 3.4, 2.79, 4.36, 5.67, 11.04, 2.4, 4.15, 4.47, 3.31, 5.52, 8.65, 10.07, 7.82, 8.33, 4.14, 3.76, 8.08, 15.45, 10.03, -0.45, 3.68, 1.56, 2.07, 0.15, 6.32, -12.08, 8.6, 10.91, -21.42, 2.32, 5.65, 8.29, -2.84, 2.48, 10.69, 11.4, 14.99, 8.36, 4.98, 2.23, 2.01, 8.12, 3.45, 13.06, 16.02, -3.74, 39.51, 8.79, 11.13, 8.91, 17.5, 3.48, 16.33, 11.89, 12.3, 9.03, 9.62, 9.52, 16.77, 12.61, 12.52, 17.16, 15.77, 17.14, 13.29, 16.81, 16.48, 18.51, 24.03, 18.15, 17.89, -11.02, 26.13, 14.12, 4.88, 31.52, 9.98, 27.16, 10.73, 20.03, 11.69, 17.95, 12.55, 18.68, 10.74, 16.82, 19.23, -2.0, 16.76, 1.55, 13.97, 7.1, 10.43, 10.96, 6.35, 14.51, 8.2, 10.63, 9.65, 9.26, 9.44, 11.97, 7.88, 11.96], "Услуги связи": [9.51, 3.17, 3.54, 5.16, 3.17, 1.69, 0.6, 1.57, 2.43, 1.81, 1.45, 0.84, 2.18, 1.81, 11.88, 5.54, 4.03, 2.06, 0.6, 2.55, 3.54, 2.43, 4.16, 3.66, 1.21, 3.17, 2.67, 7.57, 15.12, 11.48, 6.17, 2.55, 2.18, 1.33, 2.06, 1.57, 1.69, 0.36, 4.28, 3.29, 3.54, 2.3, 1.33, 0.84, 3.66, 3.78, 0.84, 2.8, 8.6, 3.66, 3.41, 6.04, -0.12, 4.41, 5.54, 0.12, 0.36, 6.93, 10.03, 1.57, 1.45, 16.77, 10.43, 4.78, 16.08, 4.03, 2.3, -2.96, -6.97, -2.96, 0.72, -3.77, 0.0, 2.06, 1.21, -0.24, 2.18, -0.48, -2.73, -3.19, 1.69, 2.55, 15.53, 26.08, 3.17, 1.09, -2.96, 15.94, 14.44, 10.43, 6.8, 1.69, 27.42, 12.01, 4.53, 18.72, 3.81, 1.44, 1.51, 11.3, 2.78, 1.45, 2.78, 1.08, 29.88, 17.23, 0.98, 1.88, 2.17, 13.39, 2.64, 49.64, 3.01, -2.94, 1.5, -1.66, 12.17, 5.19, 119.68, 4.16, 1.56, 1.03, 3.51, 5.5, -3.74, -2.91, 5.89, -9.22, 1.68, 0.96, 2.42, 2.07, 14.63, 4.38, 4.82, 1.82, 1.16, 45.98, 2.32, -12.75, 2.02], "Жилищно-коммунальные услуги": [11.86, 10.62, 8.03, 10.52, 7.4, 7.81, 21.46, 11.77, 8.32, 9.82, 7.31, 7.82, 6.06, 4.13, 3.79, 4.2, 4.54, 4.73, 13.86, 3.83, 4.21, 6.02, 4.44, 4.65, 6.65, 3.39, 4.48, 4.24, 4.25, 4.12, 6.93, 5.39, 2.72, 4.54, 4.69, 4.83, -1.74, 4.03, 3.93, 4.01, 4.06, 4.23, 4.93, 4.84, 3.92, 4.81, 4.47, 3.71, 27.68, 3.84, 3.6, 3.99, 3.96, 3.68, -8.12, 3.54, 3.44, 2.82, 3.46, 4.08, 6.35, 3.45, 3.42, 3.69, 3.26, 3.4, -3.74, 5.86, 4.65, 4.01, 4.39, 4.78, 3.52, 3.22, 3.24, 4.34, 4.37, 4.37, 1.34, 4.28, 4.07, 4.94, 5.31, 3.98, 3.92, 13.23, 6.51, 3.84, 4.18, 4.01, 7.43, 3.53, 3.53, 3.2, 4.16, 44.54, 15.74, 5.02, 5.13, 5.2, 5.27, 5.34, 5.65, 6.75, 7.53, 8.02, 10.99, 6.23, 5.42, 6.65, 7.13, 6.43, 5.67, 6.97, 72.03, 9.06, 6.84, 6.11, 5.2, 4.78, 25.95, 4.17, 3.82, 4.36, 5.81, 4.52, 98.52, 4.1, 4.02, 4.08, 4.59, 5.15, 32.01, 4.81, 4.06, 5.05, 4.39, 4.4, 3.81, 3.48, 3.9], "Услуги гостиниц и прочих мест проживания": [8.27, 3.53, 5.37, 6.46, 3.67, 5.23, 11.05, 6.94, 10.16, 6.09, 5.37, 5.54, 8.79, 5.21, 1.29, 2.95, 4.09, 8.0, 6.38, 5.5, 15.47, 18.24, 6.24, 2.67, -3.11, 2.99, 2.94, 2.93, 1.26, 0.76, 6.63, 5.09, 29.41, 3.99, 5.62, 3.21, -2.68, 1.37, 4.8, 2.96, 18.09, 56.69, -21.78, -1.55, 0.89, -1.39, -0.4, 1.49, 3.42, -0.23, 1.28, 0.71, 2.29, 5.84, 9.06, -2.73, 6.36, -0.42, 4.83, -1.0, -2.1, -5.45, 0.83, -1.85, -9.91, -2.44, 36.09, 31.27, -12.36, 2.68, -2.35, 5.55, 19.99, 15.1, 49.96, 75.46, 96.95, -20.42, -43.94, 54.97, 9.72, 33.08, -53.01, 19.94, 2.73, 3.6, -1.38, 9.08, 2.82, 11.76, 14.07, 15.2, 4.02, 1.83, 1.48, 1.81, 4.52, 2.24, 9.43, 1.85, 9.88, 17.42, 17.82, 19.04, 10.07, 4.5, 6.2, 11.13, 4.18, 21.15, 17.01, 6.74, 15.63, 21.21, 21.59, 18.29, -5.95, 21.94, 3.09, -5.92, 7.55, 13.4, 8.1, 34.9, 9.38, -0.45, 0.29, -9.2, 10.97, 10.42, 15.25, 14.19, 14.08, 3.19, 8.15, 19.04, 4.32, -2.69, -2.72, -7.27, 0.63], "Услуги в системе образования": [38.67, 12.13, 8.41, 7.2, 4.73, 4.14, 6.6, 17.03, 9.97, 7.24, 6.55, 5.46, 15.76, 4.59, 3.93, 4.85, 6.94, 7.72, 5.89, 6.53, 0.96, 4.43, 5.7, 4.57, 5.13, 5.02, 4.65, 5.37, 4.86, 4.86, 4.0, 5.76, 31.2, 4.14, 3.94, 5.18, 3.86, 5.32, 4.71, 4.42, 5.22, 4.94, 5.29, 4.0, 38.21, 5.25, 5.04, 4.52, 6.91, 4.93, 5.41, 4.39, 5.31, 5.08, 4.59, 3.06, 5.38, 5.92, 4.59, 5.47, 3.38, 4.24, 5.08, 3.09, 4.34, 3.65, 4.87, 4.63, -20.2, 4.48, 4.59, 5.4, 4.7, 5.68, 4.9, 7.89, 6.11, 5.74, 5.71, 5.25, 0.32, 4.59, 6.83, 5.37, 6.13, 5.81, 6.93, 6.82, 6.5, 6.53, 6.17, 5.83, 5.63, 6.25, 5.47, 6.46, 6.19, 5.79, 5.61, 5.96, 6.39, 6.1, 6.14, 6.49, 26.62, 7.15, 7.74, 6.45, 6.59, 6.91, 6.57, 6.81, 6.54, 7.63, 7.03, 7.96, 42.27, 6.68, 6.8, 8.11, 7.46, 7.08, 7.58, 7.19, 7.08, 7.76, 7.09, 7.34, 52.2, 8.06, 7.24, 7.07, 8.57, 8.35, 7.52, 7.25, 7.51, 6.88, 8.05, 7.06, 55.06], "Услуги организаций культуры": [12.99, 8.13, 7.6, 7.13, 4.09, 6.82, 12.41, 6.55, 7.26, 7.58, 2.05, 5.2, 12.22, 6.65, 5.2, 5.32, 16.04, 4.59, 6.21, 3.41, 1.97, 4.0, 2.47, 2.93, -0.38, 4.43, 2.84, 4.44, 1.28, 9.64, 3.8, 10.94, 7.31, 3.38, 4.08, 2.73, 3.33, 3.15, 2.08, 2.36, 2.32, 2.66, 1.45, 2.42, 4.49, 2.16, 2.2, 2.74, 3.34, 3.62, 4.08, 3.49, 4.47, 5.38, 3.43, 2.49, 4.23, 5.04, 6.67, 4.88, 3.38, 0.21, 1.94, 2.55, 1.41, 1.72, 3.87, 4.67, 2.18, 2.51, 1.94, 3.03, 15.1, 8.47, 6.47, 4.44, 7.89, 5.82, 3.76, 2.6, 4.38, 7.71, 4.72, 31.5, 1.66, 4.01, 1.49, 4.59, 1.3, 0.88, 4.26, 5.23, 3.43, 3.17, 4.61, 4.34, 6.77, 4.63, 20.08, 3.64, 3.21, 6.11, 3.47, 5.69, 29.3, 7.62, 7.55, 10.97, 12.2, 9.92, 12.47, 2.13, 14.27, 14.83, 1.27, 12.03, 26.55, 16.95, 26.14, 12.06, 18.55, 22.97, 18.47, 2.06, 16.53, 16.05, 16.77, 9.32, 11.81, 13.72, 13.3, 13.16, 38.15, -2.71, 2.84, 10.06, 8.2, 8.39, 8.47, 12.92, 11.29], "Услуги в сфере зарубежного туризма": [101.18, 11.03, -16.07, -45.7, 6.18, 53.62, 43.19, 178.6, -12.17, -6.41, 2.0, 57.84, 80.79, 13.97, -22.32, -8.08, -7.34, -5.16, -10.31, 9.98, 4.51, -6.52, -1.51, -14.92, -10.08, -7.03, 9.71, 0.15, -3.02, 11.32, 7.25, 4.65, 11.31, 0.83, 17.74, 9.98, -4.25, 9.32, 14.67, 46.98, 1.24, 2.54, 1.12, 13.81, 26.0, 4.45, -2.34, 13.29, -6.75, -0.06, -0.0, 1.85, 18.24, 3.51, -12.94, -9.97, -1.43, 9.63, 22.88, -13.99, -7.87, 1.27, 10.5, 3.45, -6.11, -17.7, -16.61, -8.77, 22.42, 20.58, 5.86, -3.43, -5.42, -20.88, -8.15, -0.01, 24.26, -0.76, -1.14, -2.72, 7.51, 28.45, 41.15, 3.9, 46.21, 67.26, 2778.0, 31.86, -37.37, 80.59, 24.21, 55.1, 8.33, 84.23, 31.28, 36.77, 34.7, 20.2, 79.59, 53.08, 65.75, 1.48, 53.61, -4.82, 13.59, 11.12, 15.58, -2.17, -8.1, 33.78, 8.56, 9.56, 41.34, 17.2, -1.5, 34.67, 27.63, -14.16, 8.71, 38.41, 16.53, -38.28, -9.94, 5.19, 23.47, -18.79, 0.93, -11.6, 16.85, -9.73, -12.49, 5.35, 13.75, 72.92, 19.97, -2.16, 1.21, 31.76, 21.76, 33.68, 15.96], "Экскурсионные услуги": [34.02, 4.16, 8.34, -7.08, 2.8, 15.66, 6.42, 9.64, 4.03, 7.19, 0.36, 4.53, 2.8, 8.34, 11.75, 9.9, 34.02, 7.19, 6.68, 2.43, 4.66, 3.41, 1.94, 1.94, 9.12, -4.35, -8.53, 2.92, 10.56, 6.42, 1.45, 5.91, 1.69, -2.37, 5.28, 1.45, 29.54, 1.69, 1.57, 9.38, 10.56, 12.01, 4.03, 4.78, 31.84, 2.18, 4.66, 4.78, 5.79, 3.41, 3.91, 5.41, 4.16, 2.8, 5.28, 1.69, 1.57, 7.57, -1.43, 1.45, 1.69, 2.55, 6.93, 0.0, 0.0, 0.12, -4.81, 10.3, 2.8, 2.18, 1.45, 0.0, 6.04, 3.66, -3.54, 10.16, 43.58, 4.66, 5.16, 6.04, -1.19, -12.0, 1.09, 7.57, 12.06, 13.84, 9.26, 21.12, -57.99, 15.18, 30.15, 39.87, 35.97, 47.01, 14.65, 39.91, 29.39, 47.17, 35.08, 29.48, 26.16, 33.01, 13.2, 9.3, 9.52, 5.48, 39.27, 3.04, 24.24, 1.1, 26.02, 8.13, 20.13, 12.38, 16.72, 15.14, 12.52, 10.64, 10.85, 17.4, 4.84, 15.46, 2.3, 14.3, 6.17, 12.26, 12.06, 6.13, 8.16, 0.56, -4.8, -2.69, -0.25, -5.88, -5.5, -9.38, 193.73, -13.26, -15.0, -14.35, -13.75], "Санаторно-оздоровительные услуги": [19.88, 17.46, 13.69, 10.82, 12.26, 15.26, 7.61, 14.75, -2.02, 14.84, 22.91, 21.79, 16.02, 9.0, 9.85, 12.52, 9.0, -5.92, 0.37, 4.31, 20.96, 5.02, 4.13, 1.14, 1.22, 4.85, -1.76, 3.86, 2.04, -29.41, 16.38, 9.08, 10.14, 6.64, 6.42, 5.84, -3.47, 3.36, 8.33, 2.96, 7.84, 9.5, 10.03, 4.33, 2.3, 3.94, -0.32, 2.87, 4.32, 5.75, 4.5, 7.35, 3.94, -4.77, -3.98, 5.72, 0.17, 4.0, 8.95, 3.98, 1.51, 4.18, 4.53, 3.55, -7.72, -32.18, 97.64, 12.12, -22.13, 12.15, 6.82, 9.48, 5.68, 7.03, 2.43, 6.89, 11.51, 15.51, 3.29, 1.9, -5.07, 8.67, 11.57, 12.0, 11.56, 8.25, 13.71, 12.44, 22.38, 14.84, 4.64, 9.42, 19.63, 8.92, 4.2, 6.54, 6.89, 14.55, 7.83, 6.76, 2.09, 7.27, 8.76, 20.41, 13.25, 8.3, 9.59, 10.99, 30.41, 12.54, 11.5, 10.32, 5.8, 10.18, 22.23, 11.18, 2.42, 43.94, -16.93, 11.64, 16.92, 14.98, 17.62, 74.1, 27.95, -54.4, -34.49, 12.14, 32.85, 29.52, 31.52, 27.79, 13.8, 20.81, 28.19, 74.95, 26.71, -49.11, -41.66, -7.33, 53.3], "Медицинские услуги": [25.13, 18.91, 13.74, 11.47, 7.73, 7.47, 7.05, 9.46, 9.64, 10.65, 5.81, 6.67, 17.23, 7.64, 6.25, 6.37, 7.29, 9.08, 6.96, 5.36, 3.75, 5.86, 9.59, 7.13, 5.01, 4.3, 2.88, 3.74, 4.47, 4.11, 5.81, 5.08, 8.58, 6.15, 4.65, 5.21, 4.29, 3.38, 2.58, 4.7, 4.82, 4.57, 4.83, 3.83, 5.74, 4.56, 2.93, 4.86, 3.84, 3.01, 3.27, 4.11, 5.01, 4.02, 3.84, 4.02, 3.34, 3.19, 3.73, 4.68, 3.42, 4.4, 6.66, 2.13, 2.74, 4.14, 4.5, 5.36, 4.55, 4.04, 5.51, 5.06, 2.83, 5.83, 2.52, 6.36, 8.72, 5.17, 7.46, 7.2, 6.8, 6.58, 5.73, 5.72, 5.24, 7.32, 33.66, 29.61, 19.06, 8.95, 7.48, 6.85, 6.2, 5.47, 8.47, 7.35, 8.0, 6.61, 6.91, 6.22, 7.34, 6.94, 6.35, 6.82, 11.15, 10.35, 9.52, 8.76, 11.69, 7.41, 8.51, 12.79, 7.73, 12.68, 11.71, 11.43, 9.95, 12.1, 10.6, 10.5, 12.69, 18.78, 11.73, 11.94, 11.69, 9.5, 10.73, 14.58, 10.48, 11.36, 10.07, 11.84, 20.63, 14.05, 15.28, 11.0, 11.7, 10.38, 10.84, 7.91, 9.97], "Базовый ИПЦ": [49.65, 32.44, 18.37, 9.78, 7.88, 6.67, 6.45, 10.09, 8.5, 7.93, 6.64, 7.21, 8.85, 8.56, 6.99, 6.09, 6.24, 6.26, 5.78, 5.31, 4.83, 4.22, 4.27, 4.21, 3.34, 2.29, 1.36, 1.58, 1.98, 2.48, 2.86, 2.39, 2.21, 1.25, 1.49, 2.15, 1.68, 1.37, 1.2, 2.36, 3.46, 4.78, 5.12, 4.56, 4.51, 4.53, 4.89, 6.23, 6.7, 4.97, 3.07, 2.9, 3.61, 3.78, 3.92, 2.57, 0.85, 1.2, 2.33, 2.26, 1.15, 2.06, 5.3, 5.59, 3.69, 3.9, 5.04, 4.21, 2.99, 4.45, 6.12, 6.15, 5.68, 7.59, 9.58, 6.63, 10.35, 9.86, 7.98, 7.82, 8.98, 9.53, 14.25, 8.94, 9.09, 12.29, 179.47, 27.82, 5.62, 1.69, -1.26, 0.55, 3.27, 1.74, 0.75, 2.35, 2.27, 0.71, 2.81, 4.16, 5.18, 5.55, 7.87, 11.51, 12.24, 13.18, 11.57, 6.66, 5.83, 6.01, 5.61, 9.25, 8.92, 6.38, 5.9, 9.62, 9.75, 13.12, 13.3, 14.31, 9.98, 8.4, 6.82, 4.41, 5.31, 3.59, 4.04, 3.92, 4.84, 5.1, 3.83, 5.61, 9.11, 4.58, 4.57, 3.72, 4.73, 5.19, 6.85, 5.94, 5.95], "Базовый ИПЦ без услуг туризма": [48.74, 33.36, 19.6, 11.91, 7.92, 5.58, 5.56, 7.08, 9.29, 8.35, 6.7, 5.93, 7.42, 8.43, 7.87, 6.43, 6.52, 6.63, 6.24, 5.21, 4.72, 4.47, 4.41, 4.74, 3.66, 2.51, 1.24, 1.59, 2.07, 2.51, 2.68, 2.28, 1.91, 1.23, 1.11, 1.96, 1.77, 1.18, 0.85, 1.45, 3.42, 4.66, 5.28, 4.36, 3.94, 4.56, 5.12, 6.11, 7.1, 5.12, 3.14, 2.89, 3.26, 3.85, 4.45, 2.92, 0.89, 0.95, 1.81, 2.72, 1.42, 2.09, 5.17, 5.71, 4.12, 4.91, 5.2, 4.44, 2.76, 3.99, 6.17, 6.43, 5.91, 8.38, 10.01, 6.55, 9.59, 10.29, 8.59, 7.96, 9.16, 9.11, 14.2, 9.01, 8.6, 11.65, 172.42, 27.98, 7.4, 0.33, -2.07, -0.79, 2.84, 0.01, 0.03, 1.36, 1.63, -0.06, 1.7, 3.32, 4.27, 5.1, 7.19, 11.71, 12.27, 13.41, 11.21, 6.79, 5.66, 5.69, 5.21, 9.27, 8.37, 6.03, 5.63, 9.15, 9.61, 13.41, 13.64, 14.12, 9.95, 9.12, 7.1, 3.8, 4.9, 4.33, 4.24, 4.18, 4.43, 5.29, 4.01, 5.57, 9.13, 3.84, 4.33, 3.65, 2.89, 5.67, 7.53, 6.06, 5.92]}};
+const DIFFUSION = [{"date": "2024-10-01", "low": 9.1, "target": 7.5, "elevated": 37.4, "high": 46.1}, {"date": "2024-11-01", "low": 17.9, "target": 5.4, "elevated": 33.5, "high": 43.2}, {"date": "2024-12-01", "low": 1.3, "target": 21.1, "elevated": 9.4, "high": 68.1}, {"date": "2025-01-01", "low": 12.8, "target": 8.9, "elevated": 27.7, "high": 50.6}, {"date": "2025-02-01", "low": 25.0, "target": 16.7, "elevated": 8.8, "high": 49.6}, {"date": "2025-03-01", "low": 27.0, "target": 17.7, "elevated": 6.2, "high": 49.1}, {"date": "2025-04-01", "low": 29.9, "target": 11.5, "elevated": 15.7, "high": 43.0}, {"date": "2025-05-01", "low": 34.3, "target": 1.8, "elevated": 32.1, "high": 31.8}, {"date": "2025-06-01", "low": 36.3, "target": 3.1, "elevated": 28.8, "high": 31.8}, {"date": "2025-07-01", "low": 35.8, "target": 16.7, "elevated": 29.5, "high": 18.0}, {"date": "2025-08-01", "low": 33.3, "target": 13.5, "elevated": 31.9, "high": 21.2}, {"date": "2025-09-01", "low": 38.5, "target": 12.2, "elevated": 17.1, "high": 32.2}, {"date": "2025-10-01", "low": 37.3, "target": 10.6, "elevated": 10.7, "high": 41.3}, {"date": "2025-11-01", "low": 43.1, "target": 20.9, "elevated": 21.0, "high": 15.0}, {"date": "2025-12-01", "low": 38.9, "target": 7.5, "elevated": 38.2, "high": 15.4}, {"date": "2026-01-01", "low": 16.0, "target": 6.8, "elevated": 25.7, "high": 51.5}, {"date": "2026-02-01", "low": 44.8, "target": 8.7, "elevated": 20.5, "high": 26.0}, {"date": "2026-03-01", "low": 38.5, "target": 16.5, "elevated": 10.6, "high": 34.3}, {"date": "2026-04-01", "low": 53.0, "target": 6.2, "elevated": 16.0, "high": 24.8}, {"date": "2026-05-01", "low": 48.0, "target": 18.8, "elevated": 13.8, "high": 19.4}, {"date": "2026-06-01", "low": 40.6, "target": 10.0, "elevated": 24.0, "high": 25.4}, {"date": "2026-07-01", "low": 30.9, "target": 9.7, "elevated": 26.5, "high": 32.9}, {"date": "2026-08-01", "low": 27.0, "target": 20.1, "elevated": 19.3, "high": 33.6}, {"date": "2026-09-01", "low": 42.6, "target": 4.7, "elevated": 25.1, "high": 27.6}];
+(function () {
+  const root = document.querySelector('.viz-root');
+  const cvar = (name) => getComputedStyle(root).getPropertyValue(name).trim();
+
+  function fmt1(v) { return (v === null || v === undefined || Number.isNaN(v)) ? '—' : (v >= 0 ? '' : '') + v.toFixed(1).replace('-', '−').replace('.', ','); }
+  function fmt2(v) { return (v === null || v === undefined || Number.isNaN(v)) ? '—' : v.toFixed(2).replace('-', '−').replace('.', ','); }
+  const fmtPP = (v) => (v === null || v === undefined || Number.isNaN(v)) ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2).replace('.', ',') + ' п.п.';
+
+  const svgns = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs) {
+    const e = document.createElementNS(svgns, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  function niceTicks(min, max, count) {
+    if (min === max) { min -= 1; max += 1; }
+    const span = max - min;
+    const step0 = span / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(step0)));
+    const norm = step0 / mag;
+    let step;
+    if (norm < 1.5) step = 1 * mag; else if (norm < 3) step = 2 * mag; else if (norm < 7) step = 5 * mag; else step = 10 * mag;
+    const niceMin = Math.floor(min / step) * step, niceMax = Math.ceil(max / step) * step;
+    const ticks = [];
+    for (let t = niceMin; t <= niceMax + step / 2; t += step) ticks.push(Math.round(t * 1000) / 1000);
+    return ticks;
+  }
+  function parseDate(s) { return new Date(s + 'T00:00:00'); }
+  const MONTHS_SHORT = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+
+  // ---------- Линейный график (история SAAR по категориям) ----------
+  function LineChart(containerEl, legendEl, opts) {
+    // opts: { data, xKey, series: [{key,label,color}], height, valueFmt, refLines }
+    const W = 1000, H = opts.height || 300;
+    const M = { top: 14, right: 14, bottom: 26, left: 42 };
+    const innerW = W - M.left - M.right, innerH = H - M.top - M.bottom;
+    const valueFmt = opts.valueFmt || ((v) => v === null || v === undefined ? '—' : v.toFixed(1));
+
+    containerEl.innerHTML = '';
+    containerEl.style.position = 'relative';
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' });
+    containerEl.appendChild(svg);
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    containerEl.appendChild(tooltip);
+
+    legendEl.innerHTML = '';
+    opts.series.forEach(s => {
+      const isBar = s.key === opts.barKey;
+      const item = document.createElement('span');
+      item.className = 'item';
+      item.innerHTML = `<span class="key${isBar ? ' rect' : ''}" style="background:${s.color}"></span>${s.label}`;
+      legendEl.appendChild(item);
+    });
+
+    const data = opts.data;
+    const dates = data.map(d => parseDate(d[opts.xKey]));
+    const x0 = dates[0], x1 = dates[dates.length - 1];
+    const xScale = (d) => M.left + ((d - x0) / (x1 - x0 || 1)) * innerW;
+
+    let allVals = [];
+    opts.series.forEach(s => data.forEach(d => { if (d[s.key] !== null && d[s.key] !== undefined) allVals.push(d[s.key]); }));
+    (opts.refLines || []).forEach(rl => allVals.push(rl.value));
+    if (allVals.length === 0) allVals = [0, 1];
+    let min = Math.min(...allVals, 0), max = Math.max(...allVals, 0);
+    const pad = (max - min) * 0.12 || 1;
+    const ticks = niceTicks(min - pad, max + pad, 5);
+    const yMin = ticks[0], yMax = ticks[ticks.length - 1];
+    const yScale = (v) => M.top + innerH - ((v - yMin) / (yMax - yMin || 1)) * innerH;
+
+    ticks.forEach(t => {
+      const y = yScale(t);
+      svg.appendChild(el('line', { x1: M.left, x2: W - M.right, y1: y, y2: y, class: t === 0 ? 'baseline' : 'gridline' }));
+      const lbl = el('text', { x: M.left - 8, y: y + 3, class: 'axis-label', 'text-anchor': 'end' });
+      lbl.textContent = t.toFixed(0);
+      svg.appendChild(lbl);
+    });
+    (opts.refLines || []).forEach(rl => {
+      const y = yScale(rl.value);
+      svg.appendChild(el('line', { x1: M.left, x2: W - M.right, y1: y, y2: y, class: 'ref-line' }));
+      const lbl = el('text', { x: M.left + 4, y: y + 14, class: 'ref-label', 'text-anchor': 'start' });
+      lbl.textContent = rl.label;
+      svg.appendChild(lbl);
+    });
+
+    const n = data.length;
+    const xTickCount = Math.min(8, n);
+    for (let i = 0; i < xTickCount; i++) {
+      const idx = Math.round(i * (n - 1) / (xTickCount - 1 || 1));
+      const d = dates[idx];
+      const x = xScale(d);
+      const lbl = el('text', { x, y: H - 6, class: 'axis-label', 'text-anchor': 'middle' });
+      lbl.textContent = MONTHS_SHORT[d.getMonth()] + " '" + String(d.getFullYear()).slice(2);
+      svg.appendChild(lbl);
+    }
+
+    if (opts.barKey) {
+      const barSeries = opts.series.find(s => s.key === opts.barKey);
+      const slot = innerW / n;
+      const barW = Math.max(1, slot * 0.7);
+      const y0px = yScale(0);
+      data.forEach((row, i) => {
+        const v = row[opts.barKey];
+        if (v === null || v === undefined || Number.isNaN(v)) return;
+        const x = xScale(dates[i]) - barW / 2;
+        const y1px = yScale(v);
+        const top = Math.min(y0px, y1px), h = Math.max(Math.abs(y1px - y0px), 1);
+        svg.appendChild(el('rect', { x, y: top, width: barW, height: h, fill: barSeries.color, opacity: 0.55 }));
+      });
+    }
+
+    opts.series.forEach(s => {
+      if (s.key === opts.barKey) return;
+      let dstr = '';
+      const pts = [];
+      data.forEach((row, i) => {
+        const v = row[s.key];
+        if (v === null || v === undefined || Number.isNaN(v)) return;
+        const x = xScale(dates[i]), y = yScale(v);
+        dstr += (dstr === '' ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2);
+        pts.push({ x, y });
+      });
+      svg.appendChild(el('path', { d: dstr, fill: 'none', stroke: s.color, 'stroke-width': 2.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    });
+
+    const crosshair = el('line', { class: 'baseline', y1: M.top, y2: M.top + innerH, x1: -100, x2: -100 });
+    svg.appendChild(crosshair);
+    const hit = el('rect', { x: M.left, y: M.top, width: innerW, height: innerH, fill: 'transparent', style: 'cursor:crosshair' });
+    svg.appendChild(hit);
+
+    function findNearest(px) {
+      let bestI = 0, bestD = Infinity;
+      dates.forEach((d, i) => { const x = xScale(d); const dist = Math.abs(x - px); if (dist < bestD) { bestD = dist; bestI = i; } });
+      return bestI;
+    }
+    function showAt(clientX, clientRect) {
+      const px = clientX - clientRect.left;
+      const svgX = (px / clientRect.width) * W;
+      if (svgX < M.left || svgX > W - M.right) { hide(); return; }
+      const i = findNearest(svgX);
+      const x = xScale(dates[i]);
+      crosshair.setAttribute('x1', x); crosshair.setAttribute('x2', x);
+      let rows = '';
+      opts.series.forEach(s => {
+        const v = data[i][s.key];
+        rows += `<div class="t-row"><span><span class="t-key" style="background:${s.color};width:10px;height:2px;display:inline-block;margin-right:4px;"></span>${s.label}</span><span class="t-val">${valueFmt(v)}</span></div>`;
+      });
+      tooltip.innerHTML = `<div class="t-date">${MONTHS_SHORT[dates[i].getMonth()]} ${dates[i].getFullYear()}</div>${rows}`;
+      tooltip.classList.add('show');
+      tooltip.style.left = (x / W) * clientRect.width + 'px';
+      tooltip.style.top = (M.top / H) * clientRect.height + 'px';
+    }
+    function hide() { crosshair.setAttribute('x1', -100); crosshair.setAttribute('x2', -100); tooltip.classList.remove('show'); }
+    hit.addEventListener('pointermove', (e) => showAt(e.clientX, svg.getBoundingClientRect()));
+    hit.addEventListener('pointerleave', hide);
+  }
+
+  // ---------- Диапазон (20-80% перцентиль) + среднее ----------
+  function BandChart(containerEl, legendEl, opts) {
+    // opts: { data, xKey, lowKey, highKey, meanKey, height, valueFmt, color, bandLabel, meanLabel }
+    const W = 1000, H = opts.height || 300;
+    const M = { top: 14, right: 14, bottom: 26, left: 42 };
+    const innerW = W - M.left - M.right, innerH = H - M.top - M.bottom;
+    const valueFmt = opts.valueFmt || ((v) => v === null || v === undefined ? '—' : v.toFixed(1));
+    const color = opts.color;
+
+    containerEl.innerHTML = '';
+    containerEl.style.position = 'relative';
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' });
+    containerEl.appendChild(svg);
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    containerEl.appendChild(tooltip);
+
+    legendEl.innerHTML = '';
+    legendEl.innerHTML =
+      `<span class="item"><span class="key rect" style="background:${color};opacity:0.35"></span>${opts.bandLabel || '20–80% перцентиль'}</span>` +
+      `<span class="item"><span class="key" style="background:${color}"></span>${opts.meanLabel || 'Среднее'}</span>`;
+
+    const data = opts.data;
+    const dates = data.map(d => parseDate(d[opts.xKey]));
+    const x0 = dates[0], x1 = dates[dates.length - 1];
+    const xScale = (d) => M.left + ((d - x0) / (x1 - x0 || 1)) * innerW;
+
+    let allVals = [];
+    data.forEach(d => {
+      [opts.lowKey, opts.highKey, opts.meanKey].forEach(k => { if (d[k] !== null && d[k] !== undefined) allVals.push(d[k]); });
+    });
+    (opts.refLines || []).forEach(rl => allVals.push(rl.value));
+    if (allVals.length === 0) allVals = [0, 1];
+    let min = Math.min(...allVals, 0), max = Math.max(...allVals, 0);
+    const pad = (max - min) * 0.12 || 1;
+    const ticks = niceTicks(min - pad, max + pad, 5);
+    const yMin = ticks[0], yMax = ticks[ticks.length - 1];
+    const yScale = (v) => M.top + innerH - ((v - yMin) / (yMax - yMin || 1)) * innerH;
+
+    ticks.forEach(t => {
+      const y = yScale(t);
+      svg.appendChild(el('line', { x1: M.left, x2: W - M.right, y1: y, y2: y, class: t === 0 ? 'baseline' : 'gridline' }));
+      const lbl = el('text', { x: M.left - 8, y: y + 3, class: 'axis-label', 'text-anchor': 'end' });
+      lbl.textContent = t.toFixed(0);
+      svg.appendChild(lbl);
+    });
+    (opts.refLines || []).forEach(rl => {
+      const y = yScale(rl.value);
+      svg.appendChild(el('line', { x1: M.left, x2: W - M.right, y1: y, y2: y, class: 'ref-line' }));
+      const lbl = el('text', { x: M.left + 4, y: y + 14, class: 'ref-label', 'text-anchor': 'start' });
+      lbl.textContent = rl.label;
+      svg.appendChild(lbl);
+    });
+
+    const n = data.length;
+    const xTickCount = Math.min(8, n);
+    for (let i = 0; i < xTickCount; i++) {
+      const idx = Math.round(i * (n - 1) / (xTickCount - 1 || 1));
+      const d = dates[idx];
+      const x = xScale(d);
+      const lbl = el('text', { x, y: H - 6, class: 'axis-label', 'text-anchor': 'middle' });
+      lbl.textContent = MONTHS_SHORT[d.getMonth()] + " '" + String(d.getFullYear()).slice(2);
+      svg.appendChild(lbl);
+    }
+
+    // залитая полоса p20..p80: вверх по highKey, назад по lowKey
+    let bandD = '';
+    data.forEach((row, i) => {
+      const x = xScale(dates[i]), y = yScale(row[opts.highKey]);
+      bandD += (i === 0 ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2);
+    });
+    for (let i = data.length - 1; i >= 0; i--) {
+      const x = xScale(dates[i]), y = yScale(data[i][opts.lowKey]);
+      bandD += 'L' + x.toFixed(2) + ',' + y.toFixed(2);
+    }
+    bandD += 'Z';
+    svg.appendChild(el('path', { d: bandD, fill: color, opacity: 0.22, stroke: 'none' }));
+
+    let meanD = '';
+    data.forEach((row, i) => {
+      const v = row[opts.meanKey];
+      if (v === null || v === undefined) return;
+      const x = xScale(dates[i]), y = yScale(v);
+      meanD += (meanD === '' ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2);
+    });
+    svg.appendChild(el('path', { d: meanD, fill: 'none', stroke: color, 'stroke-width': 2.4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+
+    const crosshair = el('line', { class: 'baseline', y1: M.top, y2: M.top + innerH, x1: -100, x2: -100 });
+    svg.appendChild(crosshair);
+    const hit = el('rect', { x: M.left, y: M.top, width: innerW, height: innerH, fill: 'transparent', style: 'cursor:crosshair' });
+    svg.appendChild(hit);
+
+    function findNearest(px) {
+      let bestI = 0, bestD = Infinity;
+      dates.forEach((d, i) => { const x = xScale(d); const dist = Math.abs(x - px); if (dist < bestD) { bestD = dist; bestI = i; } });
+      return bestI;
+    }
+    function showAt(clientX, clientRect) {
+      const px = clientX - clientRect.left;
+      const svgX = (px / clientRect.width) * W;
+      if (svgX < M.left || svgX > W - M.right) { hide(); return; }
+      const i = findNearest(svgX);
+      const x = xScale(dates[i]);
+      crosshair.setAttribute('x1', x); crosshair.setAttribute('x2', x);
+      const row = data[i];
+      const rows = [
+        ['Среднее', row[opts.meanKey]],
+        ['20% перцентиль', row[opts.lowKey]],
+        ['80% перцентиль', row[opts.highKey]],
+      ].map(([name, v]) => `<div class="t-row"><span class="t-name">${name}</span><span class="t-val">${valueFmt(v)}</span></div>`).join('');
+      const nNote = row.n !== undefined ? `<div class="t-row"><span class="t-name">Метрик</span><span class="t-val">${row.n}</span></div>` : '';
+      tooltip.innerHTML = `<div class="t-date">${MONTHS_SHORT[dates[i].getMonth()]} ${dates[i].getFullYear()}</div>${rows}${nNote}`;
+      tooltip.classList.add('show');
+      tooltip.style.left = (x / W) * clientRect.width + 'px';
+      tooltip.style.top = (M.top / H) * clientRect.height + 'px';
+    }
+    function hide() { crosshair.setAttribute('x1', -100); crosshair.setAttribute('x2', -100); tooltip.classList.remove('show'); }
+    hit.addEventListener('pointermove', (e) => showAt(e.clientX, svg.getBoundingClientRect()));
+    hit.addEventListener('pointerleave', hide);
+  }
+
+  // ---------- Стековые столбцы по времени (распределение по темпу роста) ----------
+  function StackedBarChart(containerEl, legendEl, opts) {
+    // opts: { data, xKey, series: [{key,label,color}], height, valueFmt }
+    const W = 1000, H = opts.height || 300;
+    const M = { top: 14, right: 14, bottom: 26, left: 38 };
+    const innerW = W - M.left - M.right, innerH = H - M.top - M.bottom;
+    const valueFmt = opts.valueFmt || ((v) => v.toFixed(0) + '%');
+
+    containerEl.innerHTML = '';
+    containerEl.style.position = 'relative';
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' });
+    containerEl.appendChild(svg);
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    containerEl.appendChild(tooltip);
+
+    legendEl.innerHTML = '';
+    opts.series.forEach(s => {
+      const item = document.createElement('span');
+      item.className = 'item';
+      item.innerHTML = `<span class="key rect" style="background:${s.color}"></span>${s.label}`;
+      legendEl.appendChild(item);
+    });
+
+    const data = opts.data;
+    const n = data.length;
+    const slot = innerW / n;
+    const barW = Math.max(2, slot * 0.72);
+    const yScale = (v) => M.top + innerH - (v / 100) * innerH;
+
+    [0, 20, 40, 60, 80, 100].forEach(t => {
+      const y = yScale(t);
+      svg.appendChild(el('line', { x1: M.left, x2: W - M.right, y1: y, y2: y, class: t === 0 ? 'baseline' : 'gridline' }));
+      const lbl = el('text', { x: M.left - 6, y: y + 3, class: 'axis-label', 'text-anchor': 'end' });
+      lbl.textContent = t + '%';
+      svg.appendChild(lbl);
+    });
+
+    const xTickCount = Math.min(10, n);
+    for (let i = 0; i < xTickCount; i++) {
+      const idx = Math.round(i * (n - 1) / (xTickCount - 1 || 1));
+      const d = parseDate(data[idx][opts.xKey]);
+      const x = M.left + slot * (idx + 0.5);
+      const lbl = el('text', { x, y: H - 6, class: 'axis-label', 'text-anchor': 'middle' });
+      lbl.textContent = MONTHS_SHORT[d.getMonth()] + ' ' + d.getFullYear();
+      svg.appendChild(lbl);
+    }
+
+    data.forEach((row, i) => {
+      const x = M.left + slot * i + (slot - barW) / 2;
+      let cum = 0;
+      opts.series.forEach(s => {
+        const v = row[s.key] || 0;
+        const y0 = yScale(cum), y1 = yScale(cum + v);
+        svg.appendChild(el('rect', { x, y: y1, width: barW, height: Math.max(y0 - y1, 0), fill: s.color }));
+        cum += v;
+      });
+      const hit = el('rect', { x: M.left + slot * i, y: M.top, width: slot, height: innerH, fill: 'transparent' });
+      hit.addEventListener('pointermove', (e) => {
+        const cRect = containerEl.getBoundingClientRect();
+        const d = parseDate(row[opts.xKey]);
+        let rows = '';
+        opts.series.forEach(s => {
+          rows += `<div class="t-row"><span><span class="t-key" style="background:${s.color};width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px;"></span>${s.label}</span><span class="t-val">${valueFmt(row[s.key] || 0)}</span></div>`;
+        });
+        tooltip.innerHTML = `<div class="t-date">${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}</div>${rows}`;
+        tooltip.classList.add('show');
+        tooltip.style.left = (e.clientX - cRect.left) + 'px';
+        tooltip.style.top = '0px';
+      });
+      hit.addEventListener('pointerleave', () => tooltip.classList.remove('show'));
+      svg.appendChild(hit);
+    });
+  }
+
+  // ---------- Расходящиеся столбцы от нуля (спрос/предложение) + линия итога ----------
+  function DivergingStackChart(containerEl, legendEl, opts) {
+    // opts: { data, xKey, series: [{key,label,color}], totalKey, totalLabel, height, valueFmt }
+    const W = 1000, H = opts.height || 320;
+    const M = { top: 14, right: 14, bottom: 26, left: 42 };
+    const innerW = W - M.left - M.right, innerH = H - M.top - M.bottom;
+    const valueFmt = opts.valueFmt || ((v) => v === null || v === undefined ? '—' : v.toFixed(2) + ' п.п.');
+
+    containerEl.innerHTML = '';
+    containerEl.style.position = 'relative';
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' });
+    containerEl.appendChild(svg);
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    containerEl.appendChild(tooltip);
+
+    legendEl.innerHTML = '';
+    opts.series.forEach(s => {
+      const item = document.createElement('span');
+      item.className = 'item';
+      item.innerHTML = `<span class="key rect" style="background:${s.color}"></span>${s.label}`;
+      legendEl.appendChild(item);
+    });
+    if (opts.totalKey) {
+      const item = document.createElement('span');
+      item.className = 'item';
+      item.innerHTML = `<span class="key" style="background:${opts.totalColor || 'var(--text-primary)'}"></span>${opts.totalLabel || 'Итого'}`;
+      legendEl.appendChild(item);
+    }
+
+    const data = opts.data;
+    const dates = data.map(d => parseDate(d[opts.xKey]));
+    const x0 = dates[0], x1 = dates[dates.length - 1];
+    const xScale = (d) => M.left + ((d - x0) / (x1 - x0 || 1)) * innerW;
+    const n = data.length;
+    const slot = innerW / n;
+    const barW = Math.max(1, slot * 0.72);
+
+    let allVals = [];
+    data.forEach(row => { opts.series.forEach(s => { const v = row[s.key]; if (v !== null && v !== undefined) allVals.push(v); }); });
+    if (allVals.length === 0) allVals = [0, 1];
+    let min = Math.min(...allVals, 0), max = Math.max(...allVals, 0);
+    if (opts.yMaxCap !== undefined) max = Math.min(max, opts.yMaxCap);
+    if (opts.yMinCap !== undefined) min = Math.max(min, opts.yMinCap);
+    const pad = (max - min) * 0.12 || 1;
+    let ticks = niceTicks(min - pad, max + pad, 5);
+    let yMin = ticks[0], yMax = ticks[ticks.length - 1];
+    if (opts.yMaxCap !== undefined) yMax = Math.min(yMax, opts.yMaxCap);
+    if (opts.yMinCap !== undefined) yMin = Math.max(yMin, opts.yMinCap);
+    ticks = ticks.filter(t => t >= yMin && t <= yMax);
+    const yScale = (v) => M.top + innerH - ((Math.max(yMin, Math.min(yMax, v)) - yMin) / (yMax - yMin || 1)) * innerH;
+
+    ticks.forEach(t => {
+      const y = yScale(t);
+      svg.appendChild(el('line', { x1: M.left, x2: W - M.right, y1: y, y2: y, class: t === 0 ? 'baseline' : 'gridline' }));
+      const lbl = el('text', { x: M.left - 8, y: y + 3, class: 'axis-label', 'text-anchor': 'end' });
+      lbl.textContent = t.toFixed(1);
+      svg.appendChild(lbl);
+    });
+
+    const xTickCount = Math.min(10, n);
+    for (let i = 0; i < xTickCount; i++) {
+      const idx = Math.round(i * (n - 1) / (xTickCount - 1 || 1));
+      const d = dates[idx];
+      const x = M.left + slot * (idx + 0.5);
+      const lbl = el('text', { x, y: H - 6, class: 'axis-label', 'text-anchor': 'middle' });
+      lbl.textContent = MONTHS_SHORT[d.getMonth()] + " '" + String(d.getFullYear()).slice(2);
+      svg.appendChild(lbl);
+    }
+
+    data.forEach((row, i) => {
+      const x = M.left + slot * i + (slot - barW) / 2;
+      let posCum = 0, negCum = 0;
+      opts.series.forEach(s => {
+        const v = row[s.key];
+        if (v === null || v === undefined) return;
+        let y0, y1;
+        if (v >= 0) { y0 = yScale(posCum); y1 = yScale(posCum + v); posCum += v; }
+        else { y0 = yScale(negCum + v); y1 = yScale(negCum); negCum += v; }
+        svg.appendChild(el('rect', { x, y: y1, width: barW, height: Math.max(y0 - y1, 0.5), fill: s.color }));
+      });
+    });
+
+    if (opts.totalKey) {
+      let totalD = '';
+      data.forEach((row, i) => {
+        const v = row[opts.totalKey];
+        if (v === null || v === undefined) return;
+        const x = M.left + slot * (i + 0.5), y = yScale(v);
+        totalD += (totalD === '' ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2);
+      });
+      svg.appendChild(el('path', { d: totalD, fill: 'none', stroke: opts.totalColor || 'var(--text-primary)', 'stroke-width': 1.6, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', opacity: 0.85 }));
+    }
+
+    data.forEach((row, i) => {
+      const hit = el('rect', { x: M.left + slot * i, y: M.top, width: slot, height: innerH, fill: 'transparent' });
+      hit.addEventListener('pointermove', (e) => {
+        const cRect = containerEl.getBoundingClientRect();
+        const d = dates[i];
+        let rows = '';
+        opts.series.forEach(s => {
+          rows += `<div class="t-row"><span><span class="t-key" style="background:${s.color};width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px;"></span>${s.label}</span><span class="t-val">${valueFmt(row[s.key])}</span></div>`;
+        });
+        if (opts.totalKey) {
+          rows += `<div class="t-row"><span class="t-name">${opts.totalLabel || 'Итого'}</span><span class="t-val">${valueFmt(row[opts.totalKey])}</span></div>`;
+        }
+        tooltip.innerHTML = `<div class="t-date">${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}</div>${rows}`;
+        tooltip.classList.add('show');
+        tooltip.style.left = (e.clientX - cRect.left) + 'px';
+        tooltip.style.top = '0px';
+      });
+      hit.addEventListener('pointerleave', () => tooltip.classList.remove('show'));
+      svg.appendChild(hit);
+    });
+  }
+
+  // ---------- Ранжированный горизонтальный бар-чарт (вклад групп в SAAR) ----------
+  function HBarChart(containerEl, opts) {
+    // opts: { items: [{name, value}], rowHeight, labelWidth, valueFmt }
+    const items = opts.items;
+    const rowH = opts.rowHeight || 16;
+    const M = { top: 8, right: 46, bottom: 10, left: opts.labelWidth || 220 };
+    const W = 1000, H = M.top + M.bottom + items.length * rowH;
+    const innerW = W - M.left - M.right;
+
+    containerEl.innerHTML = '';
+    containerEl.style.position = 'relative';
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' });
+    containerEl.appendChild(svg);
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    containerEl.appendChild(tooltip);
+
+    const vals = items.map(it => it.value);
+    const vmin = Math.min(...vals, 0), vmax = Math.max(...vals, 0);
+    const span = (vmax - vmin) || 1;
+    const xScale = (v) => M.left + ((v - vmin) / span) * innerW;
+    const zeroX = xScale(0);
+    svg.appendChild(el('line', { x1: zeroX, x2: zeroX, y1: M.top, y2: H - M.bottom, class: 'baseline' }));
+
+    items.forEach((it, i) => {
+      const y = M.top + i * rowH;
+      const barH = rowH * 0.62;
+      const x = xScale(it.value);
+      const left = Math.min(x, zeroX), w = Math.max(Math.abs(x - zeroX), 1);
+      const isOther = it.name.startsWith('Прочее');
+      const color = isOther ? cvar('--text-muted') : (it.value >= 0 ? cvar('--wf-pos') : cvar('--wf-neg'));
+      svg.appendChild(el('rect', { x: left, y: y + (rowH - barH) / 2, width: w, height: barH, rx: 2, ry: 2, fill: color, opacity: isOther ? 0.6 : 1 }));
+      const lbl = el('text', { x: M.left - 8, y: y + rowH / 2 + 3, class: 'axis-label', 'text-anchor': 'end' });
+      lbl.textContent = it.name.length > 32 ? it.name.slice(0, 31) + '…' : it.name;
+      svg.appendChild(lbl);
+      // Для отрицательных значений подпись ставим справа от нулевой линии
+      // (не слева от бара к его дальнему краю) — иначе при небольшом
+      // диапазоне отрицательных значений (ноль близко к левому краю) подпись
+      // налезает на подписи категорий.
+      const vlbl = el('text', { x: it.value >= 0 ? x + 5 : zeroX + 5, y: y + rowH / 2 + 3, class: 'axis-label', 'text-anchor': 'start' });
+      vlbl.textContent = opts.valueFmt(it.value);
+      svg.appendChild(vlbl);
+      const hit = el('rect', { x: M.left, y, width: innerW, height: rowH, fill: 'transparent' });
+      hit.addEventListener('pointermove', (e) => {
+        const cRect = containerEl.getBoundingClientRect();
+        tooltip.innerHTML = `<div class="t-date">${it.name}</div><div class="t-row"><span class="t-name">Вклад в SAAR</span><span class="t-val">${opts.valueFmt(it.value)}</span></div>`;
+        tooltip.classList.add('show');
+        tooltip.style.left = (e.clientX - cRect.left) + 'px';
+        tooltip.style.top = Math.max(0, (y / H) * cRect.height - 6) + 'px';
+      });
+      hit.addEventListener('pointerleave', () => tooltip.classList.remove('show'));
+      svg.appendChild(hit);
+    });
+  }
+
+  // ---------- Водопад «Компоненты прироста ИПЦ» (рис. 7-8 бюллетеня) ----------
+  function WaterfallHBar(containerEl, opts) {
+    // opts: { segments: [{name,y0,y1,kind}], rowHeight, labelWidth, valueFmt }
+    const segs = opts.segments;
+    const rowH = opts.rowHeight || 15;
+    const M = { top: 8, right: 46, bottom: 10, left: opts.labelWidth || 260 };
+    const W = 1000, H = M.top + M.bottom + segs.length * rowH;
+    const innerW = W - M.left - M.right;
+
+    containerEl.innerHTML = '';
+    containerEl.style.position = 'relative';
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' });
+    containerEl.appendChild(svg);
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    containerEl.appendChild(tooltip);
+
+    const allV = segs.flatMap(s => [s.y0, s.y1]).concat([0]);
+    const vmin = Math.min(...allV), vmax = Math.max(...allV);
+    const span = (vmax - vmin) || 1;
+    const xScale = (v) => M.left + ((v - vmin) / span) * innerW;
+    const zeroX = xScale(0);
+    svg.appendChild(el('line', { x1: zeroX, x2: zeroX, y1: M.top, y2: H - M.bottom, class: 'baseline' }));
+
+    const colorOf = (s) => {
+      if (s.kind === 'total') return cvar('--wf-total');
+      if (s.kind === 'separate') return cvar('--wf-separate');
+      if (s.kind === 'marker') return cvar('--wf-marker');
+      return s.y1 >= s.y0 ? cvar('--wf-pos') : cvar('--wf-neg');
+    };
+
+    segs.forEach((s, i) => {
+      const y = M.top + i * rowH;
+      const bold = s.kind !== 'item';
+      const barH = rowH * (bold ? 0.72 : 0.6);
+      const x0 = xScale(s.y0), x1 = xScale(s.y1);
+      const left = Math.min(x0, x1), w = Math.max(Math.abs(x1 - x0), 1);
+      svg.appendChild(el('rect', {
+        x: left, y: y + (rowH - barH) / 2, width: w, height: barH, rx: 2, ry: 2,
+        fill: colorOf(s), opacity: bold ? 1 : 0.85,
+      }));
+      const lbl = el('text', { x: M.left - 8, y: y + rowH / 2 + 3, class: 'axis-label', 'text-anchor': 'end' });
+      lbl.style.fontWeight = bold ? '700' : '400';
+      lbl.textContent = s.name.length > 40 ? s.name.slice(0, 39) + '…' : s.name;
+      svg.appendChild(lbl);
+      const hit = el('rect', { x: M.left, y, width: innerW, height: rowH, fill: 'transparent' });
+      hit.addEventListener('pointermove', (e) => {
+        const cRect = containerEl.getBoundingClientRect();
+        const val = s.kind === 'item' ? (s.y1 - s.y0) : s.y1;
+        const valLabel = s.kind === 'item' ? 'Вклад' : 'Накопительно';
+        tooltip.innerHTML = `<div class="t-date">${s.name}</div><div class="t-row"><span class="t-name">${valLabel}</span><span class="t-val">${opts.valueFmt(val)}</span></div>`;
+        tooltip.classList.add('show');
+        tooltip.style.left = (e.clientX - cRect.left) + 'px';
+        tooltip.style.top = Math.max(0, (y / H) * cRect.height - 6) + 'px';
+      });
+      hit.addEventListener('pointerleave', () => tooltip.classList.remove('show'));
+      svg.appendChild(hit);
+    });
+
+    // ось X снизу
+    const ticks = 6;
+    for (let i = 0; i <= ticks; i++) {
+      const v = vmin + (span * i) / ticks;
+      const x = xScale(v);
+      const lbl = el('text', { x, y: H - 2, class: 'axis-label', 'text-anchor': 'middle' });
+      lbl.textContent = v.toFixed(0);
+      svg.appendChild(lbl);
+    }
+  }
+
+  const METRICS = [
+    { key: 'saar', label: 'SAAR', bandLabel: 'Темп прироста цен к предыдущему периоду, с.к.г.', fmt: fmt1, hasAvg3: true },
+    { key: 'mm', label: '% м/м', bandLabel: 'Темп прироста цен к предыдущему периоду', fmt: fmt2, hasAvg3: true },
+    { key: 'yoy', label: '% г/г', bandLabel: 'Темп прироста цен, г/г', fmt: fmt1, hasAvg3: false },
+  ];
+
+  function init() {
+    const wrap = document.getElementById('table1Wrap');
+    const noteEl = document.getElementById('metricNote');
+    let currentMetric = METRICS[0].key;
+
+    function renderAll() {
+      const spec = METRICS.find(m => m.key === currentMetric);
+      const cols = TABLE1.columns.filter(c => spec.hasAvg3 || c.type !== 'avg3');
+
+      let html = '<table class="datatab"><thead><tr><th class="rowlabel"></th>';
+      cols.forEach(c => {
+        const cls = 'rot' + (c.type === 'avg3' ? ' avg3' : '');
+        html += `<th class="${cls}"><div>${c.label.replace('\\n', ' ')}</div></th>`;
+      });
+      html += '</tr></thead><tbody>';
+
+      TABLE1.rows.forEach(r => {
+        if (!r.panels.includes(spec.key)) return;
+        html += `<tr class="indent-${r.indent}"><td class="rowlabel">${r.label}</td>`;
+        cols.forEach(c => {
+          const i = TABLE1.columns.indexOf(c);
+          const cell = r.cols[i];
+          const v = cell[spec.key];
+          const cls = [c.type === 'avg3' ? 'avg3' : '', v === null || v === undefined ? 'na' : (v >= 0 ? 'pos' : 'neg')].filter(Boolean).join(' ');
+          html += `<td class="${cls}">${spec.fmt(v)}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      wrap.innerHTML = html;
+      noteEl.textContent = spec.bandLabel;
+    }
+
+    const ctl = document.getElementById('metricCtl');
+    METRICS.forEach(spec => {
+      const btn = document.createElement('button');
+      btn.textContent = spec.label;
+      btn.setAttribute('aria-pressed', spec.key === currentMetric ? 'true' : 'false');
+      btn.addEventListener('click', () => {
+        currentMetric = spec.key;
+        Array.from(ctl.children).forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+        renderAll();
+      });
+      ctl.appendChild(btn);
+    });
+
+    renderAll();
+
+    const fmtLevel = (v) => (v === null || v === undefined) ? '—' : v.toFixed(1) + '%';
+    LineChart(document.getElementById('chartSaarHist'), document.getElementById('legendSaarHist'), {
+      data: SAAR_HISTORY, xKey: 'date', height: 360,
+      series: [
+        { key: 'headline', label: 'Все товары и услуги', color: cvar('--series-headline') },
+        { key: 'food', label: 'Продовольственные товары', color: cvar('--series-food') },
+        { key: 'nonfood', label: 'Непродовольственные товары', color: cvar('--series-nonfood') },
+        { key: 'services', label: 'Услуги', color: cvar('--series-services') },
+      ],
+      valueFmt: fmtLevel, refLines: [{ value: 4, label: 'цель ЦБ 4%' }], barKey: 'headline',
+    });
+
+    BandChart(document.getElementById('chartCoreBand'), document.getElementById('legendCoreBand'), {
+      data: CORE_SAAR_BAND, xKey: 'date', height: 360,
+      lowKey: 'p20', highKey: 'p80', meanKey: 'mean',
+      color: cvar('--series-1'), valueFmt: fmtLevel,
+      bandLabel: '20–80% перцентиль', meanLabel: 'Среднее по метрикам',
+      refLines: [{ value: 4, label: 'цель ЦБ 4%' }],
+    });
+
+    const fmtPct0 = (v) => v.toFixed(1) + '%';
+    StackedBarChart(document.getElementById('chartDiffusion'), document.getElementById('legendDiffusion'), {
+      data: DIFFUSION, xKey: 'date', height: 300,
+      series: [
+        { key: 'high', label: 'Очень высокий рост (более 10%)', color: cvar('--bucket-high') },
+        { key: 'elevated', label: 'Повышенный рост (5–10%)', color: cvar('--bucket-elevated') },
+        { key: 'target', label: 'Рост около таргета (3–5%)', color: cvar('--bucket-target') },
+        { key: 'low', label: 'Снижение / медленный рост (менее 3%)', color: cvar('--bucket-low') },
+      ],
+      valueFmt: fmtPct0,
+    });
+
+    DivergingStackChart(document.getElementById('chartDemandSupply'), document.getElementById('legendDemandSupply'), {
+      data: DEMAND_SUPPLY.slice(-24), xKey: 'date', height: 340,
+      series: [
+        { key: 'demand', label: 'Спрос', color: cvar('--series-food') },
+        { key: 'supply', label: 'Предложение', color: cvar('--series-nonfood') },
+      ],
+      totalKey: 'total', totalLabel: 'Итого, SAAR', totalColor: cvar('--text-primary'),
+      valueFmt: fmtPP,
+    });
+
+    DivergingStackChart(document.getElementById('chartDemandSupplyCbr'), document.getElementById('legendDemandSupplyCbr'), {
+      data: DEMAND_SUPPLY_CBR, xKey: 'date', height: 340, yMaxCap: 20,
+      series: [
+        { key: 'pos_demand', label: 'Полож. шок спроса (P+ Q+)', color: cvar('--series-food') },
+        { key: 'neg_demand', label: 'Отриц. шок спроса (P− Q−)', color: '#eda9b3' },
+        { key: 'pos_supply', label: 'Полож. шок предложения (P− Q+)', color: cvar('--series-nonfood') },
+        { key: 'neg_supply', label: 'Отриц. шок предложения (P+ Q−)', color: '#9dc3ec' },
+      ],
+      totalKey: 'cpi', totalLabel: 'ИПЦ, SAAR', totalColor: cvar('--text-primary'),
+      valueFmt: fmtPP,
+    });
+
+    LineChart(document.getElementById('chartFxSensitivity'), document.getElementById('legendFxSensitivity'), {
+      data: FX_SENSITIVITY.filter(d => d.date >= '2023-01-01'), xKey: 'date', height: 340,
+      series: [
+        { key: 'usd', label: 'Курс доллара США к рублю', color: cvar('--series-headline') },
+        { key: 'weak', label: 'Слабозависимые от курса', color: cvar('--series-nonfood') },
+        { key: 'strong', label: 'Сильнозависимые от курса', color: cvar('--series-food') },
+      ],
+      barKey: 'usd', valueFmt: fmtPP,
+    });
+
+    LineChart(document.getElementById('chartFxSensitivityDdkp'), document.getElementById('legendFxSensitivityDdkp'), {
+      data: FX_SENSITIVITY_DDKP.filter(d => d.date >= '2023-01-01'), xKey: 'date', height: 340,
+      series: [
+        { key: 'weak', label: 'Слабозависимые от курса', color: cvar('--series-nonfood') },
+        { key: 'strong', label: 'Сильнозависимые от курса', color: cvar('--series-food') },
+      ],
+      valueFmt: fmtPP,
+    });
+
+    document.getElementById('contribLatestTitle').textContent = `Компоненты SAAR ИПЦ — ${CONTRIB_LATEST_LABEL}`;
+    HBarChart(document.getElementById('chartContribLatest'), {
+      items: CONTRIB_LATEST.bars, rowHeight: 15, labelWidth: 230, valueFmt: fmtPP,
+    });
+    document.getElementById('contribAvg3Title').textContent = 'Компоненты среднемесячного SAAR ИПЦ (последние 3 мес.)';
+    HBarChart(document.getElementById('chartContribAvg3'), {
+      items: CONTRIB_AVG3.bars, rowHeight: 15, labelWidth: 230, valueFmt: fmtPP,
+    });
+
+    document.getElementById('wfLatestTitle').textContent = `Компоненты прироста ИПЦ — ${CONTRIB_LATEST_LABEL}`;
+    WaterfallHBar(document.getElementById('chartWfLatest'), {
+      segments: WATERFALL_LATEST.segments, rowHeight: 15, labelWidth: 300, valueFmt: fmtPP,
+    });
+    WaterfallHBar(document.getElementById('chartWfAvg3'), {
+      segments: WATERFALL_AVG3.segments, rowHeight: 15, labelWidth: 300, valueFmt: fmtPP,
+    });
+
+    // ---------- Конструктор: SAAR по любому показателю ----------
+    (function initConstructor(){
+      const allDates = ALL_SAAR.dates;
+      const allLabels = Object.keys(ALL_SAAR.series);
+      const DEFAULT_LABEL = 'ИПЦ, все товары и услуги';
+      const checked = new Set([DEFAULT_LABEL]);
+
+      function colorForLabel(label){
+        let hash = 0;
+        for (let i = 0; i < label.length; i++) hash = (hash * 31 + label.charCodeAt(i)) >>> 0;
+        return `hsl(${hash % 360}, 65%, 60%)`;
+      }
+
+      const fromInput = document.getElementById('constructorFrom');
+      const toInput = document.getElementById('constructorTo');
+      const minMonth = allDates[0].slice(0, 7);
+      const maxMonth = allDates[allDates.length - 1].slice(0, 7);
+      fromInput.min = minMonth; fromInput.max = maxMonth;
+      toInput.min = minMonth; toInput.max = maxMonth;
+      fromInput.value = minMonth;
+      toInput.value = maxMonth;
+
+      const checklistEl = document.getElementById('constructorChecklist');
+      allLabels.forEach((label, idx) => {
+        const wrap = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.id = 'ctorChk_' + idx; cb.checked = checked.has(label);
+        cb.addEventListener('change', () => {
+          if (cb.checked) checked.add(label); else checked.delete(label);
+          render();
+        });
+        const span = document.createElement('span'); span.textContent = label;
+        wrap.appendChild(cb); wrap.appendChild(span);
+        checklistEl.appendChild(wrap);
+      });
+
+      const fmtLevel2 = (v) => (v === null || v === undefined) ? '—' : v.toFixed(1) + '%';
+
+      function render(){
+        let from = fromInput.value || minMonth;
+        let to = toInput.value || maxMonth;
+        if (from < minMonth) from = minMonth;
+        if (to > maxMonth) to = maxMonth;
+        if (from > to) from = to;
+        fromInput.value = from; toInput.value = to;
+
+        const labels = allLabels.filter(l => checked.has(l));
+        const idxs = [];
+        allDates.forEach((d, i) => { const ym = d.slice(0, 7); if (ym >= from && ym <= to) idxs.push(i); });
+
+        const chartEl = document.getElementById('chartConstructor');
+        const legendEl = document.getElementById('legendConstructor');
+        if (!labels.length || !idxs.length) {
+          chartEl.innerHTML = '<div class="placeholder-note">Выберите хотя бы один показатель.</div>';
+          legendEl.innerHTML = '';
+          return;
+        }
+
+        const data = idxs.map(i => {
+          const row = { date: allDates[i] };
+          labels.forEach(l => { row[l] = ALL_SAAR.series[l][i]; });
+          return row;
+        });
+        const series = labels.map(l => ({ key: l, label: l, color: colorForLabel(l) }));
+        LineChart(chartEl, legendEl, { data, xKey: 'date', series, height: 400, valueFmt: fmtLevel2 });
+      }
+
+      fromInput.addEventListener('change', render);
+      toInput.addEventListener('change', render);
+      render();
+    })();
+  }
+
+  init();
+})();
+</script>
+
+{% endblock %}

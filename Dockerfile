@@ -1,25 +1,30 @@
-# Базовый образ с нужным Python
+# Базовый образ с Python 3.10 и готовыми библиотеками для pandas/numpy
 FROM python:3.10-slim
 
-# Системные зависимости (достаточно для wheels pandas/numpy)
+# Устанавливаем системные зависимости для pandas, numpy и openpyxl
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    gcc \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Рабочая директория
 WORKDIR /app
 
-# Ставим зависимости
-ENV PIP_ONLY_BINARY=":all:"
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Копируем только requirements.txt для кеширования зависимостей
+COPY requirements.txt .
 
-# Копируем весь проект
-COPY . /app
+# Устанавливаем зависимости Python
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# (Опционально) отдаём robots.txt самим Flask (если добавляли маршрут в app.py)
-# EXPOSE не обязателен для Serverless, но не мешает
+# Копируем весь проект в контейнер
+COPY . .
+
+# Открываем порт
 EXPOSE 5000
 
-# Старт сервиса
-CMD ["gunicorn", "app:app", "--workers", "2", "--threads", "4", "--timeout", "120", "--bind", "0.0.0.0:5000"]
+# Запуск приложения через gunicorn
+CMD ["sh", "-c", "gunicorn app:app --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:${PORT:-5000}"]
+
+

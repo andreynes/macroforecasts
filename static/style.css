@@ -149,24 +149,25 @@ label.form-label,
 }
 
 /* Бейджи показателей */
-#indicatorsBox label.badge {
+#indicators label.badge {
   background: #1f2637;
   color: #d7dbe6;
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 999px;
   padding: 0.5rem 0.9rem;
+  cursor: pointer;
 }
 
-#indicatorsBox label.badge:hover {
+#indicators label.badge:hover {
   background: #242c41;
   color: #eef2f9;
 }
 
-#indicatorsBox input[type=radio] {
+#indicators input[type=radio] {
   accent-color: var(--blue);
 }
 
-#indicatorsBox input[type=radio]:checked + span {
+#indicators input[type=radio]:checked + span {
   color: #e6efff;
   text-shadow: 0 0 10px rgba(47, 128, 237, 0.35);
 }
@@ -246,3 +247,71 @@ select.form-select-sm.w-auto {
   color: #e8ecf3;
   border: 1px solid rgba(255, 255, 255, 0.10);
 }
+
+/* ─────────────────────────────────────────── */
+/* Вкладки страниц */
+.page-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.page-tab {
+  display: inline-block;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  color: var(--text-80);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.925rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.page-tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.page-tab.active {
+  background: linear-gradient(135deg, var(--pink) 0%, var(--pink-2) 45%, var(--violet) 100%);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(255, 77, 154, 0.22);
+}
+
+/* ─────────────────────────────────────────── */
+/* Футер */
+.site-footer {
+  color: var(--text-80);
+  opacity: 0.9;
+  padding: 16px 0 24px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.site-footer a {
+  color: #e8ecf3;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(255,255,255,0.25);
+}
+.site-footer a:hover {
+  color: #fff;
+  border-bottom-color: rgba(255,255,255,0.5);
+}
+
+/* ─────────────────────────────────────────── */
+/* Инструменты графика */
+.tools-menu{
+  position:absolute; right:0; top:36px;
+  background:#1f2430; border:1px solid #2d3342;
+  border-radius:12px; padding:8px; z-index:1000;
+  box-shadow:0 8px 24px rgba(0,0,0,.28);
+  min-width:200px;
+}
+.tools-item{
+  display:block; width:100%; text-align:left;
+  padding:8px 10px; background:transparent; border:0; color:#e8ecf3;
+  border-radius:10px; margin:2px 0; font-size:0.925rem;
+}
+.tools-item:hover{ background:rgba(255,255,255,.06); }

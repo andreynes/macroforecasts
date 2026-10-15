@@ -1,18 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="row g-4">
-  <!-- Левая колонка: фильтры + таблица -->
+  <!-- Левая колонка -->
   <div class="col-12 col-lg-7">
     <div class="card glass shadow-soft">
       <div class="card-body">
-
-        <!-- Заголовок карточки -->
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
           <h5 class="card-title mb-0">Сводка показателя</h5>
         </div>
 
-        <!-- ===== ФИЛЬТРЫ ===== -->
-        <!-- 1) Верхняя строка: дата "От/До" + Показатель (в одну линию) -->
+        <!-- Фильтры -->
         <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
           <div class="d-flex align-items-center gap-2">
             <div>
@@ -31,31 +28,23 @@
           </div>
         </div>
 
-        <!-- 2) Частота просмотра -->
+        <!-- Частота просмотра -->
         <div class="mb-2">
           <label class="form-label small text-muted d-block mb-1">Частота просмотра</label>
           <div class="btn-group" role="group" aria-label="freq-view">
-            <input type="radio" class="btn-check" name="freqRadios" id="freqAUTO" value="AUTO" autocomplete="off" checked>
+            <input type="radio" class="btn-check" name="freqRadios" id="freqAUTO" value="AUTO" autocomplete="off">
             <label class="btn btn-outline-light" for="freqAUTO">Авто</label>
-
             <input type="radio" class="btn-check" name="freqRadios" id="freqM" value="M" autocomplete="off">
             <label class="btn btn-outline-light" for="freqM">Месяц</label>
-
             <input type="radio" class="btn-check" name="freqRadios" id="freqQ" value="Q" autocomplete="off">
             <label class="btn btn-outline-light" for="freqQ">Квартал</label>
-
             <input type="radio" class="btn-check" name="freqRadios" id="freqA" value="A" autocomplete="off">
             <label class="btn btn-outline-light" for="freqA">Год</label>
           </div>
-          <div id="freqHint" class="small text-warning mt-1" style="display:none"></div>
+          <div id="freqHint" class="small text-warning mt-1" style="display:none">Для данного показателя недоступна смена частоты.</div>
         </div>
 
-        <!-- 3) Только кнопка «Применить» -->
-        <div class="mb-3">
-          <button class="btn btn-glass" id="applyBtn" type="button">Применить</button>
-        </div>
-
-        <!-- ===== Таблица ===== -->
+        <!-- Таблица -->
         <div class="table-responsive table-wrap">
           <table class="table table-dark table-striped align-middle mb-2">
             <thead>
@@ -82,44 +71,200 @@
     </div>
   </div>
 
-  <!-- Правая колонка: график -->
+  <!-- Правая колонка -->
   <div class="col-12 col-lg-5">
     <div class="card glass shadow-soft">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex justify-content-between align-items-center position-relative">
           <h5 class="card-title">График</h5>
-          <button class="btn btn-outline-light btn-sm" id="downloadPNG" type="button">Скачать PNG</button>
+
+          <!-- Одна кнопка-меню инструментов -->
+          <div class="dropdown">
+            <button class="btn btn-outline-light btn-sm" id="toolsBtn" type="button">Инструменты ▾</button>
+            <div id="chartToolsMenu" class="tools-menu" style="display:none">
+              <button class="tools-item" data-action="png">Скачать PNG</button>
+              <button class="tools-item" data-action="zoom">Выделение (Zoom)</button>
+              <button class="tools-item" data-action="pan">Панорамирование</button>
+              <button class="tools-item" data-action="autoscale">Авто-масштаб</button>
+              <button class="tools-item" data-action="reset">Сброс</button>
+            </div>
+          </div>
         </div>
+
+        <!-- Переключатель серий (если есть альтернативы) -->
+        <div id="seriesSwitcher" class="d-flex flex-wrap gap-2 my-2" style="display:none"></div>
+
         <div id="chart" class="chart mb-2"></div>
         <div class="small text-muted">
           <div id="legendUnits"></div>
-          <div>{{ source }}</div>
           <div>{{ last_updated }}</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Квартальный прогноз</h5>
+        <div class="small text-muted mb-2">Курсы — среднее за квартал (среднее за год — среднее по месячным данным). Инфляция — % г/г на конец квартала (среднее за год — среднее по месячным данным). Ключевая ставка — на конец квартала, среднее за год — по ежедневным значениям (по методологии ЦБ; с 2027 года новое решение СД вступает в силу со среды после заседания, до этого — с понедельника). Прогнозные периоды выделены светлее, колонки среднего за год — жирным с разделителем.</div>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped align-middle mb-0 text-center">
+            <thead>
+              <tr>
+                <th class="text-start">Период</th>
+                {% for r in quarterly_rows %}
+                <th class="{{ 'text-muted' if r.is_forecast else '' }} {{ 'fw-bold border-start border-secondary' if r.is_year else '' }}">{{ r.label }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="text-start fw-semibold">USD/RUB, среднее</td>
+                {% for r in quarterly_rows %}
+                <td class="{{ 'text-muted' if r.is_forecast else '' }} {{ 'fw-bold border-start border-secondary' if r.is_year else '' }}">{{ '%.2f'|format(r.usd_avg) if r.usd_avg is not none else '—' }}</td>
+                {% endfor %}
+              </tr>
+              <tr>
+                <td class="text-start fw-semibold">EUR/RUB, среднее</td>
+                {% for r in quarterly_rows %}
+                <td class="{{ 'text-muted' if r.is_forecast else '' }} {{ 'fw-bold border-start border-secondary' if r.is_year else '' }}">{{ '%.2f'|format(r.eur_avg) if r.eur_avg is not none else '—' }}</td>
+                {% endfor %}
+              </tr>
+              <tr>
+                <td class="text-start fw-semibold">CNY/RUB, среднее</td>
+                {% for r in quarterly_rows %}
+                <td class="{{ 'text-muted' if r.is_forecast else '' }} {{ 'fw-bold border-start border-secondary' if r.is_year else '' }}">{{ '%.2f'|format(r.cny_avg) if r.cny_avg is not none else '—' }}</td>
+                {% endfor %}
+              </tr>
+              <tr>
+                <td class="text-start fw-semibold">Инфляция, % г/г</td>
+                {% for r in quarterly_rows %}
+                <td class="{{ 'text-muted' if r.is_forecast else '' }} {{ 'fw-bold border-start border-secondary' if r.is_year else '' }}">{{ '%.2f'|format(r.infl_eoq) if r.infl_eoq is not none else '—' }}</td>
+                {% endfor %}
+              </tr>
+              <tr>
+                <td class="text-start fw-semibold">Ключевая ставка</td>
+                {% for r in quarterly_rows %}
+                <td class="{{ 'text-muted' if r.is_forecast else '' }} {{ 'fw-bold border-start border-secondary' if r.is_year else '' }}">{{ '%.2f'|format(r.key_rate) if r.key_rate is not none else '—' }}</td>
+                {% endfor %}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
+          <h5 class="card-title mb-0">Прогнозы аналитиков</h5>
+          <div class="d-flex align-items-center gap-2">
+            <select id="afIndicator" class="form-select form-select-sm" style="width:auto">
+              {% for ind in af_indicators %}
+              <option value="{{ ind.key }}">{{ ind.label }}</option>
+              {% endfor %}
+            </select>
+            <select id="afQuarter" class="form-select form-select-sm" style="width:auto">
+              {% for q in af_quarters %}
+              <option value="{{ q }}" {{ 'selected' if q==af_default_quarter else '' }}>{{ q }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="small text-muted mb-2">Как менялся прогноз каждого аналитика по итогам ежемесячных обсуждений макропрогнозов. Пунктирная линия — консенсус, серая полупрозрачная горизонтальная линия — факт (сплошная — по итогам завершённого квартала; пунктирная "предв. факт" — по уже прошедшей части текущего квартала, для Brent и USD/RUB).</div>
+        <div id="afToggles" class="d-flex flex-wrap gap-2 mb-2"></div>
+        <div id="afChart" class="chart mb-0" style="height:360px"></div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-  const grid    = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
-  const text80  = getComputedStyle(document.documentElement).getPropertyValue('--text-80').trim();
-  const bgCard  = getComputedStyle(document.documentElement).getPropertyValue('--card').trim();
-  const SERIES_COLOR = '#2F80ED';
+  const URL_API_INDICATORS = "{{ url_for('api_indicators') }}";
+  const URL_TABLE_DATA     = "{{ url_for('table_data') }}";
+  const URL_SERIES_MULTI   = "{{ url_for('api_series_multi') }}";
+  const URL_ANALYST_FORECASTS = "{{ url_for('api_analyst_forecasts') }}";
 
-  const NATIVE_PREF = { 'Инфляция, % м/м': 'M', 'ВВП, % г/г': 'A' };
+  const styles = getComputedStyle(document.documentElement);
+  const grid    = styles.getPropertyValue('--grid').trim();
+  const text80  = styles.getPropertyValue('--text-80').trim();
+  const bgCard  = styles.getPropertyValue('--card').trim();
 
-  function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.style.display='block';setTimeout(()=>{el.style.display='none'},6000)}
-  function readQS(){const p=new URLSearchParams(location.search);const name=p.get('names')||'';return{name,from:p.get('from')||'',to:p.get('to')||'',freq_view:p.get('freq_view')||'{{ qs_freq }}'||'AUTO'}}
-  function writeQS(state){const p=new URLSearchParams();if(state.name)p.set('names',state.name);if(state.from)p.set('from',state.from);if(state.to)p.set('to',state.to);if(state.freq_view)p.set('freq_view',state.freq_view);history.replaceState(null,'',`${location.pathname}?${p.toString()}`)}
-  async function fetchJSON(url){const res=await fetch(url,{headers:{"Accept":"application/json"}});if(!res.ok){throw new Error(await res.text())}return await res.json()}
+  const lineMainColor     = '#7A5CFF';
+  const lineForecastColor = '#CBBEFF';
+  const lineGlowColor     = 'rgba(122,92,255,0.22)';
 
-  function ui_setFreqView(v){const id={'AUTO':'freqAUTO','M':'freqM','Q':'freqQ','A':'freqA'}[v];if(id&&document.getElementById(id))document.getElementById(id).checked=true}
-  function ui_disableFreq(allDisabled=false,allowOnly=''){const ids=['freqAUTO','freqM','freqQ','freqA'];ids.forEach(id=>{const input=document.getElementById(id);const label=document.querySelector(`label[for="${id}"]`);if(!input||!label)return;if(allDisabled){input.disabled=true;label.classList.add('disabled')}else if(allowOnly){const map={'M':'freqM','Q':'freqQ','A':'freqA'};input.disabled=!(id===map[allowOnly]);label.classList.toggle('disabled',input.disabled)}else{input.disabled=false;label.classList.remove('disabled')}})}
-  function enforceNativeIfNeeded(selectedName){const hint=document.getElementById('freqHint');if(NATIVE_PREF[selectedName]){const native=NATIVE_PREF[selectedName];ui_setFreqView(native);ui_disableFreq(false,native);hint.style.display='block';hint.textContent='Для этого показателя доступна только родная частота.';return native}else{ui_disableFreq(false);hint.style.display='none';return document.querySelector('input[name="freqRadios"]:checked')?.value||'AUTO'}}
+  // Жёсткие частоты
+  const NATIVE_PREF = { 'Инфляция': 'M', 'ВВП': 'A' };
+
+  function showToast(msg){
+    const el=document.getElementById('toast');
+    el.textContent=msg; el.style.display='block';
+    setTimeout(()=>{el.style.display='none'},6000);
+  }
+
+  function writeQS(state){
+    const p=new URLSearchParams();
+    if(state.name) p.set('names',state.name);
+    if(state.from) p.set('from',state.from);
+    if(state.to)   p.set('to',state.to);
+    if(state.freq_view) p.set('freq_view',state.freq_view);
+    history.replaceState(null,'',`${location.pathname}?${p.toString()}`);
+  }
+
+  async function fetchJSON(url){
+    const r=await fetch(url,{headers:{"Accept":"application/json"}});
+    if(!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
+
+  function ui_setFreqView(v){
+    const id={'AUTO':'freqAUTO','M':'freqM','Q':'freqQ','A':'freqA'}[v];
+    if(id){
+      const el=document.getElementById(id);
+      if(el) el.checked=true;
+    }
+  }
+
+  function ui_disableFreq(allDisabled=false,allowOnly=''){
+    const ids=['freqAUTO','freqM','freqQ','freqA'];
+    ids.forEach(id=>{
+      const input=document.getElementById(id);
+      const label=document.querySelector(`label[for="${id}"]`);
+      if(!input||!label) return;
+      if(allDisabled){
+        input.disabled=true; label.classList.add('disabled');
+      } else if(allowOnly){
+        const map={'M':'freqM','Q':'freqQ','A':'freqA'};
+        input.disabled = !(id === map[allowOnly]);
+        label.classList.toggle('disabled', input.disabled);
+      } else {
+        input.disabled=false; label.classList.remove('disabled');
+      }
+    });
+  }
+
+  // Если показатель "гибкий" — всегда ставим Месяц по дефолту
+  function enforceNativeIfNeeded(selectedName){
+    const hint=document.getElementById('freqHint');
+    if(NATIVE_PREF[selectedName]){
+      const native=NATIVE_PREF[selectedName];
+      ui_setFreqView(native); ui_disableFreq(false,native);
+      hint.style.display='block';
+      hint.textContent='Для данного показателя недоступна смена частоты.';
+      return native;
+    } else {
+      ui_disableFreq(false); hint.style.display='none';
+      ui_setFreqView('M'); // ключевая фиксация
+      return 'M';
+    }
+  }
 
   async function initIndicators(state){
-    const indData=await fetchJSON('/api/indicators');
+    const indData=await fetchJSON(URL_API_INDICATORS);
     const box=document.getElementById('indicatorsBox'); box.innerHTML='';
     indData.indicators.forEach((name,i)=>{
       const id='ind_'+i;
@@ -135,54 +280,314 @@
 
     box.addEventListener('change',async(e)=>{
       if(e.target&&e.target.name==='indicatorRadio'){
-        const newName=selectedIndicator(); const enforced=enforceNativeIfNeeded(newName);
-        const st={name:newName,from:fromDate.value,to:toDate.value,freq_view:enforced||ui_getFreqView()};
-        writeQS(st); const has=await loadTable(st); await loadChart(st);
-        if(!has){ fromDate.value=''; toDate.value=''; showToast('Нет данных за выбранный период — показан полный диапазон.'); const st2={...st,from:'',to:''}; writeQS(st2); await loadTable(st2); await loadChart(st2); }
+        const newName=selectedIndicator();
+        const enforced=enforceNativeIfNeeded(newName);
+        const st={name:newName,from:fromDate.value,to:toDate.value,freq_view:enforced};
+        writeQS(st);
+        const has=await loadTable(st);
+        await loadChart(st);
+        if(!has){
+          fromDate.value=''; toDate.value='';
+          showToast('Нет данных за выбранный период — показан полный диапазон.');
+          const st2={...st,from:'',to:''}; writeQS(st2);
+          await loadTable(st2); await loadChart(st2);
+        }
       }
     });
   }
 
-  function selectedIndicator(){const el=document.querySelector('input[name="indicatorRadio"]:checked'); return el?el.value:''}
-  function ui_getFreqView(){return document.querySelector('input[name="freqRadios"]:checked')?.value||'AUTO'}
+  function selectedIndicator(){
+    const el=document.querySelector('input[name="indicatorRadio"]:checked');
+    return el?el.value:'';
+  }
+
+  function ui_getFreqView(){
+    return document.querySelector('input[name="freqRadios"]:checked')?.value||'AUTO';
+  }
 
   async function loadTable(state){
-    const qs=new URLSearchParams(); if(state.from)qs.set('from',state.from); if(state.to)qs.set('to',state.to);
-    const name=selectedIndicator(); if(name)qs.set('names',name);
+    const qs=new URLSearchParams();
+    if(state.from) qs.set('from',state.from);
+    if(state.to)   qs.set('to',state.to);
+    const name=selectedIndicator(); if(name) qs.set('names',name);
     qs.set('freq_view',ui_getFreqView());
-    const data=await fetchJSON(`/table_data?${qs.toString()}`);
+    const data=await fetchJSON(`${URL_TABLE_DATA}?${qs.toString()}`);
 
-    const native=data.native; if(native && (selectedIndicator() in NATIVE_PREF)){ ui_setFreqView(native); ui_disableFreq(false,native); const hint=document.getElementById('freqHint'); hint.style.display='block'; hint.textContent='Для этого показателя доступна только родная частота.'; }
+    const native=data.native;
+    if(native && (selectedIndicator() in NATIVE_PREF)){
+      ui_setFreqView(native); ui_disableFreq(false,native);
+      const hint=document.getElementById('freqHint');
+      hint.style.display='block';
+      hint.textContent='Для данного показателя недоступна смена частоты.';
+    }
 
-    const thead=document.getElementById("tableHead"); thead.innerHTML=""; data.columns.forEach(c=>{const th=document.createElement("th"); th.className="sticky-th"; th.textContent=c; thead.appendChild(th);});
-    const tbody=document.getElementById("tableBody"); tbody.innerHTML=""; for(const row of data.rows){const tr=document.createElement("tr"); for(const cell of row){const td=document.createElement("td"); td.textContent=(cell==null)?'':cell; tr.appendChild(td);} tbody.appendChild(tr); }
+    const thead=document.getElementById("tableHead"); thead.innerHTML="";
+    data.columns.forEach(c=>{
+      const th=document.createElement("th");
+      th.className="sticky-th";
+      th.textContent=c; thead.appendChild(th);
+    });
+
+    const tbody=document.getElementById("tableBody"); tbody.innerHTML="";
+    for(const row of data.rows){
+      const tr=document.createElement("tr");
+      for(const cell of row){
+        const td=document.createElement("td");
+        td.textContent=(cell==null)?'':cell; tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
     document.getElementById('totalRows').textContent=`Всего строк: ${data.total}`;
     return data.total>0;
   }
 
+  // Индекс начала прогноза: первый день текущего месяца (UTC)
+  function forecastStartIndex(xISO){
+    const now=new Date();
+    const start=new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    for(let i=0;i<xISO.length;i++){
+      const d=new Date(xISO[i]+'T00:00:00Z');
+      if(d >= start) return i;
+    }
+    return xISO.length;
+  }
+
+  let lastSeriesPack=null, seriesIndex=0;
+
+  function renderSeriesSwitcher(alternatives){
+    const cont = document.getElementById('seriesSwitcher');
+    cont.innerHTML = '';
+    if(!alternatives || alternatives.length<=1){ cont.style.display='none'; return; }
+    cont.style.display='flex';
+    alternatives.forEach((name,idx)=>{
+      const id = 'seriesAlt_'+idx;
+      const input = document.createElement('input');
+      input.type='radio'; input.className='btn-check'; input.name='seriesAlt'; input.id=id; input.value=idx;
+      if(idx===seriesIndex) input.checked=true;
+      const label = document.createElement('label');
+      label.className='btn btn-outline-light btn-sm'; label.setAttribute('for',id); label.textContent=name;
+      cont.appendChild(input); cont.appendChild(label);
+      input.addEventListener('change', ()=>{
+        seriesIndex = idx; drawChart();
+      });
+    });
+  }
+
   async function loadChart(state){
     const name=selectedIndicator(); if(!name) return;
-    const qs=new URLSearchParams(); qs.set('names',name);
-    if(state.from)qs.set('from',state.from); if(state.to)qs.set('to',state.to);
+    const qs=new URLSearchParams();
+    qs.set('names',name);
+    if(state.from) qs.set('from',state.from);
+    if(state.to)   qs.set('to',state.to);
     qs.set('freq_view',ui_getFreqView());
-    const resp=await fetchJSON(`/api/series_multi?${qs.toString()}`);
 
-    if(resp?.meta?.native && (name in NATIVE_PREF)){ ui_setFreqView(resp.meta.native); ui_disableFreq(false,resp.meta.native); const hint=document.getElementById('freqHint'); hint.style.display='block'; hint.textContent='Для этого показателя доступна только родная частота.'; }
+    const resp=await fetchJSON(`${URL_SERIES_MULTI}?${qs.toString()}`);
 
-    const x=resp.meta.x||[]; const series=(resp.series||[]); const s=series[0]||{y:[],name:''};
-    const trace={ x, y:s.y, type:'scatter', mode:'lines+markers', name:(s.name||name),
-      line:{width:3.5, shape:'linear', color:'#2F80ED'}, marker:{size:6, color:'#2F80ED'}, yaxis:'y' };
+    if(resp?.meta?.native && (name in NATIVE_PREF)){
+      ui_setFreqView(resp.meta.native); ui_disableFreq(false,resp.meta.native);
+      const hint=document.getElementById('freqHint');
+      hint.style.display='block';
+      hint.textContent='Для данного показателя недоступна смена частоты.';
+    }
 
-    document.getElementById('legendUnits').textContent = 'Показатель: ' + (s.name || name);
+    lastSeriesPack = resp;
+    seriesIndex = resp?.meta?.default_index ?? 0;
+    renderSeriesSwitcher(resp?.meta?.alternatives || []);
+    drawChart();
+  }
 
-    const layout={
-      margin:{l:50,r:30,t:10,b:40}, paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+  function drawChart(){
+    if(!lastSeriesPack) return;
+    const x = lastSeriesPack?.meta?.x || [];
+    const all = lastSeriesPack?.series || [];
+    if(!x.length || !all.length){
+      const el=document.getElementById('chart'); if(el) el.innerHTML='';
+      return;
+    }
+
+    const pick = all[Math.min(seriesIndex, all.length-1)];
+    document.getElementById('legendUnits').textContent = 'Показатель: ' + (pick?.name || '');
+
+    const idxForecast = forecastStartIndex(x);
+
+    // ЕДИНАЯ базовая линия (сплошная) + "свечение"
+    const traceGlow = {
+      x: x, y: pick.y, type:'scatter', mode:'lines', name:'',
+      line:{width:7, shape:'spline', smoothing:0.5, color:lineGlowColor},
+      hoverinfo:'skip', showlegend:false, connectgaps:true
+    };
+
+    const traceMainAll = {
+      x: x, y: pick.y, type:'scatter', mode:'lines',
+      name:(pick?.name || ''),
+      line:{width:3.6, shape:'spline', smoothing:0.5, color:lineMainColor},
+      showlegend:true, connectgaps:true
+    };
+
+    // Пунктир «Прогноз» — только с текущего месяца
+    const overlayForecast = new Array(x.length).fill(null);
+    for (let i = idxForecast; i < x.length; i++) overlayForecast[i] = pick.y[i];
+
+    const traceForecast = {
+      x: x, y: overlayForecast, type:'scatter', mode:'lines',
+      name:'Прогноз',
+      line:{width:3.6, shape:'spline', smoothing:0.5, color:lineForecastColor, dash:'dot'},
+      opacity:0.95, connectgaps:true,
+      hovertemplate:'%{x}<br>%{y:.2f}<extra>Прогноз</extra>'
+    };
+
+    const traces = [traceGlow, traceMainAll, traceForecast];
+
+    // Ось X
+    const periodYears = Number(lastSeriesPack?.meta?.period_years || 0);
+    const tickFmt = periodYears > 5 ? '%Y' : '%m.%y';
+
+    const layout = {
+      margin:{l:50,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
       font:{family:'Montserrat, system-ui', color:'white'},
+      xaxis:{type:'date', tickformat: tickFmt, gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{gridcolor:grid, tickfont:{color:text80}, title:''},
+      legend:{orientation:'h', x:0.02, y:1.06, xanchor:'left', yanchor:'bottom'}
+    };
+
+    // Сворачиваем иконки в нашу кнопку «Инструменты»
+    Plotly.newPlot('chart', traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  const analystColors = ['#7A5CFF','#3BD6C6','#FFB84D','#FF6B9D','#5CC8FF','#B8E986'];
+  let afLastResp = null;
+  const afVisible = {}; // имя -> показывать ли линию; переживает смену показателя/квартала
+
+  function afToggleKey(name){ return 'afTg_' + name.replace(/[^a-zA-Zа-яА-Я0-9]+/g,'_'); }
+
+  function makeAfToggle(name, color, checked){
+    const wrap = document.createElement('label');
+    wrap.className = 'badge rounded-pill bg-dark border border-light-subtle px-3 py-2 d-flex align-items-center gap-2';
+    wrap.style.cursor = 'pointer';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'form-check-input m-0'; cb.id = afToggleKey(name); cb.checked = checked;
+    cb.addEventListener('change', ()=>{ afVisible[name] = cb.checked; drawAnalystChart(); });
+    const dot = document.createElement('span');
+    dot.style.width='10px'; dot.style.height='10px'; dot.style.borderRadius='50%';
+    dot.style.display='inline-block'; dot.style.background=color; dot.style.flex='0 0 auto';
+    const span = document.createElement('span'); span.textContent = name;
+    wrap.appendChild(cb); wrap.appendChild(dot); wrap.appendChild(span);
+    return wrap;
+  }
+
+  function renderAfToggles(resp){
+    const box = document.getElementById('afToggles'); if(!box) return;
+    box.innerHTML = '';
+    resp.analysts.forEach((name, i)=>{
+      if(!(name in afVisible)) afVisible[name] = true; // по умолчанию видны все аналитики
+      box.appendChild(makeAfToggle(name, analystColors[i % analystColors.length], afVisible[name]));
+    });
+    if(resp.consensus_name){
+      if(!(resp.consensus_name in afVisible)) afVisible[resp.consensus_name] = false; // консенсус по умолчанию скрыт
+      box.appendChild(makeAfToggle(resp.consensus_name, '#FFFFFF', afVisible[resp.consensus_name]));
+    }
+  }
+
+  function drawAnalystChart(){
+    const resp = afLastResp;
+    if(!resp) return;
+    if(!resp.analysts.length && !resp.consensus_series.length){
+      const el=document.getElementById('afChart'); if(el) el.innerHTML='';
+      return;
+    }
+
+    const traces = [];
+    resp.analysts.forEach((name, i)=>{
+      if(afVisible[name] === false) return;
+      const pts = resp.series[name] || [];
+      if(!pts.length) return;
+      traces.push({
+        x: pts.map(p=>p.date), y: pts.map(p=>p.value),
+        type:'scatter', mode:'lines+markers', name,
+        line:{width:2.2, color:analystColors[i % analystColors.length]},
+        marker:{size:5}
+      });
+    });
+    if(resp.consensus_series && resp.consensus_series.length && afVisible[resp.consensus_name] !== false){
+      traces.push({
+        x: resp.consensus_series.map(p=>p.date), y: resp.consensus_series.map(p=>p.value),
+        type:'scatter', mode:'lines', name: resp.consensus_name || 'Консенсус',
+        line:{width:3, dash:'dot', color:'#FFFFFF'}
+      });
+    }
+    let factAnnotations = [];
+    if(resp.fact){
+      const allDates = [];
+      resp.analysts.forEach(name => (resp.series[name]||[]).forEach(p=>allDates.push(p.date)));
+      (resp.consensus_series||[]).forEach(p=>allDates.push(p.date));
+      allDates.push(resp.fact.date);
+      const xMin = allDates.reduce((a,b)=> a<b?a:b);
+      const xMax = allDates.reduce((a,b)=> a>b?a:b);
+      const prelim = !!resp.fact.preliminary;
+      const factLabel = prelim ? 'Предв. факт' : 'Факт';
+      traces.push({
+        x:[xMin, xMax], y:[resp.fact.value, resp.fact.value],
+        type:'scatter', mode:'lines', name: factLabel,
+        line:{width:2.5, color: prelim ? 'rgba(200,200,200,0.3)' : 'rgba(200,200,200,0.45)', dash: prelim ? 'dot' : 'solid'},
+        hovertemplate: (prelim ? 'Предварительный факт (квартал ещё не завершён): %{y}<extra></extra>' : 'Факт на конец квартала: %{y}<extra></extra>')
+      });
+      factAnnotations = [{
+        x: xMax, y: resp.fact.value, xref:'x', yref:'y',
+        text:`${factLabel}: ${resp.fact.value}`, showarrow:false,
+        xanchor:'right', yanchor:'bottom',
+        font:{color:'rgba(220,220,220,0.85)', size:11}
+      }];
+    }
+
+    if(!traces.length){
+      const el=document.getElementById('afChart'); if(el) el.innerHTML='';
+      return;
+    }
+
+    const layout = {
+      margin:{l:50,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      annotations: factAnnotations,
+      hovermode:'x unified',
+      hoverlabel:{bgcolor:bgCard, font:{color:'white'}},
       xaxis:{type:'date', tickformat:'%m.%y', gridcolor:grid, tickfont:{color:text80}},
       yaxis:{gridcolor:grid, tickfont:{color:text80}, title:''},
-      legend:{orientation:'h', x:0, y:1.1}
+      legend:{orientation:'h', x:0.02, y:1.1, xanchor:'left', yanchor:'bottom'}
     };
-    await Plotly.newPlot('chart', [trace], layout, {displayModeBar:true, responsive:true});
+    Plotly.newPlot('afChart', traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  async function loadAnalystForecastChart(indicator, quarter){
+    const qs = new URLSearchParams();
+    if(indicator) qs.set('indicator', indicator);
+    if(quarter) qs.set('quarter', quarter);
+    const resp = await fetchJSON(`${URL_ANALYST_FORECASTS}?${qs.toString()}`);
+    if(resp.error){ showToast(resp.error); return; }
+
+    const afQuarterSel = document.getElementById('afQuarter');
+    if(afQuarterSel){
+      const avail = resp.available_quarters || [];
+      afQuarterSel.innerHTML = '';
+      avail.forEach(q=>{
+        const opt = document.createElement('option');
+        opt.value = q; opt.textContent = q;
+        if(q === resp.quarter) opt.selected = true;
+        afQuarterSel.appendChild(opt);
+      });
+    }
+
+    if(!resp.analysts.length && !resp.consensus_series.length){
+      const el=document.getElementById('afChart'); if(el) el.innerHTML='';
+      const box=document.getElementById('afToggles'); if(box) box.innerHTML='';
+      showToast('Нет данных аналитиков за выбранный квартал.');
+      return;
+    }
+
+    afLastResp = resp;
+    renderAfToggles(resp);
+    drawAnalystChart();
   }
 
   document.addEventListener("DOMContentLoaded", async () => {
@@ -191,7 +596,6 @@
       fromDate.value = state.from || ''; toDate.value = state.to || '';
 
       await initIndicators(state);
-
       const enforcedFirst = (selectedIndicator() ? enforceNativeIfNeeded(selectedIndicator()) : null);
       ui_setFreqView(enforcedFirst || state.freq_view || 'AUTO');
 
@@ -206,18 +610,64 @@
         await loadTable(st2); await loadChart(st2);
       }
 
-      document.getElementById('applyBtn').addEventListener('click', async () => {
-        const enforced = enforceNativeIfNeeded(selectedIndicator());
-        const st={ name:selectedIndicator(), from:fromDate.value, to:toDate.value, freq_view: enforced || ui_getFreqView() };
-        writeQS(st); const ok=await loadTable(st); await loadChart(st);
-        if(!ok && (st.from||st.to)){ fromDate.value=''; toDate.value=''; showToast('Нет данных за выбранный период — показан полный диапазон.'); const st2={...st,from:'',to:''}; writeQS(st2); await loadTable(st2); await loadChart(st2); }
+      // живые изменения частоты и дат
+      document.querySelectorAll('input[name="freqRadios"]').forEach(r=>{
+        r.addEventListener('change', async ()=>{
+          const st = { name:selectedIndicator(), from:fromDate.value, to:toDate.value, freq_view: ui_getFreqView() };
+          writeQS(st); await loadTable(st); await loadChart(st);
+        });
+      });
+      ['fromDate','toDate'].forEach(id=>{
+        document.getElementById(id).addEventListener('change', async ()=>{
+          const st = { name:selectedIndicator(), from:fromDate.value, to:toDate.value, freq_view: ui_getFreqView() };
+          writeQS(st); await loadTable(st); await loadChart(st);
+        });
       });
 
-      document.getElementById('downloadPNG').addEventListener('click', async () => {
-        await Plotly.downloadImage('chart', {format:'png', filename:'macro_chart'});
+      // Меню инструментов: вместо иконок Plotly modebar
+      const toolsBtn = document.getElementById('toolsBtn');
+      const toolsMenu = document.getElementById('chartToolsMenu');
+
+      toolsBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        toolsMenu.style.display = (toolsMenu.style.display === 'block') ? 'none' : 'block';
+      });
+
+      document.addEventListener('click', (e)=>{
+        if(!toolsMenu.contains(e.target) && e.target !== toolsBtn){
+          toolsMenu.style.display = 'none';
+        }
+      });
+
+      toolsMenu.addEventListener('click', async (e)=>{
+        const act = e.target?.dataset?.action;
+        if(!act) return;
+        const el = document.getElementById('chart');
+
+        if(act==='png'){ await Plotly.downloadImage(el, {format:'png', filename:'macro_chart'}); }
+        if(act==='zoom'){ await Plotly.relayout(el, {dragmode:'zoom'}); }
+        if(act==='pan'){ await Plotly.relayout(el, {dragmode:'pan'}); }
+        if(act==='autoscale'){ await Plotly.relayout(el, {'xaxis.autorange':true, 'yaxis.autorange':true}); }
+        if(act==='reset'){
+          await Plotly.relayout(el, {dragmode:false});
+          await Plotly.relayout(el, {'xaxis.autorange':true, 'yaxis.autorange':true});
+        }
+        toolsMenu.style.display = 'none';
       });
 
     }catch(e){ console.error(e); showToast('Ошибка инициализации интерфейса.'); }
+
+    try{
+      const afIndicatorSel = document.getElementById('afIndicator');
+      const afQuarterSel = document.getElementById('afQuarter');
+      await loadAnalystForecastChart(afIndicatorSel ? afIndicatorSel.value : '', afQuarterSel ? afQuarterSel.value : '');
+      if(afIndicatorSel){
+        afIndicatorSel.addEventListener('change', ()=> loadAnalystForecastChart(afIndicatorSel.value, ''));
+      }
+      if(afQuarterSel){
+        afQuarterSel.addEventListener('change', ()=> loadAnalystForecastChart(afIndicatorSel ? afIndicatorSel.value : '', afQuarterSel.value));
+      }
+    }catch(e){ console.error(e); showToast('Ошибка загрузки прогнозов аналитиков.'); }
   });
 </script>
 {% endblock %}

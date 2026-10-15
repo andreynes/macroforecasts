@@ -1,0 +1,39 @@
+# Python cache / build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+*.log
+*.tmp
+*.sqlite3
+
+# Jupyter
+.ipynb_checkpoints
+
+# Virtual env
+venv/
+.env/
+.venv/
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Local data
+*.xlsx
+*.xls
+data/
+export/
+*.csv
+
+# Node/npm (если вдруг)
+node_modules/
+npm-debug.log
+yarn.lock

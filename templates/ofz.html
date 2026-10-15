@@ -1,0 +1,476 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Доходность ОФЗ по срокам</h5>
+            <div class="small text-muted">Кривая бескупонной доходности МосБиржи, сроки 1, 5 и 10 лет.</div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label for="ofzStartDate" class="small text-muted mb-0">Начало периода:</label>
+            <input type="date" id="ofzStartDate" class="form-control form-control-sm" style="width:auto">
+          </div>
+        </div>
+        <div id="chartOfzHistory" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <h5 class="card-title mb-1">Ожидания по КС из ОФЗ vs факт</h5>
+          <div class="btn-group btn-group-sm" role="group" id="ofzExpModeToggle">
+            <button type="button" class="btn btn-outline-light active" data-mode="levels">Уровни</button>
+            <button type="button" class="btn btn-outline-light" data-mode="delta">Дельта</button>
+          </div>
+        </div>
+        <div class="small text-muted mb-2">
+          «Ожидание» на дату — доходность ОФЗ соответствующего срока минус средний наблюдаемый спред ОФЗ к свопу (IRS) того же срока за
+          соответствующую эру (MOSPRIME до 2022 г. / ключевая ставка после) — то есть очищенная от премии оценка, а не сырая доходность
+          ОФЗ. «Дельта» — ожидание минус факт (ошибка/премия в одну линию).
+        </div>
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <div class="small text-muted mb-1">1 год</div>
+            <div id="chartExp1" class="chart" style="height:280px"></div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="small text-muted mb-1">2 года</div>
+            <div id="chartExp2" class="chart" style="height:280px"></div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="small text-muted mb-1">5 лет</div>
+            <div id="chartExp5" class="chart" style="height:280px"></div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="small text-muted mb-1">10 лет</div>
+            <div id="chartExp10" class="chart" style="height:280px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <h5 class="card-title mb-1">Ожидания по свопам (IRS) vs факт</h5>
+          <div class="btn-group btn-group-sm" role="group" id="irsExpModeToggle">
+            <button type="button" class="btn btn-outline-light active" data-mode="levels">Уровни</button>
+            <button type="button" class="btn btn-outline-light" data-mode="delta">Дельта</button>
+          </div>
+        </div>
+        <div class="small text-muted mb-2">
+          «Ожидание» — котировка свопа на срок вместо доходности ОФЗ, очищенная от эффекта капитализации (для эры с 2022 года — не сама
+          пар-ставка свопа, а подразумеваемая ею средняя ставка на срок, иначе сравнение с фактом было бы некорректным). С 2022 года — своп
+          на ключевую ставку (IRS RUB vs RUB KEYRATE, Cbonds/МБ СПФИ ОТС), до этого — на MOSPRIME (IRS RUB vs 3M MOSPRIME, стандартный
+          бенчмарк рублёвых свопов 2010-2022 гг., здесь очищенной версии нет — используется сырая пар-ставка). Эти две линии не склеены в
+          одну: на дату перехода (24.10.2022) между ними разрыв уровня почти в 2 п.п. — MOSPRIME торговался с премией к ключевой ставке
+          из-за стресса на межбанке. «Дельта» тоже показана раздельно по эрам по той же причине.
+        </div>
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <div class="small text-muted mb-1">1 год</div>
+            <div id="chartIrsExp1" class="chart" style="height:280px"></div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="small text-muted mb-1">2 года</div>
+            <div id="chartIrsExp2" class="chart" style="height:280px"></div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="small text-muted mb-1">5 лет</div>
+            <div id="chartIrsExp5" class="chart" style="height:280px"></div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="small text-muted mb-1">10 лет</div>
+            <div id="chartIrsExp10" class="chart" style="height:280px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <hr class="border-secondary">
+    <h4 class="mb-0">Модель 1</h4>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Прогноз кривой ОФЗ: наша траектория КС + поправка на рынок</h5>
+        <div class="small text-muted mb-2">
+          Наш прогноз ключевой ставки — основа. К нему добавляется поправка на сегодняшнее расхождение рынка (IRS, очищенная от капитализации
+          подразумеваемая средняя ставка — сопоставимо с нашим прогнозом, а не сырая пар-ставка свопа) с нашим прогнозом: оно медленно тает
+          на горизонте ~2 года, но не до нуля, а до своего типичного значения за последние 18 месяцев — короткое недавнее окно точнее
+          отражает текущий тренд, чем среднее за всю 4-летнюю историю ставки (разрыв всё это время монотонно рос, без единого разворота).
+          Точно так же, по недавнему среднему, учитывается и премия доходности ОФЗ к свопу (здесь уже сырая пар-ставка — сравниваются два
+          рыночных инструмента напрямую) — обычная надбавка за ликвидность и длину облигации.
+        </div>
+        <div id="chartModel1" class="chart"></div>
+        <div class="small text-muted mt-3 mb-1">
+          Точность строительных блоков модели — «ожидание» (очищенное от премии) против реализованного факта, исторически. Это не бэктест
+          модели 1 целиком (архива прошлых версий нашего прогноза КС нет) — но напрямую показывает, насколько надёжен ключевой вход модели.
+          <b>RMSE</b> и <b>MAE</b> — средняя ошибка прогноза в п.п. (чем меньше, тем лучше). <b>Смещение</b> — ошибка в среднем в одну
+          сторону, а не в разные (в идеале около нуля). <b>Theil's U</b> — во сколько раз модель точнее наивного прогноза «ставка не
+          изменится»: меньше 1 — модель лучше, больше 1 — хуже. <b>Точность направления</b> — доля случаев, когда модель верно угадала,
+          вырастет факт или упадёт (50% — как подбросить монетку, больше — модель действительно что-то улавливает).
+        </div>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped align-middle mb-0" id="model1QualityTable">
+            <thead>
+              <tr><th>Источник ожидания</th><th>Срок</th><th class="text-end">RMSE, п.п.</th><th class="text-end">MAE, п.п.</th><th class="text-end">Смещение, п.п.</th><th class="text-end">Theil's U</th><th class="text-end">Точность направления</th><th class="text-end">N набл.</th></tr>
+            </thead>
+            <tbody id="model1QualityBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <hr class="border-secondary">
+    <h4 class="mb-0">Модель 2</h4>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Прогноз кривой ОФЗ: декомпозиция по Фишеру (реальная ставка + инфляция)</h5>
+        <div class="small text-muted mb-2">
+          Доходность = реальная ставка + ожидаемая инфляция на срок бумаги. Сегодняшняя реальная ставка (доходность минус ожидаемая
+          инфляция) плавно, за ~2 года, сходится к своему привычному историческому уровню. Это статистический приём, который на бэктесте
+          снижает ошибку прогноза, а не доказанный экономический закон — реальная ставка не всегда явно возвращается к среднему. Инфляция
+          на срок берётся из факта и нашего прогноза, а дальше — из цели ЦБ (постепенный выход на 4% к 2030 году). В отличие от Модели 1,
+          здесь совсем не используется наш прогноз ключевой ставки — это независимый взгляд, основанный только на инфляции.
+        </div>
+        <div class="small text-muted mb-2">
+          <b>Про "норму" реальной ставки:</b> на сроках 1-2 года она считается по данным с конца 2022 года (нынешний режим высокой ставки),
+          а не за всю историю — иначе она была бы занижена периодом низких ставок 2010-2021. Для 5 и 10 лет истории текущего режима ещё не
+          набралось, поэтому к их дорежимной норме применяется тот же сдвиг, что заметен на коротких сроках.
+        </div>
+        <div id="chartModel2" class="chart"></div>
+        <div class="small text-muted mt-3 mb-1">
+          Честный бэктест механизма целиком (без заглядывания в будущее): результат смешанный — на сроках 1 и 10 лет модель немного лучше
+          наивного прогноза («ставка не изменится», Theil's U &lt; 1), а на сроках 2 и 5 лет — хуже (Theil's U &gt; 1, на 5 годах точность
+          направления ниже монетки). Метрики для 5 и 10 лет одинаковы что с поправкой на сдвиг режима, что без неё — реализованный ряд
+          реальной ставки на этих сроках обрывается ещё до начала текущего режима (август 2021 и август 2016 соответственно), так что
+          бэктест физически не может "увидеть" эффект поправки, только исторический механизм без неё. Отдельная оговорка про N: цифры в
+          таблице (330-474) — это перекрывающиеся месячные окна прогноза на 3/6/12 мес на ~200 месяцах истории, а не независимые
+          наблюдения; при среднем горизонте перекрытия ~7 месяцев реальный объём независимой информации на порядок меньше (~60-70), так что
+          Theil's U близко к 1 не стоит трактовать как точную оценку — это скорее общее направление (обыгрывает/не обыгрывает наивный
+          прогноз), чем цифра с высокой статистической точностью.
+        </div>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped align-middle mb-0" id="model2QualityTable">
+            <thead>
+              <tr><th>Источник ожидания</th><th>Срок</th><th class="text-end">RMSE, п.п.</th><th class="text-end">MAE, п.п.</th><th class="text-end">Смещение, п.п.</th><th class="text-end">Theil's U</th><th class="text-end">Точность направления</th><th class="text-end">N набл.</th></tr>
+            </thead>
+            <tbody id="model2QualityBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <hr class="border-secondary">
+    <h4 class="mb-0">Модель 3</h4>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Прогноз кривой ОФЗ: ожидания по ставке + условия кредитования</h5>
+        <div class="small text-muted mb-2">
+          Прогноз строится на двух факторах: как меняются наши ожидания по ключевой ставке и как меняются условия банковского
+          кредитования (по опросам предприятий ЦБ — аналог западного Bank Lending Survey). Отдельного прогноза условий кредитования нет:
+          они исторически туго связаны с уровнем ключевой ставки (чем выше ставка, тем жёстче условия), поэтому их будущее изменение
+          считается через эту связь и наш же прогноз ставки, а не берётся из отдельного прогноза самого опроса. Чувствительность условий
+          к ставке берётся по всей истории с 2002 года, а не только по текущему режиму высокой ставки — проверено честным прогнозом
+          вперёд (walk-forward): полная история точнее предсказывает будущее изменение условий, чем любое более короткое недавнее окно.
+          Раньше вместо условий кредитования использовался индекс бизнес-климата, но условия кредитования дали заметно более точный и
+          устойчивый результат — это более прямой канал влияния ставки ЦБ на доходность облигаций, чем общие настроения бизнеса.
+        </div>
+        <div id="chartModel3" class="chart"></div>
+        <div class="small text-muted mt-3 mb-1">
+          Точность — расширяющееся окно (walk-forward): обучение только на прошлых кварталах, прогноз на следующий, выборка с 2014 года
+          (~50 кварталов). На сроках <b>1 и 2 года модель устойчиво бьёт наивный прогноз</b> (Theil's U 0.79 и 0.89, точность направления
+          71% и 63%), на 5 годах — почти паритет (0.98), на 10 — на уровне наивного (1.05). Лучший результат за всю историю модели.
+        </div>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped align-middle mb-0" id="model3QualityTable">
+            <thead>
+              <tr><th>Источник ожидания</th><th>Срок</th><th class="text-end">RMSE, п.п.</th><th class="text-end">MAE, п.п.</th><th class="text-end">Смещение, п.п.</th><th class="text-end">Theil's U</th><th class="text-end">Точность направления</th><th class="text-end">N набл.</th></tr>
+            </thead>
+            <tbody id="model3QualityBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const URL_HISTORY = "{{ url_for('api_ofz_history') }}";
+  const URL_EXP_VS_FACT = "{{ url_for('api_ofz_expectations_vs_fact') }}";
+  const URL_IRS_EXP_VS_FACT = "{{ url_for('api_irs_expectations_vs_fact') }}";
+  const URL_MODEL1 = "{{ url_for('api_ofz_model1') }}";
+  const URL_MODEL1_QUALITY = "{{ url_for('api_ofz_model1_quality') }}";
+  const URL_MODEL2 = "{{ url_for('api_ofz_model2') }}";
+  const URL_MODEL2_QUALITY = "{{ url_for('api_ofz_model2_quality') }}";
+  const URL_MODEL3 = "{{ url_for('api_ofz_model3') }}";
+  const URL_MODEL3_QUALITY = "{{ url_for('api_ofz_model3_quality') }}";
+
+  const styles = getComputedStyle(document.documentElement);
+  const grid   = styles.getPropertyValue('--grid').trim();
+  const text80 = styles.getPropertyValue('--text-80').trim();
+  const bgCard = styles.getPropertyValue('--card').trim();
+
+  const colors = {
+    '1':  '#2f80ed',
+    '5':  '#7A5CFF',
+    '10': '#ff72c0',
+  };
+  const labels = {
+    '1':  'ОФЗ 1 год',
+    '5':  'ОФЗ 5 лет',
+    '10': 'ОФЗ 10 лет',
+  };
+
+  let fullData = null;
+  const startInput = document.getElementById('ofzStartDate');
+
+  async function fetchJSON(url){
+    const r = await fetch(url, {headers:{"Accept":"application/json"}});
+    if(!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
+
+  function render(){
+    if (!fullData) return;
+    const startDate = startInput.value || fullData.dates[0];
+    const startIdx = fullData.dates.findIndex(d => d >= startDate);
+    const from = startIdx === -1 ? fullData.dates.length : startIdx;
+
+    const traces = fullData.tenors.map(t => ({
+      x: fullData.dates.slice(from), y: fullData.series[String(t)].slice(from),
+      type:'scatter', mode:'lines', name: labels[t],
+      line:{width:1.8, color: colors[t]},
+    }));
+    const layout = {
+      margin:{l:48,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'%', rangemode:'tozero'},
+      legend:{orientation:'h', x:0.02, y:1.08, xanchor:'left', yanchor:'bottom'}
+    };
+    Plotly.react('chartOfzHistory', traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  async function draw(){
+    fullData = await fetchJSON(URL_HISTORY);
+    startInput.min = fullData.dates[0];
+    startInput.max = fullData.dates[fullData.dates.length - 1];
+    startInput.value = fullData.dates[0];
+    render();
+  }
+
+  startInput.addEventListener('change', render);
+
+  const colorExpected = '#ff72c0';
+  const colorFact = '#2f80ed';
+  const colorMosprime = '#eda100';
+
+  function diffSeries(a, b){
+    return a.map((v, i) => (v === null || v === undefined || b[i] === null || b[i] === undefined) ? null : v - b[i]);
+  }
+
+  function baseMiniLayout(isDelta){
+    const layout = {
+      margin:{l:42,r:12,t:8,b:36},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white', size:11},
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'%'},
+      legend:{orientation:'h', x:0, y:1.16, xanchor:'left', yanchor:'bottom', font:{size:10}}
+    };
+    if (isDelta) {
+      layout.yaxis.zeroline = true;
+      layout.yaxis.zerolinecolor = text80;
+      layout.yaxis.zerolinewidth = 1.5;
+    } else {
+      layout.yaxis.rangemode = 'tozero';
+    }
+    return layout;
+  }
+
+  function drawExpVsFact(elId, d, mode, expectedLabel){
+    let traces;
+    if (mode === 'delta'){
+      traces = [{
+        x: d.dates, y: diffSeries(d.expected, d.fact), type:'scatter', mode:'lines',
+        name:'Ожидание − факт', line:{width:1.8, color: colorExpected}, connectgaps:false,
+      }];
+    } else {
+      traces = [
+        {
+          x: d.dates, y: d.expected, type:'scatter', mode:'lines', name: expectedLabel || 'Ожидание (ОФЗ, очищено от премии)',
+          line:{width:1.8, color: colorExpected}, connectgaps:true,
+        },
+        {
+          x: d.dates, y: d.fact, type:'scatter', mode:'lines', name:'Факт (реализованная средняя КС)',
+          line:{width:1.8, color: colorFact}, connectgaps:true,
+        },
+      ];
+    }
+    Plotly.newPlot(elId, traces, baseMiniLayout(mode === 'delta'), {displayModeBar:false, responsive:true});
+  }
+
+  let ofzExpData = null, ofzExpMode = 'levels';
+  function renderOfzExpectations(){
+    if (!ofzExpData) return;
+    drawExpVsFact('chartExp1', ofzExpData['1'], ofzExpMode);
+    drawExpVsFact('chartExp2', ofzExpData['2'], ofzExpMode);
+    drawExpVsFact('chartExp5', ofzExpData['5'], ofzExpMode);
+    drawExpVsFact('chartExp10', ofzExpData['10'], ofzExpMode);
+  }
+
+  async function drawExpectationsVsFact(){
+    ofzExpData = await fetchJSON(URL_EXP_VS_FACT);
+    renderOfzExpectations();
+  }
+
+  function drawIrsExpVsFactSplit(elId, d, mode){
+    let traces;
+    if (mode === 'delta'){
+      traces = [
+        {
+          x: d.dates, y: diffSeries(d.expected_mosprime, d.fact), type:'scatter', mode:'lines',
+          name:'Ожидание(MOSPRIME) − факт', line:{width:1.8, color: colorMosprime}, connectgaps:false,
+        },
+        {
+          x: d.dates, y: diffSeries(d.expected_keyrate, d.fact), type:'scatter', mode:'lines',
+          name:'Ожидание(КС) − факт', line:{width:1.8, color: colorExpected}, connectgaps:false,
+        },
+      ];
+    } else {
+      traces = [
+        {
+          x: d.dates, y: d.expected_mosprime, type:'scatter', mode:'lines', name:'Ожидание (IRS vs MOSPRIME, до 2022)',
+          line:{width:1.8, color: colorMosprime}, connectgaps:false,
+        },
+        {
+          x: d.dates, y: d.expected_keyrate, type:'scatter', mode:'lines', name:'Ожидание (IRS vs КС, с 2022)',
+          line:{width:1.8, color: colorExpected}, connectgaps:false,
+        },
+        {
+          x: d.dates, y: d.fact, type:'scatter', mode:'lines', name:'Факт (реализованная средняя КС)',
+          line:{width:1.8, color: colorFact}, connectgaps:true,
+        },
+      ];
+    }
+    Plotly.newPlot(elId, traces, baseMiniLayout(mode === 'delta'), {displayModeBar:false, responsive:true});
+  }
+
+  let irsExpData = null, irsExpMode = 'levels';
+  function renderIrsExpectations(){
+    if (!irsExpData) return;
+    drawIrsExpVsFactSplit('chartIrsExp1', irsExpData['1'], irsExpMode);
+    drawIrsExpVsFactSplit('chartIrsExp2', irsExpData['2'], irsExpMode);
+    drawIrsExpVsFactSplit('chartIrsExp5', irsExpData['5'], irsExpMode);
+    drawIrsExpVsFactSplit('chartIrsExp10', irsExpData['10'], irsExpMode);
+  }
+
+  async function drawIrsExpectationsVsFact(){
+    irsExpData = await fetchJSON(URL_IRS_EXP_VS_FACT);
+    renderIrsExpectations();
+  }
+
+  function wireModeToggle(toggleId, onChange){
+    const el = document.getElementById(toggleId);
+    if (!el) return;
+    el.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        el.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        onChange(btn.dataset.mode);
+      });
+    });
+  }
+
+  wireModeToggle('ofzExpModeToggle', (mode) => { ofzExpMode = mode; renderOfzExpectations(); });
+  wireModeToggle('irsExpModeToggle', (mode) => { irsExpMode = mode; renderIrsExpectations(); });
+
+  const model1Colors = {
+    'Сейчас': '#ff72c0', '+3 мес': '#2f80ed', '+6 мес': '#7A5CFF', '+12 мес': '#eda100',
+  };
+
+  async function drawModelForecast(url, elId){
+    const data = await fetchJSON(url);
+    const labels = ['Сейчас', '+3 мес', '+6 мес', '+12 мес'];
+    const traces = labels.filter(l => data.snapshots[l]).map(l => ({
+      x: data.tenors, y: data.snapshots[l], type:'scatter', mode:'lines+markers', name: l,
+      line:{width:2.2, shape:'spline', smoothing:0.3, color: model1Colors[l], dash: l==='Сейчас' ? 'solid' : 'dot'},
+      marker:{size:6},
+    }));
+    const layout = {
+      margin:{l:48,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      xaxis:{title:'Срок, лет', gridcolor:grid, tickfont:{color:text80}, tickvals:data.tenors},
+      yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'%'},
+      legend:{orientation:'h', x:0.02, y:1.08, xanchor:'left', yanchor:'bottom'}
+    };
+    Plotly.newPlot(elId, traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  const sourceLabels = { 'ofz': 'ОФЗ (очищено от премии)', 'irs_keyrate': 'IRS vs КС (с 2022)', 'inflation': 'Реальная ставка + инфляция', 'rate_credit': 'Ставка + условия кредитования' };
+  const fmtStat = (v) => v === null || v === undefined ? '—' : v.toFixed(2);
+
+  async function drawModelQuality(url, tbodyId, sources){
+    const data = await fetchJSON(url);
+    const tbody = document.getElementById(tbodyId);
+    tbody.innerHTML = '';
+    sources.forEach(src => {
+      if (!data[src]) return;
+      ['1','2','5','10'].forEach(t => {
+        const stats = data[src][t];
+        if (!stats) return;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${sourceLabels[src]}</td>
+          <td>${t} ${t==='1' ? 'год' : (t==='2' ? 'года' : 'лет')}</td>
+          <td class="text-end">${fmtStat(stats.rmse)}</td>
+          <td class="text-end">${fmtStat(stats.mae)}</td>
+          <td class="text-end">${stats.bias === null ? '—' : (stats.bias>=0?'+':'') + stats.bias.toFixed(2)}</td>
+          <td class="text-end">${fmtStat(stats.theil_u)}</td>
+          <td class="text-end">${stats.hit_rate === null ? '—' : stats.hit_rate.toFixed(1) + ' %'}</td>
+          <td class="text-end">${stats.n}</td>`;
+        tbody.appendChild(tr);
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    draw().catch(e => console.error(e));
+    drawExpectationsVsFact().catch(e => console.error(e));
+    drawIrsExpectationsVsFact().catch(e => console.error(e));
+    drawModelForecast(URL_MODEL1, 'chartModel1').catch(e => console.error(e));
+    drawModelQuality(URL_MODEL1_QUALITY, 'model1QualityBody', ['ofz', 'irs_keyrate']).catch(e => console.error(e));
+    drawModelForecast(URL_MODEL2, 'chartModel2').catch(e => console.error(e));
+    drawModelQuality(URL_MODEL2_QUALITY, 'model2QualityBody', ['inflation']).catch(e => console.error(e));
+    drawModelForecast(URL_MODEL3, 'chartModel3').catch(e => console.error(e));
+    drawModelQuality(URL_MODEL3_QUALITY, 'model3QualityBody', ['rate_credit']).catch(e => console.error(e));
+  });
+})();
+</script>
+{% endblock %}

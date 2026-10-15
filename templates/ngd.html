@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .ngd-eyebrow { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-80); font-weight: 600; }
+  .ngd-big { font-size: clamp(2.4rem, 5vw, 3.6rem); font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+  .ngd-big.fc { color: var(--pink-2); }
+  .ngd-big.fact { color: var(--blue); }
+  .ngd-day { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ngd-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ngd-chip { display: inline-block; font-size: .78rem; padding: .2rem .6rem; border-radius: 999px; margin: 0 .3rem .35rem 0;
+              background: rgba(76, 175, 80, .14); color: #8fd694; }
+  .ngd-chip.warn { background: rgba(255, 213, 79, .12); color: #ffd54f; }
+  .ngd-chip::before { content: "✓ "; }
+  .ngd-chip.warn::before { content: "! "; font-weight: 700; }
+  .ngd-bridge .ngd-row { display: flex; justify-content: space-between; gap: 1rem; padding: .38rem 0;
+                         border-bottom: 1px dashed rgba(255,255,255,.08); font-size: .92rem; }
+  .ngd-bridge .ngd-row.sum { border-bottom: 0; border-top: 1px solid rgba(255,255,255,.35); font-weight: 700; margin-top: .2rem; }
+  .ngd-note { font-size: .82rem; color: var(--text-80); margin-top: .45rem; }
+  .ngd-kpi-v { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #ngdTable th, #ngdTable td { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; font-size: .84rem; padding: .35rem .55rem; }
+  #ngdTable th:first-child, #ngdTable td:first-child { text-align: left; position: sticky; left: 0; background: #151a28; z-index: 1; }
+  #ngdTable thead th { color: var(--text-80); font-weight: 600; vertical-align: bottom; }
+  #ngdTable thead th .tax { display: block; font-weight: 400; font-size: .72rem; opacity: .8; }
+  #ngdTable .fc { background: rgba(255, 114, 192, .08) !important; }
+  #ngdTable thead th.fc { color: var(--pink-2); }
+  #ngdTable .fc.first { border-left: 2px solid var(--pink-2); }
+  #ngdTable tr.l0 td { font-weight: 700; }
+  #ngdTable tr.l1 td:first-child { padding-left: 1.4rem; color: var(--text-80); }
+  #ngdTable tr.sub td { color: var(--text-80); font-weight: 400; }
+  #ngdTable tr.sec td { text-align: left; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-80);
+                        font-weight: 600; padding-top: .9rem; background: transparent; }
+  #ngdTable .est { color: #ffd54f; margin-left: 2px; }
+  .ngd-legend { font-size: .8rem; color: var(--text-80); display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
+  .ngd-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: .35rem; vertical-align: -1px; }
+  .ngd-legend i.dot { border-radius: 50%; border: 2px solid #fff; background: transparent; }
+</style>
+
+<div id="ngdError" class="alert alert-warning" hidden></div>
+
+<div class="row g-4">
+  <!-- Операции Минфина: прогноз или объявленный факт -->
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="row g-4" id="ngdHero"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="row g-3" id="ngdKpis"></div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Нефтегазовые доходы, млрд ₽</h5>
+        <div class="ngd-legend mb-2"><span><i style="background:var(--blue)"></i>Факт Минфина</span><span><i style="background:var(--pink-2)"></i>Прогноз</span><span><i class="dot"></i>Модель на тот момент (вне выборки)</span></div>
+        <div id="chartNgd" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-6">
+    <div class="card glass shadow-soft h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Ежедневные валютные операции Минфина, млрд ₽/д</h5>
+        <div class="ngd-legend mb-2"><span><i style="background:var(--blue)"></i>Факт (+ покупка / − продажа)</span><span><i style="background:var(--pink-2)"></i>Прогноз</span><span><i class="dot"></i>Модель на тот момент</span></div>
+        <div id="chartMinfin" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-6">
+    <div class="card glass shadow-soft h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Ежедневные валютные операции Банка России, млрд ₽/д</h5>
+        <div class="ngd-legend mb-2"><span><i style="background:var(--blue)"></i>Факт: совокупно, с регулярными и нерегулярными операциями ЦБ</span><span><i style="background:var(--pink-2)"></i>Прогноз: Минфин + объявленные операции ЦБ</span></div>
+        <div id="chartCbr" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <h5 class="card-title mb-0">Факт и прогноз по месяцам поступления, млрд ₽</h5>
+          <div class="ngd-legend"><span><i style="background:rgba(255,114,192,.25);outline:1px solid var(--pink-2)"></i>прогноз</span><span><span class="est" style="color:#ffd54f;font-weight:700">*</span> оценка до официальной публикации (цена Urals, базовый объём)</span></div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-dark table-sm align-middle mb-0" id="ngdTable"></table>
+        </div>
+        <div class="ngd-note mt-3" id="ngdFoot"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const API = "{{ url_for('api_ngd') }}";
+  const styles = getComputedStyle(document.documentElement);
+  const grid   = styles.getPropertyValue('--grid').trim();
+  const text80 = styles.getPropertyValue('--text-80').trim();
+  const bgCard = styles.getPropertyValue('--card').trim();
+  const C_FACT = styles.getPropertyValue('--blue').trim() || '#2f80ed';
+  const C_FC   = styles.getPropertyValue('--pink-2').trim() || '#ff72c0';
+
+  const nf = (v, d = 1) => v == null ? "—" : v.toLocaleString("ru-RU", { minimumFractionDigits: d, maximumFractionDigits: d }).replace("-", "−");
+  const sg = (v, d = 1) => v == null ? "—" : (v > 0 ? "+" : "") + nf(v, d);
+  const $ = id => document.getElementById(id);
+  const chips = fl => fl.map(f => `<span class="ngd-chip${f.warn ? " warn" : ""}">${f.text}</span>`).join("");
+
+  function renderHero(D) {
+    const h = D.hero, hf = D.hero_fact;
+    if (h) {
+      $("ngdHero").innerHTML = `
+        <div class="col-12 col-lg-6">
+          <div class="ngd-eyebrow mb-2">Ожидаемые операции Минфина · ${h.month}</div>
+          <div class="d-flex align-items-baseline flex-wrap gap-3 mb-2">
+            <span class="ngd-big fc">${sg(h.total)}</span><span class="text-secondary">млрд ₽ ${h.total >= 0 ? "покупка" : "продажа"}</span>
+          </div>
+          <div class="ngd-day mb-2">${sg(h.day, 2)} <span class="small fw-normal">млрд ₽ в день · ${h.n} раб. дн.</span></div>
+          ${h.cbr ? `<div class="mb-1">С учётом операций Банка России (${sg(h.cbr.reg, 2)} регулярные${h.cbr.irr ? `, ${sg(h.cbr.irr, 2)} нерегулярные` : ""}) на рынке: <b>${sg(h.cbr.net, 2)} млрд ₽ в день</b></div>` : ""}
+          <div class="mb-3">Объявление <b>${h.announce}</b>, операции <b>${h.start} – ${h.end}</b></div>
+          <div>${chips(h.flags)}</div>
+        </div>
+        <div class="col-12 col-lg-6 ngd-bridge">
+          <div class="ngd-eyebrow mb-2">Из чего складывается</div>
+          <div class="ngd-row"><span>Оценка Минфина за прошлый месяц без НДД (стр. 24)</span><span class="ngd-num">${sg(h.anchor)}</span></div>
+          <div class="ngd-row"><span>Изменение НГД без НДД по модели (к прогнозу прошлого месяца на дату объявления)</span><span class="ngd-num">${sg(h.dF)}</span></div>
+          ${h.dB ? `<div class="ngd-row"><span>Изменение базового объёма</span><span class="ngd-num">${sg(-h.dB)}</span></div>` : ""}
+          <div class="ngd-row"><span>НДД: ⅓ отклонения ожидаемого от базового</span><span class="ngd-num">${sg(h.d3)}</span></div>
+          <div class="ngd-row sum"><span>Ожидаемые доп. НГД (стр. 24)</span><span class="ngd-num">${sg(h.exp)}</span></div>
+          <div class="ngd-row"><span>Корректировка: пересмотр прогноза прошлого месяца после объявления (ФАС и др.)</span><span class="ngd-num">${sg(h.revision)}</span></div>
+          ${h.corr_ndd ? `<div class="ngd-row"><span>Корректировка: досчётка аванса НДД</span><span class="ngd-num">${sg(h.corr_ndd)}</span></div>` : ""}
+          <div class="ngd-row sum"><span>Объём операций</span><span class="ngd-num">${sg(h.total)}</span></div>
+          ${h.rng ? `<div class="ngd-note">Нетбэки ФАС пока оценены ${h.rng_how}: операции от ${sg(h.rng[0])} до ${sg(h.rng[1])} млрд.</div>` : ""}
+          ${h.scen ? `<div class="ngd-note">Если факт НГД прошлого месяца совпадёт с прогнозом модели, корректировка составит ${sg(h.scen.corr)} млрд, и операции будут ${sg(h.scen.total)} млрд (${sg(h.scen.day, 2)} в день).</div>` : ""}
+          <div class="ngd-note">Средняя ошибка метода на истории: ±${nf(D.mae_fx)} млрд за месяц (${D.n_fx} мес.).</div>
+        </div>`;
+    } else if (hf) {
+      const err = hf.model != null ? hf.total - hf.model : null;
+      $("ngdHero").innerHTML = `
+        <div class="col-12 col-lg-6">
+          <div class="ngd-eyebrow mb-2">Операции Минфина · ${hf.month} · объявлено</div>
+          <div class="d-flex align-items-baseline flex-wrap gap-3 mb-2">
+            <span class="ngd-big fact">${sg(hf.total)}</span><span class="text-secondary">млрд ₽ ${hf.total >= 0 ? "покупка" : "продажа"}</span>
+          </div>
+          <div class="ngd-day mb-2">${sg(hf.day, 2)} <span class="small fw-normal">млрд ₽ в день · ${hf.n} раб. дн.</span></div>
+          ${hf.cbr_net != null ? `<div class="mb-1">С учётом операций Банка России на рынке: <b>${sg(hf.cbr_net, 2)} млрд ₽ в день</b></div>` : ""}
+          <div class="mb-3">Объявление <b>${hf.announce}</b>, операции <b>${hf.start} – ${hf.end}</b></div>
+          <span class="ngd-chip">прогноз операций на ${hf.next} появится, когда наберётся 10 торговых дней цены Urals за ${hf.next_tax}</span>
+        </div>
+        <div class="col-12 col-lg-6 ngd-bridge">
+          <div class="ngd-eyebrow mb-2">Сверка с прогнозом модели · факт / модель</div>
+          <div class="ngd-row"><span>Ожидаемые доп. НГД (стр. 24)</span><span class="ngd-num">${sg(hf.exp)} / ${sg(hf.model_exp)}</span></div>
+          <div class="ngd-row"><span>Корректировка за прошлый месяц (стр. 25)</span><span class="ngd-num">${sg(hf.corr)} / ${sg(hf.model_corr)}</span></div>
+          <div class="ngd-row sum"><span>Объём операций</span><span class="ngd-num">${sg(hf.total)} / ${sg(hf.model)}</span></div>
+          <div class="ngd-note">${err != null ? `Ошибка прогноза: ${sg(err)} млрд (${sg(err / hf.n, 2)} в день). ` : ""}Прогноз модели — расчёт до объявления, по данным, известным на тот момент.</div>
+        </div>`;
+    }
+  }
+
+  function renderKpis(D) {
+    const k = D.fcs.map(f => `
+      <div class="col-12 col-md-6 col-xl-4"><div class="card glass shadow-soft h-100"><div class="card-body">
+        <div class="ngd-eyebrow">НГД · ${f.label}</div><div class="ngd-kpi-v">${nf(f.total)}</div>
+        <div class="small">налоги за ${f.tax} · доп. НГД ${sg(f.add)}${f.base_est ? " (база — оценка)" : ""}${f.ndd ? ` · НДД ${nf(f.ndd)}` : ""}</div>
+      </div></div></div>`).join("");
+    $("ngdKpis").innerHTML = k + `
+      <div class="col-12 col-md-6 col-xl-4"><div class="card glass shadow-soft h-100"><div class="card-body">
+        <div class="ngd-eyebrow">Точность модели НГД</div><div class="ngd-kpi-v">±${nf(D.mae_ngd)}</div>
+        <div class="small">средняя ошибка вне выборки, млрд за месяц · последний факт: ${D.last_fact} · расчёт ${D.generated}</div>
+      </div></div></div>`;
+  }
+
+  function barChart(el, labels, fact, fc, model, hover, digits) {
+    const fmt = digits ? ',.1f' : ',.0f';
+    const traces = [
+      { type: 'bar', name: 'Факт', x: labels, y: fact, marker: { color: C_FACT }, customdata: hover,
+        hovertemplate: '%{customdata}<extra></extra>' },
+      { type: 'bar', name: 'Прогноз', x: labels, y: fc, marker: { color: C_FC }, customdata: hover,
+        text: fc.map(v => v == null ? '' : nf(v, digits ? 1 : 0)), textposition: 'outside', textfont: { color: '#fff' },
+        hovertemplate: '%{customdata}<extra></extra>' },
+    ];
+    if (model && model.some(v => v != null)) traces.push({
+      type: 'scatter', mode: 'markers', name: 'Модель на тот момент', x: labels, y: model,
+      marker: { size: 9, color: 'rgba(0,0,0,0)', line: { color: '#ffffff', width: 2 } }, hoverinfo: 'skip' });
+    const layout = {
+      margin: { l: 52, r: 12, t: 16, b: 40 }, barmode: 'overlay', showlegend: false,
+      paper_bgcolor: bgCard, plot_bgcolor: bgCard, font: { family: 'Montserrat, system-ui', color: 'white' },
+      xaxis: { type: 'category', gridcolor: grid, tickfont: { color: text80 } },
+      yaxis: { gridcolor: grid, tickfont: { color: text80 }, zerolinecolor: text80, tickformat: fmt, separatethousands: true },
+      hoverlabel: { bgcolor: '#0f1220', font: { color: '#fff' } },
+    };
+    Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true, locale: 'ru' });
+  }
+
+  function renderCharts(D) {
+    const c = D.cols;
+    barChart('chartNgd', c.map(x => x.label),
+      c.map(x => x.fc ? null : x.v.total), c.map(x => x.fc ? x.v.total : null), c.map(x => x.model ?? null),
+      c.map(x => `<b>${x.full}</b> (налоги за ${x.tax})<br>` + (x.fc ? `Прогноз: ${nf(x.v.total)}` : `Факт: ${nf(x.v.total)}`) +
+        (x.model != null ? `<br>Модель тогда: ${nf(x.model)}<br>Ошибка: ${sg(x.v.total - x.model)}` : "")), false);
+    const f = D.fxs;
+    barChart('chartMinfin', f.map(x => x.label), f.map(x => x.fact ?? null), f.map(x => x.fc ?? null), f.map(x => x.model ?? null),
+      f.map(x => `<b>${x.label}</b> · ${x.period}, ${x.n} раб. дн.<br>` +
+        (x.fact != null ? `Факт: ${nf(x.fact, 2)}` : x.fc != null ? `Прогноз: ${nf(x.fc, 2)}` : "операции не проводились") +
+        (x.model != null ? `<br>Модель тогда: ${nf(x.model, 2)}` : "")), true);
+    barChart('chartCbr', f.map(x => x.label), f.map(x => x.cbr_fact ?? null), f.map(x => x.cbr_fc ?? null), null,
+      f.map(x => `<b>${x.label}</b> · ${x.period}` + (x.cbr_partial ? `<br>период не завершён: данные ЦБ за ${x.cbr_days} из ${x.n} раб. дн.` : "") +
+        `<br>Итого: ${nf(x.cbr_fact ?? x.cbr_fc, 2)}<br>Минфин: ${x.mday == null ? "не проводил" : sg(x.mday, 2)}` +
+        (x.reg != null ? `<br>ЦБ регулярные: ${sg(x.reg, 2)}<br>ЦБ нерегулярные: ${sg(x.irr, 2)}` : "")), true);
+  }
+
+  function renderTable(D) {
+    const cols = D.cols;
+    const first = (c, i) => c.fc && !(cols[i - 1] || {}).fc;
+    const cell = (c, i, t, cls = "") => `<td class="${c.fc ? "fc" : ""}${first(c, i) ? " first" : ""} ${cls}">${t}</td>`;
+    let th = `<thead><tr><th>Месяц поступления</th>` + cols.map((c, i) =>
+      `<th class="${c.fc ? "fc" : ""}${first(c, i) ? " first" : ""}">${c.label}${c.fc ? " · прогноз" : ""}<span class="tax">налоги за ${c.tax}</span></th>`).join("") + `</tr></thead>`;
+    const n = cols.length + 1;
+    let tb = `<tbody><tr class="sec"><td colspan="${n}">Нефтегазовые доходы</td></tr>`;
+    D.rows.forEach(r => {
+      tb += `<tr class="l${r.lvl}"><td>${r.label}</td>` + cols.map((c, i) => cell(c, i, nf(c.v[r.k]) +
+        ((r.k === "base" || r.k === "add") && c.base_est ? `<span class="est">*</span>` : ""))).join("") + `</tr>`;
+      if (r.k === "total") {
+        tb += `<tr class="sub"><td>Модель на тот момент</td>` + cols.map((c, i) => cell(c, i, c.fc ? "" : nf(c.model))).join("") + `</tr>`;
+        tb += `<tr class="sub"><td>Ошибка модели</td>` + cols.map((c, i) => cell(c, i, c.fc || c.model == null ? "" : sg(c.v.total - c.model))).join("") + `</tr>`;
+      }
+    });
+    const fxRow = (label, fn, cls) => `<tr class="${cls}"><td>${label}</td>` + cols.map((c, i) => cell(c, i, c.fx ? fn(c.fx) : "")).join("") + `</tr>`;
+    tb += `<tr class="sec"><td colspan="${n}">Валютные операции Минфина (месяц объявления)</td></tr>`;
+    tb += fxRow("Объём операций", x => sg(x.total), "l0");
+    tb += fxRow("В день", x => sg(x.day, 2), "l1");
+    tb += fxRow("Ожидаемые доп. НГД (стр. 24)", x => sg(x.exp), "l1");
+    tb += fxRow("Корректировка (стр. 25)", x => sg(x.corr), "l1");
+    tb += fxRow("Модель на тот момент", x => x.fc ? "" : (x.model == null ? "—" : sg(x.model)), "sub");
+    const cbRow = (label, fn, cls) => `<tr class="${cls}"><td>${label}</td>` + cols.map((c, i) => cell(c, i, c.cbr ? fn(c.cbr, c) : "")).join("") + `</tr>`;
+    tb += `<tr class="sec"><td colspan="${n}">Банк России, млрд ₽ в день (период операций того же месяца)</td></tr>`;
+    tb += cbRow("Совокупные операции на рынке", x => sg(x.net, 2), "l0");
+    tb += cbRow("Минфин", (x, c) => c.fx ? sg(c.fx.day, 2) : "не проводил", "l1");
+    tb += cbRow("ЦБ: регулярные (зеркалирование ФНБ)", x => sg(x.reg, 2), "l1");
+    tb += cbRow("ЦБ: нерегулярные", x => sg(x.irr, 2), "l1");
+    tb += `<tr class="sec"><td colspan="${n}">Вводные налогового месяца</td></tr>`;
+    tb += `<tr class="l1"><td>Urals для налогообложения, $/барр</td>` + cols.map((c, i) => cell(c, i, nf(c.U, 2) + (c.U_est ? `<span class="est">*</span>` : ""))).join("") + `</tr>`;
+    tb += `<tr class="l1"><td>Курс ЦБ, ₽/$</td>` + cols.map((c, i) => cell(c, i, nf(c.P, 2))).join("") + `</tr></tbody>`;
+    $("ngdTable").innerHTML = th + tb;
+    $("ngdFoot").innerHTML = `<div><b>Как читать.</b> НГД месяца поступления — это налоги за предыдущий месяц (НДПИ и акциз уплачиваются до 28-го числа следующего месяца, авансы НДД — в апреле, июле и октябре, годовой НДД — в марте). Операции показаны в месяце объявления: с 5-го рабочего дня этого месяца по 4-й рабочий день следующего.</div>
+      <div class="mt-1"><b>Банк России.</b> Факт — данные ЦБ о факторах ликвидности (совокупные операции по бюджетному правилу с учётом собственных операций ЦБ), среднее за дни расчётов периода. Прогноз — прогноз Минфина плюс объявленные ЦБ регулярные и нерегулярные операции.</div>
+      <div class="mt-1"><b>Модель на тот момент</b> — прогноз, посчитанный только по данным, которые были известны до публикации Минфина. Расчёт: модель НГД по формулам НК РФ (НДПИ, акциз и демпфер, НДД), калибровка эффективных объёмов по факту Минфина.</div>`;
+  }
+
+  fetch(API).then(r => r.json()).then(D => {
+    if (D.error) { $("ngdError").textContent = D.error; $("ngdError").hidden = false; return; }
+    renderHero(D); renderKpis(D); renderCharts(D); renderTable(D);
+  }).catch(e => { $("ngdError").textContent = "Не удалось загрузить данные НГД: " + e; $("ngdError").hidden = false; });
+})();
+</script>
+{% endblock %}

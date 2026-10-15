@@ -1,0 +1,25 @@
+# serverless-containers.yaml
+name: macro-forecast-site
+description: Макропрогнозы — приватный доступ по ссылке
+
+image:
+  registry_id: crph4s228qb1eco7078v
+  image_url: cr.yandex/crph4s228qb1eco7078v/macro-forecast-site:latest
+
+resources:
+  memory: 512Mb
+  cores: 1
+
+service_account_id: ajedg294jj25hi4dfelq
+
+execution_timeout: 30s
+
+concurrency: 1
+
+environment:
+  FLASK_ENV: production
+
+secrets: []
+
+# Настройки доступа: только по уникальной ссылке (нет публичного листинга)
+# Если хочешь сделать авторизацию, можно подключить IAM/JWT

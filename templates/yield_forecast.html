@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .kr-tile { background: rgba(255,255,255,0.03); border: 1px solid var(--grid); border-radius: 14px; padding: 14px 16px; height: 100%; }
+  .kr-tile .kr-label { font-size: 12px; color: var(--text-80); margin-bottom: 6px; }
+  .kr-tile .kr-value-row { display: flex; align-items: baseline; gap: 8px; }
+  .kr-tile .kr-value { font-size: 24px; font-weight: 700; }
+  .kr-tile .kr-delta { font-size: 12px; color: var(--text-80); }
+</style>
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Ключевая ставка Банка России</h5>
+            <div class="small text-muted">Прогноз перепривязан к реальным/проекционным датам заседаний СД ЦБ (8 раз в год, без января/мая/августа/ноября). Пунктирный участок линии — прогноз.</div>
+          </div>
+        </div>
+        <div id="chartKeyRate" class="chart mb-2"></div>
+        <div class="small text-muted mt-1 mb-1">Модельный прогноз — среднеожидаемая КС на горизонте по нашей кривой заседаний.</div>
+        <div class="row g-3" id="keyRateTiles"></div>
+        <div class="small text-muted mt-3 mb-1" id="irsNote">Рыночные ожидания — то же самое, но из цены реальных свопов на ключевую ставку (IRS RUB vs RUB KEYRATE, источник Cbonds/МБ СПФИ ОТС), очищенной от эффекта капитализации — то есть подразумеваемая свопом средняя ставка на срок, а не сама пар-ставка свопа.</div>
+        <div class="row g-3" id="irsTiles"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Ставка по вкладам (1 год)</h5>
+        <div class="small text-muted mb-2">Прогноз до конца 2028 года: ставка годового вклада = средняя ожидаемая ключевая ставка на год вперёд + спред банка. Спред — это историческая разница между фактической ставкой по вкладам и той средней ключевой ставкой, которую рынок тогда ожидал на год вперёд (обычно отрицательная: банки платят по вкладам меньше ожидаемой ставки ЦБ — в этом их маржа). Сегодняшний спред не замораживается: он проецируется как процесс с возвратом к среднему и по мере роста горизонта прогноза постепенно сходится к своему долгосрочному историческому уровню — см. значения ниже.</div>
+        <div id="chartDeposit" class="chart mb-2"></div>
+        <div class="small text-muted" id="depositNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Прогноз кривой бескупонной доходности ОФЗ</h5>
+        <div class="small text-muted mb-2">Среднее трёх независимых моделей с вкладки "ОФЗ" (наш прогноз ставки + поправка на рынок; декомпозиция по Фишеру; ставка + условия кредитования). Доверительный интервал 20-80% отражает разброс между моделями.</div>
+        <div id="chartCurveShape" class="chart mb-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Доходность ОФЗ по срокам — динамика</h5>
+        <div class="small text-muted mb-2">История и прогноз на 12 месяцев для отдельных сроков (1, 5 и 10 лет). Заливка — доверительный интервал 20-80% между тремя моделями.</div>
+        <div id="chartCurveTime" class="chart mb-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Ожидаемая доходность активов на год вперёд</h5>
+        <div class="small text-muted mb-2" id="summaryNote">Для денег, вложенных сегодня на 12 месяцев. Для ОФЗ — полная доходность владения (доходность к погашению + переоценка тела облигации от ожидаемого движения кривой), а не просто текущая доходность к погашению.</div>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped align-middle mb-0" id="summaryTable">
+            <thead>
+              <tr><th>Актив</th><th class="text-end">До вычета налогов и комиссий, % годовых</th><th class="text-end">После вычета всего, % годовых</th><th class="text-end">Реальная доходность, % годовых</th></tr>
+            </thead>
+            <tbody id="summaryTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const URL_KEY_RATE = "{{ url_for('api_yield_key_rate') }}";
+  const URL_DEPOSIT   = "{{ url_for('api_yield_deposit') }}";
+  const URL_OFZ        = "{{ url_for('api_yield_ofz') }}";
+  const URL_SUMMARY    = "{{ url_for('api_yield_summary') }}";
+
+  const styles = getComputedStyle(document.documentElement);
+  const grid   = styles.getPropertyValue('--grid').trim();
+  const text80 = styles.getPropertyValue('--text-80').trim();
+  const bgCard = styles.getPropertyValue('--card').trim();
+
+  const colorMain      = '#7A5CFF';
+  const colorForecast  = '#CBBEFF';
+  const colorGlow      = 'rgba(122,92,255,0.22)';
+  const colorAlt1      = '#2f80ed';
+  const colorAlt2      = '#ff72c0';
+
+  const baseLayout = () => ({
+    margin:{l:48,r:16,t:8,b:42},
+    paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+    font:{family:'Montserrat, system-ui', color:'white'},
+    xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+    yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'%'},
+    legend:{orientation:'h', x:0.02, y:1.12, xanchor:'left', yanchor:'bottom'}
+  });
+
+  async function fetchJSON(url){
+    const r = await fetch(url, {headers:{"Accept":"application/json"}});
+    if(!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
+
+  function lineTrace(points, name, color, dash){
+    return {
+      x: points.map(p=>p.date), y: points.map(p=>p.value),
+      type:'scatter', mode:'lines', name,
+      line:{width:2.6, shape:'spline', smoothing:0.4, color, dash: dash||'solid'},
+      connectgaps:true,
+      hovertemplate:'%{y:.2f} %<extra>' + name + '</extra>'
+    };
+  }
+
+  // Единая линия (глоу + сплошная) на всю историю+прогноз, поверх которой
+  // с точки перехода накладывается пунктирный светлый акцент «Прогноз» —
+  // стиль, как на главной странице «Макропрогнозы».
+  function glowForecastTraces(history, forecast, name, shape, forecastLabel){
+    forecastLabel = forecastLabel || 'Прогноз';
+    const xs = history.map(p=>p.date).concat(forecast.slice(1).map(p=>p.date));
+    const ys = history.map(p=>p.value).concat(forecast.slice(1).map(p=>p.value));
+    const splitIdx = Math.max(history.length - 1, 0);
+
+    const traceGlow = {
+      x: xs, y: ys, type:'scatter', mode:'lines', name:'',
+      line:{width:7, shape, smoothing:0.5, color:colorGlow},
+      hoverinfo:'skip', showlegend:false, connectgaps:true
+    };
+    const traceMain = {
+      x: xs, y: ys, type:'scatter', mode:'lines', name,
+      line:{width:2.6, shape, smoothing:0.4, color:colorMain},
+      showlegend:true, connectgaps:true,
+      hoverinfo: ys.map((_,i)=> i >= splitIdx ? 'skip' : 'x+y')
+    };
+    const overlayY = ys.map((v,i)=> i >= splitIdx ? v : null);
+    const traceForecast = {
+      x: xs, y: overlayY, type:'scatter', mode:'lines', name:forecastLabel,
+      line:{width:2.6, shape, smoothing:0.4, color:colorForecast, dash:'dot'},
+      opacity:0.95, connectgaps:true,
+      hovertemplate:'%{x}<br>%{y:.2f}<extra>' + forecastLabel + '</extra>'
+    };
+    return [traceGlow, traceMain, traceForecast];
+  }
+
+  function drawKeyRateTiles(avgHorizons, wrapId){
+    const wrap = document.getElementById(wrapId || 'keyRateTiles');
+    wrap.innerHTML = '';
+    avgHorizons.forEach(h => {
+      const col = document.createElement('div');
+      col.className = 'col-6 col-lg-3';
+      col.innerHTML = `
+        <div class="kr-tile">
+          <div class="kr-label">${h.label}</div>
+          <div class="kr-value-row">
+            <span class="kr-value">${h.value.toFixed(2)} %</span>
+            <span class="kr-delta">${h.delta >= 0 ? '↑' : '↓'} ${Math.abs(h.delta).toFixed(2)} пп к текущей</span>
+          </div>
+        </div>`;
+      wrap.appendChild(col);
+    });
+  }
+
+  async function drawKeyRate(){
+    const data = await fetchJSON(URL_KEY_RATE);
+    const traces = [];
+    if (data.band && data.band.length){
+      const bx = data.band.map(p=>p.date);
+      traces.push({
+        x: bx, y: data.band.map(p=>p.low), type:'scatter', mode:'lines',
+        line:{width:0, shape:'hv'}, hoverinfo:'skip', showlegend:false,
+      });
+      traces.push({
+        x: bx, y: data.band.map(p=>p.high), customdata: data.band.map(p=>p.low),
+        type:'scatter', mode:'lines',
+        line:{width:0, shape:'hv'}, fill:'tonexty', fillcolor:'rgba(203,190,255,0.18)',
+        name:'20-80% квантиль прогнозного диапазона', legendrank:3,
+        hovertemplate:'%{customdata:.2f}–%{y:.2f} %<extra>20-80% квантиль прогнозного диапазона</extra>',
+      });
+    }
+    const lineTraces = glowForecastTraces(data.history, data.forecast, 'Ключевая ставка', 'hv', 'Базовый прогноз');
+    lineTraces[1].legendrank = 1;
+    lineTraces[2].legendrank = 2;
+    traces.push(...lineTraces);
+    Plotly.newPlot('chartKeyRate', traces, {...baseLayout(), hovermode:'x'}, {displayModeBar:false, responsive:true});
+    if (data.avg_horizons) drawKeyRateTiles(data.avg_horizons, 'keyRateTiles');
+    if (data.irs_horizons && data.irs_horizons.length){
+      drawKeyRateTiles(data.irs_horizons, 'irsTiles');
+      const note = document.getElementById('irsNote');
+      note.textContent = `Рыночные ожидания — то же самое, но из цены реальных свопов на ключевую ставку (IRS RUB vs RUB KEYRATE, источник Cbonds/МБ СПФИ ОТС, по состоянию на ${data.irs_date}), очищенной от эффекта капитализации — то есть подразумеваемая свопом средняя ставка на срок, а не сама пар-ставка свопа.`;
+    } else {
+      document.getElementById('irsNote').style.display = 'none';
+    }
+  }
+
+  async function drawDeposit(){
+    const data = await fetchJSON(URL_DEPOSIT);
+    const traces = [];
+    if (data.forecast.length && data.forecast[0].p20 !== undefined) {
+      const fx = data.forecast.map(p => p.date);
+      traces.push({
+        x: fx, y: data.forecast.map(p => p.p20), type:'scatter', mode:'lines',
+        line:{width:0, shape:'spline', smoothing:0.4}, showlegend:false, hoverinfo:'skip',
+      });
+      traces.push({
+        x: fx, y: data.forecast.map(p => p.p80), customdata: data.forecast.map(p => p.p20),
+        type:'scatter', mode:'lines',
+        line:{width:0, shape:'spline', smoothing:0.4}, fill:'tonexty', fillcolor: hexToRgba(colorForecast, 0.15),
+        showlegend:false, name:'20-80% квантиль прогнозного диапазона',
+        hovertemplate:'%{customdata:.2f}–%{y:.2f} %<extra>20-80% квантиль прогнозного диапазона</extra>',
+      });
+    }
+    traces.push(...glowForecastTraces(data.history, data.forecast, 'Ставка по вкладам', 'spline'));
+    Plotly.newPlot('chartDeposit', traces, baseLayout(), {displayModeBar:false, responsive:true});
+    document.getElementById('depositNote').textContent =
+      `Спред к среднеожидаемой ставке на год вперёд: сейчас ${data.current > 0 ? '+' : ''}${data.current} п.п., ` +
+      `по мере роста горизонта прогноза постепенно возвращается к своему долгосрочному среднему (${data.long_run > 0 ? '+' : ''}${data.long_run} п.п.).`;
+  }
+
+  async function drawCurveShape(){
+    const data = await fetchJSON(URL_OFZ);
+    const tenors = data.tenors;
+    const palette = [colorMain, colorAlt1, colorForecast, colorAlt2];
+    const labels = Object.keys(data.snapshots);
+    const traces = [];
+    if (data.snapshots_p20 && data.snapshots_p80) {
+      labels.forEach((label, i) => {
+        const color = palette[i % palette.length];
+        traces.push({
+          x: tenors, y: data.snapshots_p20[label], type:'scatter', mode:'lines',
+          line:{width:0, shape:'spline', smoothing:0.3}, showlegend:false, hoverinfo:'skip',
+        });
+        traces.push({
+          x: tenors, y: data.snapshots_p80[label], customdata: data.snapshots_p20[label],
+          type:'scatter', mode:'lines',
+          line:{width:0, shape:'spline', smoothing:0.3}, fill:'tonexty', fillcolor: hexToRgba(color, 0.15),
+          showlegend:false, name:`${label} — 20-80%`,
+          hovertemplate:'%{customdata:.2f}–%{y:.2f} %<extra>' + label + ' — 20-80%</extra>',
+        });
+      });
+    }
+    labels.forEach((label, i) => traces.push({
+      x: tenors, y: data.snapshots[label],
+      type:'scatter', mode:'lines+markers', name: label,
+      line:{width:2.6, shape:'spline', smoothing:0.3, color: palette[i % palette.length], dash: label==='Сейчас' ? 'solid' : 'dot'},
+      marker:{size:6},
+      hovertemplate:'%{x} г.: %{y:.2f} %<extra>' + label + '</extra>'
+    }));
+    const layout = baseLayout();
+    layout.xaxis = {title:'Срок, лет', gridcolor:grid, tickfont:{color:text80}, tickvals: tenors};
+    Plotly.newPlot('chartCurveShape', traces, layout, {displayModeBar:false, responsive:true});
+    return data;
+  }
+
+  function hexToRgba(hex, alpha){
+    const h = hex.replace('#','');
+    const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function drawCurveTime(data){
+    const pick = ['1','5','10'];
+    const palette = [colorMain, colorAlt1, colorForecast];
+    const traces = [];
+    if (data.forecast.p20 && data.forecast.p80) {
+      pick.forEach((t, i) => {
+        traces.push({
+          x: data.forecast.dates, y: data.forecast.p20[t], type:'scatter', mode:'lines',
+          line:{width:0}, showlegend:false, hoverinfo:'skip',
+        });
+        traces.push({
+          x: data.forecast.dates, y: data.forecast.p80[t], customdata: data.forecast.p20[t],
+          type:'scatter', mode:'lines',
+          line:{width:0}, fill:'tonexty', fillcolor: hexToRgba(palette[i], 0.15),
+          showlegend:false, name:`${t} г. — 20-80%`,
+          hovertemplate:'%{customdata:.2f}–%{y:.2f} %<extra>' + t + ' г. — 20-80%</extra>',
+        });
+      });
+    }
+    pick.forEach((t, i) => {
+      const histPts = data.history.dates.map((d,idx)=>({date:d, value:data.history.series[t][idx]}));
+      const fcstPts = data.forecast.dates.map((d,idx)=>({date:d, value:data.forecast.series[t][idx]}));
+      traces.push(lineTrace(histPts, `${t} г. — факт`, palette[i], 'solid'));
+      traces.push(lineTrace(fcstPts, `${t} г. — прогноз`, palette[i], 'dot'));
+    });
+    Plotly.newPlot('chartCurveTime', traces, baseLayout(), {displayModeBar:false, responsive:true});
+  }
+
+  function fmtIntervalCell(value, p20, p80){
+    const main = `${value.toFixed(2)} %`;
+    if (p20 === undefined || p80 === undefined || Math.abs(p80 - p20) < 0.005) return main;
+    return `${main}<br><span class="small text-muted">${p20.toFixed(2)} – ${p80.toFixed(2)} %</span>`;
+  }
+
+  async function drawSummary(){
+    const data = await fetchJSON(URL_SUMMARY);
+    const tbody = document.getElementById('summaryTableBody');
+    tbody.innerHTML = '';
+    data.rows.forEach(r => {
+      const tr = document.createElement('tr');
+      const tdName = document.createElement('td'); tdName.textContent = r.asset;
+      const tdGross = document.createElement('td'); tdGross.className = 'text-end';
+      tdGross.innerHTML = fmtIntervalCell(r.gross, r.gross_p20, r.gross_p80);
+      const tdNet = document.createElement('td'); tdNet.className = 'text-end';
+      tdNet.innerHTML = fmtIntervalCell(r.net, r.net_p20, r.net_p80);
+      const tdReal = document.createElement('td'); tdReal.className = 'text-end';
+      tdReal.innerHTML = fmtIntervalCell(r.real, r.real_p20, r.real_p80);
+      tr.appendChild(tdName); tr.appendChild(tdGross); tr.appendChild(tdNet); tr.appendChild(tdReal);
+      tbody.appendChild(tr);
+    });
+    let part1 = `Для денег, вложенных сегодня (по состоянию на ${data.as_of}) на 12 месяцев. Для ОФЗ — полная доходность владения (доходность к погашению + переоценка тела облигации от ожидаемого движения кривой).`;
+    if (data.cny_ofz) {
+      part1 += ` ${data.cny_ofz.name} — лучшая по доходности из 3 юаневых ОФЗ (доходность к погашению в юанях ${data.cny_ofz.ytm_cny.toFixed(2)} %, скомпаундирована с ожидаемым ростом курса юаня).`;
+    }
+    const partSources = `Откуда берутся цифры: «Депозит на 1 год» — уже известная сегодня ставка по годовым вкладам, без прогноза и без интервала. «Фонд денежного рынка» — средняя ожидаемая ключевая ставка на год вперёд минус исторический спред фонда (БПИФ «Ликвидность», LQDT) к ключевой ставке; интервал — из сценариев ключевой ставки (оптимист/пессимист). ОФЗ (1/5/10 лет) — среднее трёх независимых моделей с вкладки «ОФЗ» (наш прогноз ставки + поправка на рынок; декомпозиция по Фишеру; ставка + условия кредитования); интервал — разброс между этими тремя моделями (для двух из них — ещё и между сценариями ключевой ставки). «Юань (спот)», «Доллар (спот)» и юаневая ОФЗ — доходность от прогноза курса на год вперёд против сегодняшнего спот-курса; для них интервал пока не считается, показана только точечная оценка.`;
+    const part3 = `«После вычета всего»: НДФЛ ${data.ndfl_rate}% с дохода — у всех активов без исключения; для биржевых инструментов (фонд денежного рынка, все ОФЗ) и обмена валюты (юань, доллар) дополнительно вычтена комиссия/спред ≈${data.trade_cost_pct}% годовых — у вклада её нет, так как он не биржевой. Необлагаемый порог по вкладам (ключевая ставка × 1 млн ₽) не учтён — расчёт для суммы, превышающей порог.`;
+    const part2 = `«Реальная доходность» — доходность «после вычета всего», продисконтированная на ожидаемую инфляцию по формуле Фишера: (1 + доходность) / (1 + инфляция) − 1, где инфляция берётся не текущая, а прогнозная — на ${data.inflation_date} (${data.expected_inflation}% г/г, по собственной модели инфляции сайта).`;
+    const part4 = `Под значением — доверительный интервал 20-80% (есть только у фонда денежного рынка и ОФЗ) — отражает разброс между сценариями ключевой ставки / тремя моделями прогноза ОФЗ, а не абстрактную статистическую погрешность. У депозита, юаня, доллара и юаневой ОФЗ интервала нет — только точечная оценка.`;
+    const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    document.getElementById('summaryNote').innerHTML = [part1, partSources, part3, part2, part4].map(esc).join('<br><br>');
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    try{
+      await drawKeyRate();
+      await drawDeposit();
+      const ofzData = await drawCurveShape();
+      drawCurveTime(ofzData);
+      await drawSummary();
+    }catch(e){
+      console.error(e);
+    }
+  });
+})();
+</script>
+{% endblock %}

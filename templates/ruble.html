@@ -1,0 +1,560 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Динамика курса + прогноз</h5>
+            <div class="small text-muted">Помесячно. Пунктир — прогноз (сейчас есть до конца 2027 года).</div>
+          </div>
+          <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+              <label for="fxStartDate" class="small text-muted mb-0">Начало периода:</label>
+              <input type="date" id="fxStartDate" class="form-control form-control-sm" style="width:auto">
+            </div>
+            <div class="form-check form-check-inline mb-0">
+              <input class="form-check-input" type="checkbox" id="fxShowEur">
+              <label class="form-check-label small text-muted" for="fxShowEur">EUR/RUB</label>
+            </div>
+            <div class="form-check form-check-inline mb-0">
+              <input class="form-check-input" type="checkbox" id="fxShowCny">
+              <label class="form-check-label small text-muted" for="fxShowCny">CNY/RUB</label>
+            </div>
+          </div>
+        </div>
+        <div id="chartFx" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Динамика USD/RUB по месяцам</h5>
+        <div class="small text-muted mb-2">% м/м, 2017–2026. Прогнозные месяцы (после сегодняшней даты) выделены светлее.</div>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped align-middle mb-0 text-center" id="usdTable">
+            <thead>
+              <tr>
+                <th class="text-start">Год</th>
+                <th>Янв</th><th>Фев</th><th>Мар</th><th>Апр</th><th>Май</th><th>Июн</th>
+                <th>Июл</th><th>Авг</th><th>Сен</th><th>Окт</th><th>Ноя</th><th>Дек</th>
+              </tr>
+            </thead>
+            <tbody id="usdTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Баланс потоков ($ млрд) и курс (% м/м)</h5>
+        <div class="small text-muted mb-2">
+          Столбцы — те же факторы, что и в декомпозиции выше, но в млрд $, без взвешивания на коэффициент регрессии
+          (сумма столбцов — это не прогноз изменения курса, а просто нетто-баланс потоков). Знак развёрнут, как и в
+          графике г/г выше: «+» — давление к ослаблению рубля, «−» — к укреплению, чтобы столбцы и линия факта совпадали
+          по направлению. «Экспортная выручка» и «Импорт» заменены на чистые продажи/покупки валюты нефинансовыми
+          компаниями (форма 0409701 ЦБ) — эти ряды доступны только за последний год, поэтому и весь график ограничен
+          этим периодом, без прогноза. Покупки нефинансовых компаний исходно в млрд ₽ — переведены в млрд $ по
+          среднемесячному курсу. DXY и разовые факторы не в млрд $ — не показаны, как и в графике г/г выше. Линия
+          (правая ось) — фактическое изменение курса, % м/м.
+        </div>
+        <div id="chartRubBalance" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Изменение факторов модели г/г, млрд $</h5>
+            <div class="small text-muted">
+              Год к году, в млрд $. Знак столбца — не знак самого потока, а направление его влияния на курс: сверху —
+              факторы, чьё движение толкает рубль к ослаблению (например, вырос импорт), снизу — к укреплению (например,
+              выросла экспортная выручка). DXY и разовые факторы не в млрд $ — не показаны. Источник: Russia Mega Model,
+              лист RUB.
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label for="rubYoyStartDate" class="small text-muted mb-0">Начало периода:</label>
+            <input type="date" id="rubYoyStartDate" class="form-control form-control-sm" style="width:auto">
+          </div>
+        </div>
+        <div id="chartRubYoy" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Декомпозиция изменения USD/RUB, % м/м</h5>
+            <div class="small text-muted">
+              Столбцы — вклад факторов в изменение курса (регрессия на потоки платёжного баланса + DXY + разовые факторы),
+              серый столбец «Прочее» — остаток модели (факт минус сумма факторов), добавлен, чтобы сумма столбцов била
+              ровно в факт. Для будущих месяцев остатка нет (факта ещё не существует) — там сумма столбцов равна модели,
+              прогноз показан пунктирной линией. Прогноз факторов есть до конца 2027 года, факт — по последний завершённый
+              месяц. Источник: Russia Mega Model, лист RUB.
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label for="rubDecompStartDate" class="small text-muted mb-0">Начало периода:</label>
+            <input type="date" id="rubDecompStartDate" class="form-control form-control-sm" style="width:auto">
+          </div>
+        </div>
+        <div id="chartRubDecomp" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Декомпозиция USD/RUB: превышение/снижение факторов над нормой, % м/м</h5>
+            <div class="small text-muted">
+              То же самое, но вместо абсолютного уровня фактора — его отклонение от «нормы» (скользящее среднее за
+              предыдущие 12 месяцев, без заглядывания вперёд), умноженное на тот же коэффициент регрессии. Показывает не
+              вклад фактора как такового, а вклад ИМЕННО ЕГО НЕОБЫЧНОСТИ в этом месяце — например, экспортная выручка почти
+              всегда даёт большой вклад в декомпозиции выше, просто потому что она всегда положительна; здесь же видно
+              только когда она была заметно выше или ниже своего недавнего обычного уровня. Разовые факторы (санкции, COVID
+              и т.п.) — без изменений, для них «норма» и так ноль. Сумма столбцов НЕ обязана совпадать с фактическим или
+              модельным изменением курса из графика выше — это отдельная, дополняющая оптика.
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label for="rubDecompDevStartDate" class="small text-muted mb-0">Начало периода:</label>
+            <input type="date" id="rubDecompDevStartDate" class="form-control form-control-sm" style="width:auto">
+          </div>
+        </div>
+        <div id="chartRubDecompDev" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Снимок факторов модели по месяцам</h5>
+        <div class="small text-muted mb-2" id="rubSnapshotNote"></div>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped align-middle mb-0 text-center" id="rubSnapshotTable">
+            <thead>
+              <tr id="rubSnapshotHead"></tr>
+            </thead>
+            <tbody id="rubSnapshotBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const URL_FX = "{{ url_for('api_ruble_fx') }}";
+
+  const styles = getComputedStyle(document.documentElement);
+  const grid   = styles.getPropertyValue('--grid').trim();
+  const text80 = styles.getPropertyValue('--text-80').trim();
+  const bgCard = styles.getPropertyValue('--card').trim();
+
+  const colors = { usd: '#7A5CFF', eur: '#2f80ed', cny: '#ff72c0' };
+  const labels = { usd: 'USD/RUB', eur: 'EUR/RUB', cny: 'CNY/RUB' };
+
+  const RUB_DECOMP_LABELS = {
+    export: 'Экспортная выручка',
+    imports: 'Импорт',
+    cbr_ops: 'Операции Банка России',
+    debt_conv: 'Конвертация валютного долга в рубли',
+    debt_repay: 'Погашение внешних кредитов и инвестиций',
+    households: 'Операции физлиц',
+    other_flows: 'Прочие потоки (до 2022)',
+    dxy: 'Индекс доллара (DXY)',
+    one_off: 'Разовые факторы (санкции, COVID и др.)',
+  };
+  const RUB_DECOMP_COLORS = {
+    export: '#4caf50', imports: '#e05353', cbr_ops: '#7A5CFF', debt_conv: '#2f80ed',
+    debt_repay: '#ff9f40', households: '#00bcd4', other_flows: '#a0a0a0',
+    dxy: '#ff72c0', one_off: '#ffd54f',
+  };
+
+  const RUB_DECOMP = [{"date": "2018-01-01", "export": -6.9261, "cbr_ops": 1.3987, "debt_conv": 0.2392, "imports": 5.1137, "debt_repay": 0.4922, "households": 0.0314, "other_flows": 0.2595, "dxy": 0.0, "one_off": 0.0, "model": 0.6087, "fact": -3.5}, {"date": "2018-02-01", "export": -6.7202, "cbr_ops": 1.3987, "debt_conv": 0.2799, "imports": 5.6514, "debt_repay": 0.4922, "households": 0.3675, "other_flows": 0.2595, "dxy": -0.2963, "one_off": 0.0, "model": 1.4327, "fact": 0.5462}, {"date": "2018-03-01", "export": -7.0059, "cbr_ops": 1.3987, "debt_conv": 0.0431, "imports": 5.9509, "debt_repay": 0.4922, "households": 0.1733, "other_flows": 0.2595, "dxy": 0.0513, "one_off": 0.0, "model": 1.3632, "fact": 0.4522}, {"date": "2018-04-01", "export": -7.4874, "cbr_ops": 0.8176, "debt_conv": 0.3157, "imports": 6.0232, "debt_repay": 1.1725, "households": -0.0151, "other_flows": 0.1253, "dxy": 0.1172, "one_off": 4.3849, "model": 5.4539, "fact": 6.495}, {"date": "2018-05-01", "export": -7.5218, "cbr_ops": 0.8176, "debt_conv": 0.2368, "imports": 6.178, "debt_repay": 1.1725, "households": -0.3678, "other_flows": 0.1253, "dxy": 0.8541, "one_off": 2.1925, "model": 3.6871, "fact": 2.4042}, {"date": "2018-06-01", "export": -7.6361, "cbr_ops": 0.8176, "debt_conv": 0.0789, "imports": 6.229, "debt_repay": 1.1725, "households": 0.0028, "other_flows": 0.1253, "dxy": 0.281, "one_off": 0.0, "model": 1.0709, "fact": 0.8639}, {"date": "2018-07-01", "export": -7.6044, "cbr_ops": 0.3583, "debt_conv": 0.1507, "imports": 6.3849, "debt_repay": 1.6005, "households": -0.0661, "other_flows": 0.4975, "dxy": 0.064, "one_off": 0.0, "model": 1.3854, "fact": 0.1489}, {"date": "2018-08-01", "export": -7.666, "cbr_ops": 0.3583, "debt_conv": -0.0287, "imports": 6.111, "debt_repay": 1.6005, "households": 0.3755, "other_flows": 0.4975, "dxy": 0.2333, "one_off": 4.3849, "model": 5.8662, "fact": 5.1135}, {"date": "2018-09-01", "export": -7.8546, "cbr_ops": 0.3583, "debt_conv": -0.5454, "imports": 5.8895, "debt_repay": 1.6005, "households": 0.043, "other_flows": 0.4975, "dxy": -0.1921, "one_off": 0.0, "model": -0.2033, "fact": 2.4058}, {"date": "2018-10-01", "export": -8.2038, "cbr_ops": 0.1891, "debt_conv": 0.287, "imports": 5.9636, "debt_repay": 0.2264, "households": 0.1959, "other_flows": 1.0194, "dxy": 0.2927, "one_off": 0.0, "model": -0.0297, "fact": -2.6772}, {"date": "2018-11-01", "export": -8.4014, "cbr_ops": 0.1891, "debt_conv": 0.3731, "imports": 6.1974, "debt_repay": 0.2264, "households": 0.2833, "other_flows": 1.0194, "dxy": 0.2404, "one_off": 0.0, "model": 0.1277, "fact": 0.761}, {"date": "2018-12-01", "export": -8.3924, "cbr_ops": 0.1891, "debt_conv": 0.2009, "imports": 5.6732, "debt_repay": 0.2264, "households": 0.4911, "other_flows": 1.0194, "dxy": 0.0283, "one_off": 0.0, "model": -0.564, "fact": 1.4763}, {"date": "2019-01-01", "export": -7.4411, "cbr_ops": 1.3444, "debt_conv": 0.1292, "imports": 4.9459, "debt_repay": -1.8673, "households": 0.2923, "other_flows": 0.7963, "dxy": -0.236, "one_off": 0.0, "model": -2.0366, "fact": -1.2219}, {"date": "2019-02-01", "export": -6.7465, "cbr_ops": 1.3444, "debt_conv": -0.0, "imports": 5.4123, "debt_repay": -1.8673, "households": 0.5037, "other_flows": 0.7963, "dxy": 0.1347, "one_off": 0.0, "model": -0.4226, "fact": -1.0555}, {"date": "2019-03-01", "export": -7.3505, "cbr_ops": 1.3444, "debt_conv": 0.122, "imports": 5.9224, "debt_repay": -1.8673, "households": 0.3685, "other_flows": 0.7963, "dxy": 0.0797, "one_off": 0.0, "model": -0.5845, "fact": -1.0914}, {"date": "2019-04-01", "export": -7.5935, "cbr_ops": 1.1999, "debt_conv": 0.1363, "imports": 5.9349, "debt_repay": -2.0929, "households": 0.3918, "other_flows": 0.2259, "dxy": 0.1531, "one_off": 0.0, "model": -1.6444, "fact": -0.7515}, {"date": "2019-05-01", "export": -7.18, "cbr_ops": 1.1999, "debt_conv": 0.0287, "imports": 5.9093, "debt_repay": -2.0929, "households": 0.1271, "other_flows": 0.2259, "dxy": 0.096, "one_off": 0.0, "model": -1.6859, "fact": 0.3337}, {"date": "2019-06-01", "export": -6.83, "cbr_ops": 1.1999, "debt_conv": -0.0072, "imports": 6.3434, "debt_repay": -2.0929, "households": 0.0463, "other_flows": 0.2259, "dxy": -0.2424, "one_off": 0.0, "model": -1.3569, "fact": -1.0023}, {"date": "2019-07-01", "export": -7.0485, "cbr_ops": 1.1525, "debt_conv": 0.1292, "imports": 6.643, "debt_repay": -1.2614, "households": 0.1459, "other_flows": -0.0145, "dxy": 0.142, "one_off": 0.0, "model": -0.1119, "fact": -1.4748}, {"date": "2019-08-01", "export": -7.18, "cbr_ops": 1.1525, "debt_conv": 0.0287, "imports": 6.3935, "debt_repay": -1.2614, "households": 0.195, "other_flows": -0.0145, "dxy": 0.1722, "one_off": 0.0, "model": -0.5139, "fact": 3.7404}, {"date": "2019-09-01", "export": -7.2734, "cbr_ops": 1.1525, "debt_conv": 0.0933, "imports": 6.4061, "debt_repay": -1.2614, "households": -0.2272, "other_flows": -0.0145, "dxy": 0.1568, "one_off": 0.0, "model": -0.9679, "fact": -0.9587}, {"date": "2019-10-01", "export": -7.5291, "cbr_ops": 1.1131, "debt_conv": -0.0574, "imports": 6.5345, "debt_repay": 1.3574, "households": 0.1837, "other_flows": -0.5248, "dxy": -0.1127, "one_off": 0.0, "model": 0.9646, "fact": -0.8986}, {"date": "2019-11-01", "export": -7.5182, "cbr_ops": 1.1131, "debt_conv": -0.0144, "imports": 6.7993, "debt_repay": 1.3574, "households": -0.029, "other_flows": -0.5248, "dxy": -0.0238, "one_off": 0.0, "model": 1.1596, "fact": -0.7889}, {"date": "2019-12-01", "export": -7.8002, "cbr_ops": 1.1131, "debt_conv": -0.3157, "imports": 6.1325, "debt_repay": 1.3574, "households": 0.0504, "other_flows": -0.5248, "dxy": -0.1811, "one_off": 0.0, "model": -0.1685, "fact": -1.4633}, {"date": "2020-01-01", "export": -7.3439, "cbr_ops": 0.3634, "debt_conv": 0.15, "imports": 5.1331, "debt_repay": 0.3557, "households": 0.3741, "other_flows": 0.6341, "dxy": 0.0056, "one_off": 0.0, "model": -0.328, "fact": -1.7803}, {"date": "2020-02-01", "export": -6.2396, "cbr_ops": 0.3634, "debt_conv": 0.0158, "imports": 5.3351, "debt_repay": 0.3557, "households": 0.1578, "other_flows": 0.6341, "dxy": 0.3809, "one_off": 0.0, "model": 1.0032, "fact": 3.5068}, {"date": "2020-03-01", "export": -6.1337, "cbr_ops": 0.3634, "debt_conv": 0.1012, "imports": 4.9819, "debt_repay": 0.3557, "households": 0.1598, "other_flows": 0.6341, "dxy": -0.0052, "one_off": 15.0855, "model": 15.5427, "fact": 15.2231}, {"date": "2020-04-01", "export": -5.7234, "cbr_ops": -0.9319, "debt_conv": 0.0646, "imports": 4.4254, "debt_repay": -0.7705, "households": -1.0699, "other_flows": 0.5352, "dxy": 0.2682, "one_off": 0.0, "model": -3.2022, "fact": 1.4163}, {"date": "2020-05-01", "export": -4.7945, "cbr_ops": -0.9319, "debt_conv": -0.0538, "imports": 4.6218, "debt_repay": -0.7705, "households": 0.2204, "other_flows": 0.5352, "dxy": -0.0781, "one_off": 0.0, "model": -1.2514, "fact": -3.0272}, {"date": "2020-06-01", "export": -4.7125, "cbr_ops": -0.9319, "debt_conv": 0.056, "imports": 5.0026, "debt_repay": -0.7705, "households": 0.2736, "other_flows": 0.5352, "dxy": -0.6358, "one_off": 0.0, "model": -1.1832, "fact": -4.5566}, {"date": "2020-07-01", "export": -5.1149, "cbr_ops": -0.1637, "debt_conv": -0.244, "imports": 5.0948, "debt_repay": 0.926, "households": 0.3023, "other_flows": 0.0319, "dxy": -0.3916, "one_off": 0.0, "model": 0.441, "fact": 3.031}, {"date": "2020-08-01", "export": -4.9952, "cbr_ops": -0.1637, "debt_conv": -0.056, "imports": 5.2029, "debt_repay": 0.926, "households": 0.0143, "other_flows": 0.0319, "dxy": -0.6724, "one_off": 0.0, "model": 0.288, "fact": 3.5123}, {"date": "2020-09-01", "export": -5.5467, "cbr_ops": -0.1637, "debt_conv": -0.0416, "imports": 5.5348, "debt_repay": 0.926, "households": 0.0836, "other_flows": 0.0319, "dxy": 0.0989, "one_off": 0.0, "model": 0.9234, "fact": 2.6151}, {"date": "2020-10-01", "export": -6.0875, "cbr_ops": -0.2639, "debt_conv": 0.0804, "imports": 5.7618, "debt_repay": 1.3306, "households": 0.0251, "other_flows": -0.0684, "dxy": -0.0032, "one_off": 0.0, "model": 0.7749, "fact": 2.5559}, {"date": "2020-11-01", "export": -6.0194, "cbr_ops": -0.2639, "debt_conv": -0.0911, "imports": 6.3203, "debt_repay": 1.3306, "households": 0.2168, "other_flows": -0.0684, "dxy": -0.2177, "one_off": 0.0, "model": 1.2072, "fact": -1.0611}, {"date": "2020-12-01", "export": -6.8369, "cbr_ops": -0.2639, "debt_conv": -0.2705, "imports": 5.7144, "debt_repay": 1.3306, "households": 0.4454, "other_flows": -0.0684, "dxy": -0.5716, "one_off": 0.0, "model": -0.5209, "fact": -3.4133}, {"date": "2021-01-01", "export": -6.4919, "cbr_ops": 0.166, "debt_conv": -0.3796, "imports": 4.9731, "debt_repay": 1.4201, "households": 0.7368, "other_flows": 0.4059, "dxy": -0.0757, "one_off": 0.0, "model": 0.7547, "fact": 0.2368}, {"date": "2021-02-01", "export": -5.8005, "cbr_ops": 0.2013, "debt_conv": 0.0136, "imports": 5.939, "debt_repay": 1.4201, "households": 0.111, "other_flows": 0.4059, "dxy": 0.1135, "one_off": 0.0, "model": 2.404, "fact": -0.1017}, {"date": "2021-03-01", "export": -6.7757, "cbr_ops": 0.3702, "debt_conv": 0.2504, "imports": 6.5741, "debt_repay": 1.4201, "households": 0.2859, "other_flows": 0.4059, "dxy": 0.3782, "one_off": 0.0, "model": 2.9091, "fact": 0.1081}, {"date": "2021-04-01", "export": -7.4467, "cbr_ops": 0.5051, "debt_conv": -0.5023, "imports": 6.3917, "debt_repay": 0.4781, "households": -0.1695, "other_flows": 0.5333, "dxy": -0.0941, "one_off": 0.0, "model": -0.3043, "fact": 2.3479}, {"date": "2021-05-01", "export": -7.2631, "cbr_ops": 0.3719, "debt_conv": 0.0086, "imports": 6.3567, "debt_repay": 0.4781, "households": 0.1273, "other_flows": 0.5333, "dxy": -0.3733, "one_off": 0.0, "model": 0.2395, "fact": -2.81}, {"date": "2021-06-01", "export": -7.8555, "cbr_ops": 0.62, "debt_conv": 0.4004, "imports": 6.7274, "debt_repay": 0.4781, "households": 0.2508, "other_flows": 0.5333, "dxy": 0.208, "one_off": 0.0, "model": 1.3626, "fact": -1.8748}, {"date": "2021-07-01", "export": -8.7183, "cbr_ops": 0.8276, "debt_conv": -0.0481, "imports": 6.8854, "debt_repay": -1.4062, "households": 0.3789, "other_flows": 1.6363, "dxy": 0.4091, "one_off": 0.0, "model": -0.0352, "fact": 1.7531}, {"date": "2021-08-01", "export": -8.7261, "cbr_ops": 0.9186, "debt_conv": -0.0639, "imports": 6.8375, "debt_repay": -1.4062, "households": -0.0574, "other_flows": 1.6363, "dxy": 0.0782, "one_off": 0.0, "model": -0.783, "fact": -0.4157}, {"date": "2021-09-01", "export": -8.8754, "cbr_ops": 0.9658, "debt_conv": -0.0423, "imports": 6.9521, "debt_repay": -1.4062, "households": 0.0771, "other_flows": 1.6363, "dxy": 0.042, "one_off": 0.0, "model": -0.6507, "fact": -0.8922}, {"date": "2021-10-01", "export": -9.2464, "cbr_ops": 0.9583, "debt_conv": -0.0438, "imports": 7.1228, "debt_repay": 2.0538, "households": 0.3413, "other_flows": 1.441, "dxy": 0.2703, "one_off": 0.0, "model": 2.8975, "fact": -2.0241}, {"date": "2021-11-01", "export": -9.6262, "cbr_ops": 1.3933, "debt_conv": 0.0997, "imports": 7.748, "debt_repay": 2.0538, "households": 0.3372, "other_flows": 1.441, "dxy": 0.3767, "one_off": 0.0, "model": 3.8237, "fact": 1.7478}, {"date": "2021-12-01", "export": -10.7913, "cbr_ops": 1.522, "debt_conv": -0.2655, "imports": 7.2958, "debt_repay": 2.0538, "households": -0.2093, "other_flows": 1.441, "dxy": 0.2303, "one_off": 0.0, "model": 1.2768, "fact": 1.4724}, {"date": "2022-01-01", "export": -8.3817, "cbr_ops": 1.0183, "debt_conv": -0.089, "imports": 6.6402, "debt_repay": 2.5267, "households": 0.1586, "other_flows": 2.3305, "dxy": -0.0751, "one_off": 0.0, "model": 4.1286, "fact": 3.8301}, {"date": "2022-02-01", "export": -9.4492, "cbr_ops": -0.2913, "debt_conv": -0.1665, "imports": 4.8832, "debt_repay": 2.5267, "households": -0.3736, "other_flows": 0.0, "dxy": 0.0207, "one_off": 0.0, "model": -2.8499, "fact": 0.7502}, {"date": "2022-03-01", "export": -7.3932, "cbr_ops": -0.0, "debt_conv": 0.1686, "imports": 5.0693, "debt_repay": 2.5267, "households": 0.3545, "other_flows": 0.0, "dxy": 0.6527, "one_off": 33.4122, "model": 34.7908, "fact": 34.0817}, {"date": "2022-04-01", "export": -7.0172, "cbr_ops": -0.0, "debt_conv": 0.3975, "imports": 5.3405, "debt_repay": 2.3713, "households": -0.173, "other_flows": 0.0, "dxy": 0.5706, "one_off": -26.5491, "model": -25.0594, "fact": -24.7133}, {"date": "2022-05-01", "export": -6.2947, "cbr_ops": -0.0, "debt_conv": 0.244, "imports": 5.6837, "debt_repay": 2.3713, "households": 0.3215, "other_flows": 0.0, "dxy": 0.606, "one_off": -21.0135, "model": -18.0817, "fact": -18.7248}, {"date": "2022-06-01", "export": -6.9951, "cbr_ops": -0.0, "debt_conv": 0.2318, "imports": 5.9846, "debt_repay": 2.3713, "households": 0.5635, "other_flows": 0.0, "dxy": 0.1924, "one_off": -10.9102, "model": -8.5617, "fact": -9.6887}, {"date": "2022-07-01", "export": -8.3832, "cbr_ops": -0.0, "debt_conv": 0.2181, "imports": 6.2095, "debt_repay": 1.9911, "households": 0.6296, "other_flows": 0.0, "dxy": 0.7472, "one_off": 0.0, "model": 1.4124, "fact": 1.9166}, {"date": "2022-08-01", "export": -8.1196, "cbr_ops": -0.0, "debt_conv": 0.2311, "imports": 6.5797, "debt_repay": 1.9911, "households": 0.7645, "other_flows": 0.0, "dxy": 0.0485, "one_off": 0.0, "model": 1.4952, "fact": 4.418}, {"date": "2022-09-01", "export": -7.7362, "cbr_ops": -0.0, "debt_conv": -0.0639, "imports": 7.0921, "debt_repay": 1.9911, "households": 0.5962, "other_flows": 0.0, "dxy": 0.8401, "one_off": 0.0, "model": 2.7195, "fact": -1.2294}, {"date": "2022-10-01", "export": -8.1307, "cbr_ops": -0.0, "debt_conv": 0.521, "imports": 6.7654, "debt_repay": 4.9941, "households": 0.6972, "other_flows": 0.0, "dxy": 0.2845, "one_off": 0.0, "model": 5.1315, "fact": 3.3123}, {"date": "2022-11-01", "export": -7.7923, "cbr_ops": -0.0, "debt_conv": 0.0036, "imports": 6.1612, "debt_repay": 4.9941, "households": 0.6274, "other_flows": 0.0, "dxy": -0.8851, "one_off": 0.0, "model": 3.1088, "fact": -1.6116}, {"date": "2022-12-01", "export": -7.8161, "cbr_ops": -0.0, "debt_conv": -0.1765, "imports": 6.541, "debt_repay": 4.9941, "households": 0.6491, "other_flows": 0.0, "dxy": -0.8285, "one_off": 0.0, "model": 3.3631, "fact": 9.1978}, {"date": "2023-01-01", "export": -8.5606, "cbr_ops": -0.1193, "debt_conv": -0.055, "imports": 6.4542, "debt_repay": 5.3671, "households": 0.6629, "other_flows": 0.0, "dxy": -0.4396, "one_off": 0.0, "model": 3.3098, "fact": 4.9895}, {"date": "2023-02-01", "export": -6.6813, "cbr_ops": -0.3885, "debt_conv": 0.6016, "imports": 6.4353, "debt_repay": 5.3671, "households": 0.7391, "other_flows": 0.0, "dxy": 0.2416, "one_off": 0.0, "model": 6.3149, "fact": 5.0662}, {"date": "2023-03-01", "export": -6.1608, "cbr_ops": -0.3895, "debt_conv": -0.1118, "imports": 6.5528, "debt_repay": 5.3671, "households": 0.6103, "other_flows": 0.0, "dxy": 0.0236, "one_off": 0.0, "model": 5.8917, "fact": 3.7902}, {"date": "2023-04-01", "export": -5.726, "cbr_ops": -0.2263, "debt_conv": -0.0474, "imports": 6.3661, "debt_repay": 1.7055, "households": 0.6815, "other_flows": 0.0, "dxy": -0.4848, "one_off": 0.0, "model": 2.2685, "fact": 6.4616}, {"date": "2023-05-01", "export": -6.0914, "cbr_ops": -0.134, "debt_conv": 0.2011, "imports": 6.4866, "debt_repay": 1.7055, "households": 0.1974, "other_flows": 0.0, "dxy": 0.2464, "one_off": 0.0, "model": 2.6117, "fact": -2.4454}, {"date": "2023-06-01", "export": -5.5769, "cbr_ops": -0.1732, "debt_conv": 0.171, "imports": 6.467, "debt_repay": 1.7055, "households": 0.4111, "other_flows": 0.0, "dxy": 0.0765, "one_off": 0.0, "model": 3.081, "fact": 5.828}, {"date": "2023-07-01", "export": -5.4172, "cbr_ops": -0.1062, "debt_conv": 0.0443, "imports": 6.2692, "debt_repay": 1.4032, "households": 0.2501, "other_flows": 0.0, "dxy": -0.4123, "one_off": 0.0, "model": 2.0311, "fact": 8.0279}, {"date": "2023-08-01", "export": -4.9994, "cbr_ops": -0.0188, "debt_conv": 0.1725, "imports": 6.0987, "debt_repay": 1.4032, "households": 0.1657, "other_flows": 0.0, "dxy": 0.4247, "one_off": 0.0, "model": 3.2467, "fact": 5.6436}, {"date": "2023-09-01", "export": -5.5809, "cbr_ops": -0.0, "debt_conv": 0.0933, "imports": 6.3696, "debt_repay": 1.4032, "households": 0.1658, "other_flows": 0.0, "dxy": 0.5345, "one_off": 0.0, "model": 2.9854, "fact": 0.9051}, {"date": "2023-10-01", "export": -6.4414, "cbr_ops": -0.1118, "debt_conv": -0.0478, "imports": 6.0072, "debt_repay": 1.4185, "households": 0.2803, "other_flows": 0.0, "dxy": 0.2593, "one_off": 0.0, "model": 1.3643, "fact": 0.4533}, {"date": "2023-11-01", "export": -6.6243, "cbr_ops": -0.1201, "debt_conv": -0.307, "imports": 5.8177, "debt_repay": 1.4185, "households": 0.4815, "other_flows": 0.0, "dxy": -0.4441, "one_off": 0.0, "model": 0.2221, "fact": -6.9228}, {"date": "2023-12-01", "export": -6.3988, "cbr_ops": -0.119, "debt_conv": -0.3624, "imports": 6.0671, "debt_repay": 1.4185, "households": 0.5452, "other_flows": 0.0, "dxy": -0.4372, "one_off": 0.0, "model": 0.7135, "fact": 0.8992}, {"date": "2024-01-01", "export": -6.5938, "cbr_ops": -0.7551, "debt_conv": -0.017, "imports": 5.5401, "debt_repay": 2.5492, "households": 0.5622, "other_flows": 0.0, "dxy": 0.0643, "one_off": 0.0, "model": 1.35, "fact": -1.9131}, {"date": "2024-02-01", "export": -5.6774, "cbr_ops": -0.3993, "debt_conv": -0.4488, "imports": 5.6574, "debt_repay": 2.5492, "households": 0.4216, "other_flows": 0.0, "dxy": 0.2877, "one_off": 0.0, "model": 2.3903, "fact": 2.6307}, {"date": "2024-03-01", "export": -5.6356, "cbr_ops": -0.3506, "debt_conv": -0.4789, "imports": 5.8723, "debt_repay": 2.5492, "households": 0.3789, "other_flows": 0.0, "dxy": -0.1086, "one_off": 0.0, "model": 2.2266, "fact": 0.0851}, {"date": "2024-04-01", "export": -6.8369, "cbr_ops": -0.0159, "debt_conv": -0.427, "imports": 5.8002, "debt_repay": 1.6845, "households": 0.5084, "other_flows": 0.0, "dxy": 0.425, "one_off": 0.0, "model": 1.1383, "fact": 1.2969}, {"date": "2024-05-01", "export": -7.1485, "cbr_ops": -0.3132, "debt_conv": -0.3981, "imports": 6.0902, "debt_repay": 1.6845, "households": 0.3962, "other_flows": 0.0, "dxy": -0.1112, "one_off": 0.0, "model": 0.1998, "fact": -2.3159}, {"date": "2024-06-01", "export": -7.0113, "cbr_ops": -0.2532, "debt_conv": 0.3594, "imports": 6.3428, "debt_repay": 1.6845, "households": 0.5915, "other_flows": 0.0, "dxy": 0.0537, "one_off": 0.0, "model": 1.7674, "fact": -3.0919}, {"date": "2024-07-01", "export": -5.5904, "cbr_ops": -0.1243, "debt_conv": -0.1244, "imports": 6.4006, "debt_repay": 1.6027, "households": 0.4799, "other_flows": 0.0, "dxy": -0.1293, "one_off": 0.0, "model": 2.5147, "fact": -0.7102}, {"date": "2024-08-01", "export": -5.784, "cbr_ops": -0.3623, "debt_conv": 0.2799, "imports": 6.3201, "debt_repay": 1.6027, "households": 0.3655, "other_flows": 0.0, "dxy": -0.5863, "one_off": 0.0, "model": 1.8356, "fact": 2.1623}, {"date": "2024-09-01", "export": -4.6077, "cbr_ops": -0.0024, "debt_conv": -0.1528, "imports": 6.2933, "debt_repay": 1.6027, "households": 0.4669, "other_flows": 0.0, "dxy": -0.2891, "one_off": 0.0, "model": 3.3111, "fact": 2.2141}, {"date": "2024-10-01", "export": -5.6388, "cbr_ops": -0.2296, "debt_conv": 0.4772, "imports": 5.5993, "debt_repay": 3.5488, "households": 0.205, "other_flows": 0.0, "dxy": 0.5682, "one_off": 0.0, "model": 4.5301, "fact": 5.6363}, {"date": "2024-11-01", "export": -5.7321, "cbr_ops": -0.1855, "debt_conv": 0.5896, "imports": 4.9867, "debt_repay": 3.5488, "households": 0.192, "other_flows": 0.0, "dxy": 0.6251, "one_off": 0.0, "model": 4.0246, "fact": 4.7584}, {"date": "2024-12-01", "export": -6.798, "cbr_ops": -0.1254, "debt_conv": 0.6106, "imports": 5.0644, "debt_repay": 3.5488, "households": 0.1958, "other_flows": 0.0, "dxy": 0.318, "one_off": 0.0, "model": 2.8141, "fact": 1.8158}, {"date": "2025-01-01", "export": -6.0145, "cbr_ops": -0.3893, "debt_conv": -0.0921, "imports": 5.077, "debt_repay": 0.2167, "households": 0.2871, "other_flows": 0.0, "dxy": 0.3436, "one_off": 0.0, "model": -0.5715, "fact": -2.5958}, {"date": "2025-02-01", "export": -5.7944, "cbr_ops": -0.4317, "debt_conv": -0.1548, "imports": 5.237, "debt_repay": 0.2167, "households": 0.2894, "other_flows": 0.0, "dxy": -0.3076, "one_off": 0.0, "model": -0.9455, "fact": -7.9738}, {"date": "2025-03-01", "export": -5.0352, "cbr_ops": -0.4799, "debt_conv": -0.31, "imports": 5.3296, "debt_repay": 0.2167, "households": 0.3786, "other_flows": 0.0, "dxy": -0.7545, "one_off": 0.0, "model": -0.6547, "fact": -6.9069}, {"date": "2025-04-01", "export": -5.5259, "cbr_ops": -0.7455, "debt_conv": -0.3255, "imports": 5.4362, "debt_repay": 0.6296, "households": 0.3969, "other_flows": 0.0, "dxy": -0.8253, "one_off": 0.0, "model": -0.9595, "fact": -3.0833}, {"date": "2025-05-01", "export": -5.3013, "cbr_ops": -0.5645, "debt_conv": -0.7201, "imports": 5.5101, "debt_repay": 0.6296, "households": 0.3648, "other_flows": 0.0, "dxy": -0.1619, "one_off": 0.0, "model": -0.2433, "fact": -3.7365}, {"date": "2025-06-01", "export": -5.5665, "cbr_ops": -0.6118, "debt_conv": -0.4275, "imports": 5.5101, "debt_repay": 0.6296, "households": 0.4533, "other_flows": 0.0, "dxy": -0.4316, "one_off": 0.0, "model": -0.4444, "fact": -1.8379}, {"date": "2025-07-01", "export": -5.4871, "cbr_ops": -0.6482, "debt_conv": -0.1885, "imports": 5.7403, "debt_repay": 0.3557, "households": 0.391, "other_flows": 0.0, "dxy": -0.1123, "one_off": 0.0, "model": 0.051, "fact": 0.2411}, {"date": "2025-08-01", "export": -5.7005, "cbr_ops": -0.6038, "debt_conv": -0.5254, "imports": 5.8052, "debt_repay": 0.3557, "households": 0.5656, "other_flows": 0.0, "dxy": 0.0801, "one_off": 0.0, "model": -0.0231, "fact": 1.609}, {"date": "2025-09-01", "export": -4.8669, "cbr_ops": -0.6493, "debt_conv": -0.5869, "imports": 6.2592, "debt_repay": 0.3557, "households": 0.4349, "other_flows": 0.0, "dxy": -0.1471, "one_off": 0.0, "model": 0.7995, "fact": 3.5391}, {"date": "2025-10-01", "export": -6.2862, "cbr_ops": -0.619, "debt_conv": -0.4747, "imports": 5.6027, "debt_repay": 0.7993, "households": 0.4319, "other_flows": 0.0, "dxy": 0.2785, "one_off": 0.0, "model": -0.2676, "fact": -2.5363}, {"date": "2025-11-01", "export": -5.6758, "cbr_ops": -0.5929, "debt_conv": 0.2502, "imports": 5.0584, "debt_repay": 0.7993, "households": 0.6039, "other_flows": 0.0, "dxy": 0.2496, "one_off": 0.0, "model": 0.6927, "fact": -0.6677}, {"date": "2025-12-01", "export": -5.082, "cbr_ops": -0.9415, "debt_conv": -0.1202, "imports": 5.5867, "debt_repay": 0.7993, "households": 0.5515, "other_flows": 0.0, "dxy": -0.3003, "one_off": 0.0, "model": 0.4935, "fact": -2.377}, {"date": "2026-01-01", "export": -5.4473, "cbr_ops": -0.7934, "debt_conv": -0.707, "imports": 5.3558, "debt_repay": 0.1288, "households": 0.4247, "other_flows": 0.0, "dxy": -0.0741, "one_off": 0.0, "model": -1.1125, "fact": -1.5136}, {"date": "2026-02-01", "export": -5.0442, "cbr_ops": -0.8943, "debt_conv": -0.0652, "imports": 5.4182, "debt_repay": 0.1288, "households": 0.1202, "other_flows": 0.0, "dxy": -0.2173, "one_off": 0.0, "model": -0.5539, "fact": -0.3719}, {"date": "2026-03-01", "export": -3.7053, "cbr_ops": -0.2864, "debt_conv": 0.4376, "imports": 5.7222, "debt_repay": 0.1288, "households": 0.2443, "other_flows": 0.0, "dxy": 0.5415, "one_off": 0.0, "model": 3.0827, "fact": 4.6947}, {"date": "2026-04-01", "export": -6.0628, "cbr_ops": -0.2555, "debt_conv": -0.012, "imports": 5.8626, "debt_repay": 0.2402, "households": 0.3646, "other_flows": 0.0, "dxy": -0.1766, "one_off": 0.0, "model": -0.0396, "fact": -4.8953}, {"date": "2026-05-01", "export": -7.1179, "cbr_ops": 0.0601, "debt_conv": -0.3126, "imports": 6.2601, "debt_repay": 0.2402, "households": 0.5334, "other_flows": 0.0, "dxy": -0.0191, "one_off": 0.0, "model": -0.3558, "fact": -5.0788}, {"date": "2026-06-01", "export": -6.2249, "cbr_ops": 0.3471, "debt_conv": 0.2749, "imports": 6.3188, "debt_repay": 0.2402, "households": 0.6849, "other_flows": 0.0, "dxy": 0.4052, "one_off": 0.0, "model": 2.0462, "fact": 1.5125}, {"date": "2026-07-01", "export": -5.5578, "cbr_ops": 0.3082, "debt_conv": -0.4661, "imports": 6.1497, "debt_repay": 0.3302, "households": 0.6585, "other_flows": 0.0, "dxy": 0.1591, "one_off": 0.0, "model": 1.5818, "fact": 5.5922}, {"date": "2026-08-01", "export": -5.7499, "cbr_ops": 0.3214, "debt_conv": -0.0829, "imports": 6.0027, "debt_repay": 0.3302, "households": 0.5366, "other_flows": 0.0, "dxy": -0.3633, "one_off": 0.0, "model": 0.9949, "fact": 7.1476}, {"date": "2026-09-01", "export": -5.8549, "cbr_ops": 0.1097, "debt_conv": 0.0387, "imports": 5.8121, "debt_repay": 0.3302, "households": 0.5497, "other_flows": 0.0, "dxy": -0.0027, "one_off": 0.0, "model": 0.9828, "fact": 2.0572}, {"date": "2026-10-01", "export": -5.8308, "cbr_ops": 0.897, "debt_conv": 0.0369, "imports": 6.2336, "debt_repay": 0.7619, "households": 0.5497, "other_flows": 0.0, "dxy": -0.0255, "one_off": 0.0, "model": 2.623, "fact": null}, {"date": "2026-11-01", "export": -6.0953, "cbr_ops": 0.2297, "debt_conv": 0.0163, "imports": 5.7787, "debt_repay": 0.7619, "households": 0.5497, "other_flows": 0.0, "dxy": -0.0255, "one_off": 0.0, "model": 1.2156, "fact": null}, {"date": "2026-12-01", "export": -6.0769, "cbr_ops": 0.2297, "debt_conv": -0.084, "imports": 4.94, "debt_repay": 0.7619, "households": 0.3859, "other_flows": 0.0, "dxy": -0.0255, "one_off": 0.0, "model": 0.1312, "fact": null}, {"date": "2027-01-01", "export": -6.4021, "cbr_ops": 0.1556, "debt_conv": -0.0957, "imports": 5.0873, "debt_repay": 0.6042, "households": 0.3859, "other_flows": 0.0, "dxy": -0.0255, "one_off": 0.0, "model": -0.2903, "fact": null}, {"date": "2027-02-01", "export": -5.8918, "cbr_ops": 0.307, "debt_conv": -0.0957, "imports": 5.3006, "debt_repay": 0.6042, "households": 0.4015, "other_flows": 0.0, "dxy": -0.0256, "one_off": 0.0, "model": 0.6002, "fact": null}, {"date": "2027-03-01", "export": -5.0483, "cbr_ops": 0.307, "debt_conv": 0.0598, "imports": 5.4356, "debt_repay": 0.6042, "households": 0.4015, "other_flows": 0.0, "dxy": -0.0256, "one_off": 0.0, "model": 1.7342, "fact": null}, {"date": "2027-04-01", "export": -5.3752, "cbr_ops": 0.3093, "debt_conv": -0.0957, "imports": 5.5919, "debt_repay": 0.3948, "households": 0.4015, "other_flows": 0.0, "dxy": -0.0256, "one_off": 0.0, "model": 1.2011, "fact": null}, {"date": "2027-05-01", "export": -5.5731, "cbr_ops": 0.2137, "debt_conv": 0.0598, "imports": 5.8801, "debt_repay": 0.3948, "households": 0.3787, "other_flows": 0.0, "dxy": -0.0257, "one_off": 0.0, "model": 1.3282, "fact": null}, {"date": "2027-06-01", "export": -5.3449, "cbr_ops": 0.2137, "debt_conv": -0.0957, "imports": 5.9801, "debt_repay": 0.3948, "households": 0.3783, "other_flows": 0.0, "dxy": -0.0257, "one_off": 0.0, "model": 1.5006, "fact": null}, {"date": "2027-07-01", "export": -5.3482, "cbr_ops": 0.2767, "debt_conv": 0.0598, "imports": 6.0263, "debt_repay": 0.369, "households": 0.3783, "other_flows": 0.0, "dxy": -0.0257, "one_off": 0.0, "model": 1.7362, "fact": null}, {"date": "2027-08-01", "export": -5.3166, "cbr_ops": 0.1549, "debt_conv": -0.0239, "imports": 5.9173, "debt_repay": 0.369, "households": 0.344, "other_flows": 0.0, "dxy": -0.0257, "one_off": 0.0, "model": 1.4189, "fact": null}, {"date": "2027-09-01", "export": -5.4202, "cbr_ops": 0.1549, "debt_conv": -0.0239, "imports": 5.6959, "debt_repay": 0.369, "households": 0.3433, "other_flows": 0.0, "dxy": -0.0258, "one_off": 0.0, "model": 1.0931, "fact": null}, {"date": "2027-10-01", "export": -5.4875, "cbr_ops": 0.1562, "debt_conv": -0.0957, "imports": 6.1058, "debt_repay": 0.3237, "households": 0.3433, "other_flows": 0.0, "dxy": -0.0258, "one_off": 0.0, "model": 1.32, "fact": null}, {"date": "2027-11-01", "export": -5.8638, "cbr_ops": 0.123, "debt_conv": -0.0957, "imports": 5.6667, "debt_repay": 0.3237, "households": 0.309, "other_flows": 0.0, "dxy": -0.0258, "one_off": 0.0, "model": 0.4372, "fact": null}, {"date": "2027-12-01", "export": -6.1831, "cbr_ops": 0.123, "debt_conv": -0.0957, "imports": 5.0554, "debt_repay": 0.3237, "households": 0.3087, "other_flows": 0.0, "dxy": -0.0258, "one_off": 0.0, "model": -0.4937, "fact": null}, {"date": "2028-01-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null, "dxy": null, "one_off": null, "model": null, "fact": null}, {"date": "2028-02-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null, "dxy": null, "one_off": null, "model": null, "fact": null}, {"date": "2028-03-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null, "dxy": null, "one_off": null, "model": null, "fact": null}];
+  const RUB_DECOMP_DEV = [{"date": "2018-01-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null, "dxy": null, "one_off": 0.0, "fact": -3.5}, {"date": "2018-02-01", "export": 0.2058, "cbr_ops": -0.0, "debt_conv": 0.0407, "imports": 0.5377, "debt_repay": -0.0, "households": 0.3361, "other_flows": 0.0, "dxy": -0.2963, "one_off": 0.0, "fact": 0.5462}, {"date": "2018-03-01", "export": -0.1827, "cbr_ops": -0.0, "debt_conv": -0.2165, "imports": 0.5683, "debt_repay": -0.0, "households": -0.0261, "other_flows": 0.0, "dxy": 0.1995, "one_off": 0.0, "fact": 0.4522}, {"date": "2018-04-01", "export": -0.6033, "cbr_ops": -0.5811, "debt_conv": 0.1284, "imports": 0.4511, "debt_repay": 0.6803, "households": -0.2059, "other_flows": -0.1342, "dxy": 0.1989, "one_off": 4.3849, "fact": 6.495}, {"date": "2018-05-01", "export": -0.4869, "cbr_ops": -0.4358, "debt_conv": 0.0173, "imports": 0.4932, "debt_repay": 0.5102, "households": -0.507, "other_flows": -0.1007, "dxy": 0.886, "one_off": 2.1925, "fact": 2.4042}, {"date": "2018-06-01", "export": -0.5038, "cbr_ops": -0.3487, "debt_conv": -0.144, "imports": 0.4455, "debt_repay": 0.4082, "households": -0.0351, "other_flows": -0.0805, "dxy": 0.1357, "one_off": 0.0, "fact": 0.8639}, {"date": "2018-07-01", "export": -0.3881, "cbr_ops": -0.7498, "debt_conv": -0.0482, "imports": 0.5272, "debt_repay": 0.7681, "households": -0.0981, "other_flows": 0.3051, "dxy": -0.1039, "one_off": 0.0, "fact": 0.1489}, {"date": "2018-08-01", "export": -0.3943, "cbr_ops": -0.6427, "debt_conv": -0.2207, "imports": 0.178, "debt_repay": 0.6583, "households": 0.3575, "other_flows": 0.2615, "dxy": 0.0802, "one_off": 4.3849, "fact": 5.1135}, {"date": "2018-09-01", "export": -0.5336, "cbr_ops": -0.5624, "debt_conv": -0.7098, "imports": -0.0658, "debt_repay": 0.5761, "households": -0.0197, "other_flows": 0.2288, "dxy": -0.3552, "one_off": 0.0, "fact": 2.4058}, {"date": "2018-10-01", "export": -0.8235, "cbr_ops": -0.6691, "debt_conv": 0.2015, "imports": 0.0156, "debt_repay": -0.8621, "households": 0.1354, "other_flows": 0.7253, "dxy": 0.1691, "one_off": 0.0, "fact": -2.6772}, {"date": "2018-11-01", "export": -0.9388, "cbr_ops": -0.6022, "debt_conv": 0.2674, "imports": 0.2478, "debt_repay": -0.7758, "households": 0.2093, "other_flows": 0.6528, "dxy": 0.0999, "one_off": 0.0, "fact": 0.761}, {"date": "2018-12-01", "export": -0.8444, "cbr_ops": -0.5474, "debt_conv": 0.0709, "imports": -0.2989, "debt_repay": -0.7053, "households": 0.398, "other_flows": 0.5935, "dxy": -0.1213, "one_off": 0.0, "fact": 1.4763}, {"date": "2019-01-01", "export": 0.1772, "cbr_ops": 0.6534, "debt_conv": -0.0068, "imports": -1.0013, "debt_repay": -2.7402, "households": 0.166, "other_flows": 0.3209, "dxy": -0.3755, "one_off": 0.0, "fact": -1.2219}, {"date": "2019-02-01", "export": 0.9147, "cbr_ops": 0.658, "debt_conv": -0.1268, "imports": -0.5209, "debt_repay": -2.5436, "households": 0.3557, "other_flows": 0.2761, "dxy": 0.0149, "one_off": 0.0, "fact": -1.0555}, {"date": "2019-03-01", "export": 0.313, "cbr_ops": 0.6625, "debt_conv": 0.0185, "imports": 0.0092, "debt_repay": -2.347, "households": 0.2091, "other_flows": 0.2314, "dxy": -0.076, "one_off": 0.0, "fact": -1.0914}, {"date": "2019-04-01", "export": 0.0987, "cbr_ops": 0.5225, "debt_conv": 0.0263, "imports": 0.0241, "debt_repay": -2.3759, "households": 0.2162, "other_flows": -0.3837, "dxy": -0.0049, "one_off": 0.0, "fact": -0.7515}, {"date": "2019-05-01", "export": 0.521, "cbr_ops": 0.4907, "debt_conv": -0.0664, "imports": 0.0058, "debt_repay": -2.1038, "households": -0.0824, "other_flows": -0.3921, "dxy": -0.0651, "one_off": 0.0, "fact": 0.3337}, {"date": "2019-06-01", "export": 0.8426, "cbr_ops": 0.4588, "debt_conv": -0.0849, "imports": 0.4623, "debt_repay": -1.8317, "households": -0.2045, "other_flows": -0.4005, "dxy": -0.3403, "one_off": 0.0, "fact": -1.0023}, {"date": "2019-07-01", "export": 0.5568, "cbr_ops": 0.3796, "debt_conv": 0.0586, "imports": 0.7523, "debt_repay": -0.728, "households": -0.1085, "other_flows": -0.6493, "dxy": 0.0877, "one_off": 0.0, "fact": -1.4748}, {"date": "2019-08-01", "export": 0.379, "cbr_ops": 0.3134, "debt_conv": -0.0401, "imports": 0.4814, "debt_repay": -0.4896, "households": -0.077, "other_flows": -0.6066, "dxy": 0.1114, "one_off": 0.0, "fact": 3.7404}, {"date": "2019-09-01", "export": 0.2451, "cbr_ops": 0.2472, "debt_conv": 0.0197, "imports": 0.4704, "debt_repay": -0.2511, "households": -0.4842, "other_flows": -0.5639, "dxy": 0.1011, "one_off": 0.0, "fact": -0.9587}, {"date": "2019-10-01", "export": -0.059, "cbr_ops": 0.1416, "debt_conv": -0.1842, "imports": 0.5557, "debt_repay": 2.6062, "households": -0.0507, "other_flows": -1.0316, "dxy": -0.1975, "one_off": 0.0, "fact": -0.8986}, {"date": "2019-11-01", "export": -0.1044, "cbr_ops": 0.0646, "debt_conv": -0.1124, "imports": 0.773, "debt_repay": 2.512, "households": -0.2625, "other_flows": -0.9029, "dxy": -0.0748, "one_off": 0.0, "fact": -0.7889}, {"date": "2019-12-01", "export": -0.46, "cbr_ops": -0.0124, "debt_conv": -0.3815, "imports": 0.056, "debt_repay": 2.4177, "households": -0.157, "other_flows": -0.7742, "dxy": -0.2101, "one_off": 0.0, "fact": -1.4633}, {"date": "2020-01-01", "export": -0.053, "cbr_ops": -0.8391, "debt_conv": 0.1272, "imports": -0.9817, "debt_repay": 1.3218, "households": 0.2034, "other_flows": 0.5134, "dxy": -0.0059, "one_off": 0.0, "fact": -1.7803}, {"date": "2020-02-01", "export": 1.0432, "cbr_ops": -0.7573, "debt_conv": -0.0087, "imports": -0.7952, "debt_repay": 1.1365, "households": -0.0197, "other_flows": 0.5269, "dxy": 0.3492, "one_off": 0.0, "fact": 3.5068}, {"date": "2020-03-01", "export": 1.1068, "cbr_ops": -0.6756, "debt_conv": 0.0754, "imports": -1.142, "debt_repay": 0.9513, "households": 0.0111, "other_flows": 0.5404, "dxy": -0.0574, "one_off": 15.0855, "fact": 15.2231}, {"date": "2020-04-01", "export": 1.4158, "cbr_ops": -1.8891, "debt_conv": 0.0405, "imports": -1.6202, "debt_repay": -0.3602, "households": -1.2012, "other_flows": 0.455, "dxy": 0.2231, "one_off": 0.0, "fact": 1.4163}, {"date": "2020-05-01", "export": 2.1889, "cbr_ops": -1.7115, "debt_conv": -0.0719, "imports": -1.298, "debt_repay": -0.4704, "households": 0.2109, "other_flows": 0.4293, "dxy": -0.1328, "one_off": 0.0, "fact": -3.0272}, {"date": "2020-06-01", "export": 2.072, "cbr_ops": -1.5338, "debt_conv": 0.0448, "imports": -0.8099, "debt_repay": -0.5806, "households": 0.2563, "other_flows": 0.4035, "dxy": -0.676, "one_off": 0.0, "fact": -4.5566}, {"date": "2020-07-01", "export": 1.4932, "cbr_ops": -0.588, "debt_conv": -0.2604, "imports": -0.6059, "debt_repay": 1.0057, "households": 0.2661, "other_flows": -0.1256, "dxy": -0.399, "one_off": 0.0, "fact": 3.031}, {"date": "2020-08-01", "export": 1.4518, "cbr_ops": -0.4783, "debt_conv": -0.0413, "imports": -0.3688, "debt_repay": 0.8234, "households": -0.0349, "other_flows": -0.1294, "dxy": -0.6353, "one_off": 0.0, "fact": 3.5123}, {"date": "2020-09-01", "export": 0.7182, "cbr_ops": -0.3686, "debt_conv": -0.0199, "imports": 0.0623, "debt_repay": 0.6412, "households": 0.0494, "other_flows": -0.1333, "dxy": 0.2064, "one_off": 0.0, "fact": 2.6151}, {"date": "2020-10-01", "export": 0.0335, "cbr_ops": -0.3591, "debt_conv": 0.1133, "imports": 0.3619, "debt_repay": 0.8634, "households": -0.035, "other_flows": -0.2376, "dxy": 0.1091, "one_off": 0.0, "fact": 2.5559}, {"date": "2020-11-01", "export": -0.0185, "cbr_ops": -0.2443, "debt_conv": -0.0697, "imports": 0.9848, "debt_repay": 0.8657, "households": 0.1699, "other_flows": -0.2756, "dxy": -0.1146, "one_off": 0.0, "fact": -1.0611}, {"date": "2020-12-01", "export": -0.9609, "cbr_ops": -0.1296, "debt_conv": -0.2427, "imports": 0.4188, "debt_repay": 0.8679, "households": 0.378, "other_flows": -0.3136, "dxy": -0.4523, "one_off": 0.0, "fact": -3.4133}, {"date": "2021-01-01", "export": -0.6962, "cbr_ops": 0.415, "debt_conv": -0.3555, "imports": -0.2877, "debt_repay": 0.9597, "households": 0.6366, "other_flows": 0.1227, "dxy": 0.0761, "one_off": 0.0, "fact": 0.2368}, {"date": "2021-02-01", "export": -0.0758, "cbr_ops": 0.4667, "debt_conv": 0.0819, "imports": 0.6915, "debt_repay": 0.871, "households": -0.0195, "other_flows": 0.1417, "dxy": 0.2721, "one_off": 0.0, "fact": -0.1017}, {"date": "2021-03-01", "export": -1.0877, "cbr_ops": 0.6492, "debt_conv": 0.3188, "imports": 1.2763, "debt_repay": 0.7823, "households": 0.1593, "other_flows": 0.1607, "dxy": 0.5591, "one_off": 0.0, "fact": 0.1081}, {"date": "2021-04-01", "export": -1.7051, "cbr_ops": 0.7835, "debt_conv": -0.4463, "imports": 0.9613, "debt_repay": -0.2484, "households": -0.3066, "other_flows": 0.3071, "dxy": 0.0549, "one_off": 0.0, "fact": 2.3479}, {"date": "2021-05-01", "export": -1.378, "cbr_ops": 0.5306, "debt_conv": 0.1118, "imports": 0.7624, "debt_repay": -0.3525, "households": -0.0849, "other_flows": 0.3073, "dxy": -0.1942, "one_off": 0.0, "fact": -2.81}, {"date": "2021-06-01", "export": -1.7646, "cbr_ops": 0.6701, "debt_conv": 0.4984, "imports": 0.9885, "debt_repay": -0.4565, "households": 0.0465, "other_flows": 0.3075, "dxy": 0.4117, "one_off": 0.0, "fact": -1.8748}, {"date": "2021-07-01", "export": -2.3655, "cbr_ops": 0.7483, "debt_conv": 0.0212, "imports": 1.0028, "debt_repay": -2.445, "households": 0.1764, "other_flows": 1.4106, "dxy": 0.5425, "one_off": 0.0, "fact": 1.7531}, {"date": "2021-08-01", "export": -2.073, "cbr_ops": 0.7567, "debt_conv": -0.0109, "imports": 0.8057, "debt_repay": -2.2506, "households": -0.2663, "other_flows": 1.2769, "dxy": 0.1449, "one_off": 0.0, "fact": -0.4157}, {"date": "2021-09-01", "export": -1.9114, "cbr_ops": 0.7137, "debt_conv": 0.0113, "imports": 0.7841, "debt_repay": -2.0562, "households": -0.1259, "other_flows": 1.1432, "dxy": 0.0461, "one_off": 0.0, "fact": -0.8922}, {"date": "2021-10-01", "export": -2.005, "cbr_ops": 0.6121, "debt_conv": 0.0099, "imports": 0.8367, "debt_repay": 1.5982, "households": 0.139, "other_flows": 0.8143, "dxy": 0.2792, "one_off": 0.0, "fact": -2.0241}, {"date": "2021-11-01", "export": -2.1215, "cbr_ops": 0.9452, "debt_conv": 0.1638, "imports": 1.3485, "debt_repay": 1.5379, "households": 0.1085, "other_flows": 0.6885, "dxy": 0.3628, "one_off": 0.0, "fact": 1.7478}, {"date": "2021-12-01", "export": -2.9861, "cbr_ops": 0.9358, "debt_conv": -0.2174, "imports": 0.7772, "debt_repay": 1.4776, "households": -0.4481, "other_flows": 0.5627, "dxy": 0.1669, "one_off": 0.0, "fact": 1.4724}, {"date": "2022-01-01", "export": -0.2469, "cbr_ops": 0.2833, "debt_conv": -0.0413, "imports": -0.0101, "debt_repay": 1.8902, "households": -0.0256, "other_flows": 1.3264, "dxy": -0.2054, "one_off": 0.0, "fact": 3.8301}, {"date": "2022-02-01", "export": -1.1569, "cbr_ops": -1.0973, "debt_conv": -0.143, "imports": -1.906, "debt_repay": 1.798, "households": -0.5096, "other_flows": -1.1645, "dxy": -0.1096, "one_off": 0.0, "fact": 0.7502}, {"date": "2022-03-01", "export": 1.203, "cbr_ops": -0.765, "debt_conv": 0.2071, "imports": -1.6319, "debt_repay": 1.7058, "households": 0.2589, "other_flows": -1.1307, "dxy": 0.5301, "one_off": 33.4122, "fact": 34.0817}, {"date": "2022-04-01", "export": 1.6305, "cbr_ops": -0.7342, "debt_conv": 0.4429, "imports": -1.2353, "debt_repay": 1.4582, "households": -0.2744, "other_flows": -1.0969, "dxy": 0.4251, "one_off": -26.5491, "fact": -24.7133}, {"date": "2022-05-01", "export": 2.3172, "cbr_ops": -0.6921, "debt_conv": 0.2143, "imports": -0.8045, "debt_repay": 1.3004, "households": 0.2205, "other_flows": -1.0524, "dxy": 0.4051, "one_off": -21.0135, "fact": -18.7248}, {"date": "2022-06-01", "export": 1.5361, "cbr_ops": -0.6611, "debt_conv": 0.1825, "imports": -0.4475, "debt_repay": 1.1427, "households": 0.4463, "other_flows": -1.008, "dxy": -0.09, "one_off": -10.9102, "fact": -9.6887}, {"date": "2022-07-01", "export": 0.0764, "cbr_ops": -0.6094, "debt_conv": 0.1829, "imports": -0.1608, "debt_repay": 0.6047, "households": 0.4864, "other_flows": -0.9635, "dxy": 0.466, "one_off": 0.0, "fact": 1.9166}, {"date": "2022-08-01", "export": 0.312, "cbr_ops": -0.5404, "debt_conv": 0.1737, "imports": 0.2657, "debt_repay": 0.3216, "households": 0.6004, "other_flows": -0.8272, "dxy": -0.2609, "one_off": 0.0, "fact": 4.418}, {"date": "2022-09-01", "export": 0.6449, "cbr_ops": -0.4639, "debt_conv": -0.1458, "imports": 0.7997, "debt_repay": 0.0385, "households": 0.3636, "other_flows": -0.6908, "dxy": 0.5333, "one_off": 0.0, "fact": -1.2294}, {"date": "2022-10-01", "export": 0.1555, "cbr_ops": -0.3834, "debt_conv": 0.4408, "imports": 0.4613, "debt_repay": 2.7583, "households": 0.4213, "other_flows": -0.5545, "dxy": -0.0888, "one_off": 0.0, "fact": 3.3123}, {"date": "2022-11-01", "export": 0.4008, "cbr_ops": -0.3035, "debt_conv": -0.1237, "imports": -0.1131, "debt_repay": 2.5133, "households": 0.3218, "other_flows": -0.4344, "dxy": -1.2597, "one_off": 0.0, "fact": -1.6116}, {"date": "2022-12-01", "export": 0.2243, "cbr_ops": -0.1874, "debt_conv": -0.2958, "imports": 0.3989, "debt_repay": 2.2683, "households": 0.3193, "other_flows": -0.3143, "dxy": -1.0979, "one_off": 0.0, "fact": 9.1978}, {"date": "2023-01-01", "export": -0.7682, "cbr_ops": -0.1799, "debt_conv": -0.1817, "imports": 0.375, "debt_repay": 2.3964, "households": 0.2616, "other_flows": -0.1942, "dxy": -0.6207, "one_off": 0.0, "fact": 4.9895}, {"date": "2023-02-01", "export": 1.126, "cbr_ops": -0.3543, "debt_conv": 0.4721, "imports": 0.3716, "debt_repay": 2.1597, "households": 0.2958, "other_flows": 0.0, "dxy": 0.0908, "one_off": 0.0, "fact": 5.0662}, {"date": "2023-03-01", "export": 1.4159, "cbr_ops": -0.3472, "debt_conv": -0.3053, "imports": 0.3597, "debt_repay": 1.9229, "households": 0.0742, "other_flows": 0.0, "dxy": -0.1456, "one_off": 0.0, "fact": 3.7902}, {"date": "2023-04-01", "export": 1.748, "cbr_ops": -0.1515, "debt_conv": -0.2175, "imports": 0.0494, "debt_repay": -1.9754, "households": 0.1241, "other_flows": 0.0, "dxy": -0.6016, "one_off": 0.0, "fact": 6.4616}, {"date": "2023-05-01", "export": 1.275, "cbr_ops": -0.0404, "debt_conv": 0.0681, "imports": 0.0845, "debt_repay": -1.9199, "households": -0.4311, "other_flows": 0.0, "dxy": 0.2175, "one_off": 0.0, "fact": -2.4454}, {"date": "2023-06-01", "export": 1.7725, "cbr_ops": -0.0684, "debt_conv": 0.0416, "imports": -0.0021, "debt_repay": -1.8644, "households": -0.2071, "other_flows": 0.0, "dxy": 0.0776, "one_off": 0.0, "fact": 5.828}, {"date": "2023-07-01", "export": 1.814, "cbr_ops": 0.0131, "debt_conv": -0.0802, "imports": -0.24, "debt_repay": -2.1113, "households": -0.3554, "other_flows": 0.0, "dxy": -0.4015, "one_off": 0.0, "fact": 8.0279}, {"date": "2023-08-01", "export": 1.9847, "cbr_ops": 0.1093, "debt_conv": 0.0626, "imports": -0.4155, "debt_repay": -2.0623, "households": -0.4082, "other_flows": 0.0, "dxy": 0.5322, "one_off": 0.0, "fact": 5.6436}, {"date": "2023-09-01", "export": 1.1432, "cbr_ops": 0.1297, "debt_conv": -0.0118, "imports": -0.1046, "debt_repay": -2.0133, "households": -0.3582, "other_flows": 0.0, "dxy": 0.6105, "one_off": 0.0, "fact": 0.9051}, {"date": "2023-10-01", "export": 0.103, "cbr_ops": 0.0179, "debt_conv": -0.1659, "imports": -0.4067, "debt_repay": -1.949, "households": -0.2078, "other_flows": 0.0, "dxy": 0.3608, "one_off": 0.0, "fact": 0.4533}, {"date": "2023-11-01", "export": -0.2206, "cbr_ops": 0.0189, "debt_conv": -0.3777, "imports": -0.5331, "debt_repay": -1.651, "households": 0.0281, "other_flows": 0.0, "dxy": -0.3405, "one_off": 0.0, "fact": -6.9228}, {"date": "2023-12-01", "export": -0.0924, "cbr_ops": 0.03, "debt_conv": -0.4072, "imports": -0.255, "debt_repay": -1.353, "households": 0.1039, "other_flows": 0.0, "dxy": -0.3703, "one_off": 0.0, "fact": 0.8992}, {"date": "2024-01-01", "export": -0.4055, "cbr_ops": -0.5962, "debt_conv": -0.0463, "imports": -0.7425, "debt_repay": 0.0756, "households": 0.1297, "other_flows": 0.0, "dxy": 0.0986, "one_off": 0.0, "fact": -1.9131}, {"date": "2024-02-01", "export": 0.3469, "cbr_ops": -0.1875, "debt_conv": -0.4813, "imports": -0.5491, "debt_repay": 0.3104, "households": -0.0026, "other_flows": 0.0, "dxy": 0.28, "one_off": 0.0, "fact": 2.6307}, {"date": "2024-03-01", "export": 0.3051, "cbr_ops": -0.1378, "debt_conv": -0.424, "imports": -0.2693, "debt_repay": 0.5452, "households": -0.0188, "other_flows": 0.0, "dxy": -0.1202, "one_off": 0.0, "fact": 0.0851}, {"date": "2024-04-01", "export": -0.9399, "cbr_ops": 0.1936, "debt_conv": -0.3414, "imports": -0.2847, "debt_repay": -0.0846, "households": 0.13, "other_flows": 0.0, "dxy": 0.4245, "one_off": 0.0, "fact": 1.2969}, {"date": "2024-05-01", "export": -1.159, "cbr_ops": -0.1212, "debt_conv": -0.2809, "imports": 0.0524, "debt_repay": -0.0829, "households": 0.0322, "other_flows": 0.0, "dxy": -0.1876, "one_off": 0.0, "fact": -2.3159}, {"date": "2024-06-01", "export": -0.9337, "cbr_ops": -0.0463, "debt_conv": 0.5266, "imports": 0.3381, "debt_repay": -0.0811, "households": 0.211, "other_flows": 0.0, "dxy": 0.0071, "one_off": 0.0, "fact": -3.0919}, {"date": "2024-07-01", "export": 0.6067, "cbr_ops": 0.0893, "debt_conv": 0.027, "imports": 0.4062, "debt_repay": -0.1611, "households": 0.0843, "other_flows": 0.0, "dxy": -0.174, "one_off": 0.0, "fact": -0.7102}, {"date": "2024-08-01", "export": 0.4275, "cbr_ops": -0.1472, "debt_conv": 0.4454, "imports": 0.3148, "debt_repay": -0.1778, "households": -0.0493, "other_flows": 0.0, "dxy": -0.6545, "one_off": 0.0, "fact": 2.1623}, {"date": "2024-09-01", "export": 1.6693, "cbr_ops": 0.2414, "debt_conv": 0.0038, "imports": 0.2695, "debt_repay": -0.1944, "households": 0.0355, "other_flows": 0.0, "dxy": -0.273, "one_off": 0.0, "fact": 2.2141}, {"date": "2024-10-01", "export": 0.557, "cbr_ops": 0.0143, "debt_conv": 0.6543, "imports": -0.4182, "debt_repay": 1.7351, "households": -0.2515, "other_flows": 0.0, "dxy": 0.6529, "one_off": 0.0, "fact": 5.6363}, {"date": "2024-11-01", "export": 0.3968, "cbr_ops": 0.0683, "debt_conv": 0.723, "imports": -0.9967, "debt_repay": 1.5576, "households": -0.2582, "other_flows": 0.0, "dxy": 0.684, "one_off": 0.0, "fact": 4.7584}, {"date": "2024-12-01", "export": -0.7434, "cbr_ops": 0.1337, "debt_conv": 0.6692, "imports": -0.8498, "debt_repay": 1.38, "households": -0.2303, "other_flows": 0.0, "dxy": 0.2878, "one_off": 0.0, "fact": 1.8158}, {"date": "2025-01-01", "export": 0.0734, "cbr_ops": -0.1295, "debt_conv": -0.1146, "imports": -0.7536, "debt_repay": -2.1296, "households": -0.1099, "other_flows": 0.0, "dxy": 0.2504, "one_off": 0.0, "fact": -2.5958}, {"date": "2025-02-01", "export": 0.2452, "cbr_ops": -0.2025, "debt_conv": -0.171, "imports": -0.555, "debt_repay": -1.9352, "households": -0.0847, "other_flows": 0.0, "dxy": -0.424, "one_off": 0.0, "fact": -7.9738}, {"date": "2025-03-01", "export": 1.0141, "cbr_ops": -0.248, "debt_conv": -0.3507, "imports": -0.4274, "debt_repay": -1.7408, "households": 0.0156, "other_flows": 0.0, "dxy": -0.8213, "one_off": 0.0, "fact": -6.9069}, {"date": "2025-04-01", "export": 0.4734, "cbr_ops": -0.5028, "debt_conv": -0.3803, "imports": -0.2756, "debt_repay": -1.1335, "households": 0.0339, "other_flows": 0.0, "dxy": -0.8383, "one_off": 0.0, "fact": -3.0833}, {"date": "2025-05-01", "export": 0.5888, "cbr_ops": -0.261, "debt_conv": -0.7834, "imports": -0.1714, "debt_repay": -1.0456, "households": 0.0111, "other_flows": 0.0, "dxy": -0.0707, "one_off": 0.0, "fact": -3.7365}, {"date": "2025-06-01", "export": 0.1696, "cbr_ops": -0.2873, "debt_conv": -0.4639, "imports": -0.123, "debt_repay": -0.9577, "households": 0.1022, "other_flows": 0.0, "dxy": -0.3362, "one_off": 0.0, "fact": -1.8379}, {"date": "2025-07-01", "export": 0.1287, "cbr_ops": -0.2938, "debt_conv": -0.1594, "imports": 0.1766, "debt_repay": -1.1438, "households": 0.0514, "other_flows": 0.0, "dxy": 0.0236, "one_off": 0.0, "fact": 0.2411}, {"date": "2025-08-01", "export": -0.0934, "cbr_ops": -0.2058, "debt_conv": -0.4909, "imports": 0.2965, "debt_repay": -1.0398, "households": 0.2334, "other_flows": 0.0, "dxy": 0.2146, "one_off": 0.0, "fact": 1.609}, {"date": "2025-09-01", "export": 0.7332, "cbr_ops": -0.2312, "debt_conv": -0.4853, "imports": 0.7935, "debt_repay": -0.9359, "households": 0.086, "other_flows": 0.0, "dxy": -0.0682, "one_off": 0.0, "fact": 3.5391}, {"date": "2025-10-01", "export": -0.6644, "cbr_ops": -0.147, "debt_conv": -0.3369, "imports": 0.1398, "debt_repay": -0.3884, "households": 0.0857, "other_flows": 0.0, "dxy": 0.3456, "one_off": 0.0, "fact": -2.5363}, {"date": "2025-11-01", "export": -0.0001, "cbr_ops": -0.0884, "debt_conv": 0.4673, "imports": -0.4048, "debt_repay": -0.1593, "households": 0.2388, "other_flows": 0.0, "dxy": 0.3408, "one_off": 0.0, "fact": -0.6677}, {"date": "2025-12-01", "export": 0.589, "cbr_ops": -0.403, "debt_conv": 0.1252, "imports": 0.1175, "debt_repay": 0.0698, "households": 0.1521, "other_flows": 0.0, "dxy": -0.1778, "one_off": 0.0, "fact": -2.377}, {"date": "2026-01-01", "export": 0.0807, "cbr_ops": -0.187, "debt_conv": -0.4007, "imports": -0.1569, "debt_repay": -0.3715, "households": -0.0044, "other_flows": 0.0, "dxy": 0.1, "one_off": 0.0, "fact": -1.5136}, {"date": "2026-02-01", "export": 0.4365, "cbr_ops": -0.2542, "debt_conv": 0.2923, "imports": -0.1178, "debt_repay": -0.3642, "households": -0.3204, "other_flows": 0.0, "dxy": -0.0084, "one_off": 0.0, "fact": -0.3719}, {"date": "2026-03-01", "export": 1.713, "cbr_ops": 0.3923, "debt_conv": 0.7876, "imports": 0.1712, "debt_repay": -0.3569, "households": -0.1822, "other_flows": 0.0, "dxy": 0.7429, "one_off": 0.0, "fact": 4.6947}, {"date": "2026-04-01", "export": -0.7554, "cbr_ops": 0.407, "debt_conv": 0.2757, "imports": 0.2788, "debt_repay": -0.2381, "households": -0.0507, "other_flows": 0.0, "dxy": -0.0833, "one_off": 0.0, "fact": -4.8953}, {"date": "2026-05-01", "export": -1.7658, "cbr_ops": 0.6818, "debt_conv": -0.051, "imports": 0.6409, "debt_repay": -0.2057, "households": 0.1208, "other_flows": 0.0, "dxy": 0.0202, "one_off": 0.0, "fact": -5.0788}, {"date": "2026-06-01", "export": -0.7214, "cbr_ops": 0.9168, "debt_conv": 0.5026, "imports": 0.637, "debt_repay": -0.1732, "households": 0.2583, "other_flows": 0.0, "dxy": 0.4326, "one_off": 0.0, "fact": 1.5125}, {"date": "2026-07-01", "export": 0.0006, "cbr_ops": 0.7979, "debt_conv": -0.297, "imports": 0.4005, "debt_repay": -0.0508, "households": 0.2126, "other_flows": 0.0, "dxy": 0.1168, "one_off": 0.0, "fact": 5.5922}, {"date": "2026-08-01", "export": -0.1856, "cbr_ops": 0.7315, "debt_conv": 0.1094, "imports": 0.2194, "debt_repay": -0.0486, "households": 0.0684, "other_flows": 0.0, "dxy": -0.4282, "one_off": 0.0, "fact": 7.1476}, {"date": "2026-09-01", "export": -0.2865, "cbr_ops": 0.4426, "debt_conv": 0.1941, "imports": 0.0124, "debt_repay": -0.0465, "households": 0.0839, "other_flows": 0.0, "dxy": -0.0307, "one_off": 0.0, "fact": 2.0572}, {"date": "2026-10-01", "export": -0.18, "cbr_ops": 1.1668, "debt_conv": 0.1402, "imports": 0.4711, "debt_repay": 0.3873, "households": 0.0743, "other_flows": 0.0, "dxy": -0.0655, "one_off": 0.0, "fact": null}, {"date": "2026-11-01", "export": -0.4825, "cbr_ops": 0.3731, "debt_conv": 0.0769, "imports": -0.0363, "debt_repay": 0.3904, "households": 0.0645, "other_flows": 0.0, "dxy": -0.0402, "one_off": 0.0, "fact": null}, {"date": "2026-12-01", "export": -0.4292, "cbr_ops": 0.3045, "debt_conv": -0.0038, "imports": -0.9351, "debt_repay": 0.3935, "households": -0.0947, "other_flows": 0.0, "dxy": -0.0173, "one_off": 0.0, "fact": null}, {"date": "2027-01-01", "export": -0.6714, "cbr_ops": 0.1328, "debt_conv": -0.0186, "imports": -0.7339, "debt_repay": 0.2389, "households": -0.0809, "other_flows": 0.0, "dxy": -0.0402, "one_off": 0.0, "fact": null}, {"date": "2027-02-01", "export": -0.0816, "cbr_ops": 0.2051, "debt_conv": -0.0695, "imports": -0.4982, "debt_repay": 0.1993, "households": -0.0621, "other_flows": 0.0, "dxy": -0.0443, "one_off": 0.0, "fact": null}, {"date": "2027-03-01", "export": 0.8326, "cbr_ops": 0.105, "debt_conv": 0.0885, "imports": -0.3534, "debt_repay": 0.1597, "households": -0.0856, "other_flows": 0.0, "dxy": -0.0603, "one_off": 0.0, "fact": null}, {"date": "2027-04-01", "export": 0.6176, "cbr_ops": 0.0579, "debt_conv": -0.0355, "imports": -0.1732, "debt_repay": -0.0894, "households": -0.0987, "other_flows": 0.0, "dxy": -0.0131, "one_off": 0.0, "fact": null}, {"date": "2027-05-01", "export": 0.3624, "cbr_ops": -0.0848, "debt_conv": 0.127, "imports": 0.1375, "debt_repay": -0.1023, "households": -0.1246, "other_flows": 0.0, "dxy": -0.0257, "one_off": 0.0, "fact": null}, {"date": "2027-06-01", "export": 0.4619, "cbr_ops": -0.0976, "debt_conv": -0.0595, "imports": 0.2692, "debt_repay": -0.1151, "households": -0.112, "other_flows": 0.0, "dxy": -0.0252, "one_off": 0.0, "fact": null}, {"date": "2027-07-01", "export": 0.3853, "cbr_ops": -0.0235, "debt_conv": 0.1268, "imports": 0.3436, "debt_repay": -0.1538, "households": -0.0865, "other_flows": 0.0, "dxy": 0.0107, "one_off": 0.0, "fact": null}, {"date": "2027-08-01", "export": 0.3993, "cbr_ops": -0.1426, "debt_conv": -0.0007, "imports": 0.2448, "debt_repay": -0.1571, "households": -0.0974, "other_flows": 0.0, "dxy": 0.0261, "one_off": 0.0, "fact": null}, {"date": "2027-09-01", "export": 0.2596, "cbr_ops": -0.1287, "debt_conv": -0.0056, "imports": 0.0306, "debt_repay": -0.1603, "households": -0.0821, "other_flows": 0.0, "dxy": -0.0021, "one_off": 0.0, "fact": null}, {"date": "2027-10-01", "export": 0.1561, "cbr_ops": -0.1312, "debt_conv": -0.0722, "imports": 0.4502, "debt_repay": -0.2087, "households": -0.0649, "other_flows": 0.0, "dxy": -0.0002, "one_off": 0.0, "fact": null}, {"date": "2027-11-01", "export": -0.2488, "cbr_ops": -0.1026, "debt_conv": -0.0611, "imports": 0.0217, "debt_repay": -0.1722, "households": -0.082, "other_flows": 0.0, "dxy": -0.0002, "one_off": 0.0, "fact": null}, {"date": "2027-12-01", "export": -0.5874, "cbr_ops": -0.0938, "debt_conv": -0.0518, "imports": -0.5802, "debt_repay": -0.1357, "households": -0.0623, "other_flows": 0.0, "dxy": -0.0002, "one_off": 0.0, "fact": null}, {"date": "2028-01-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null, "dxy": null, "one_off": null, "fact": null}, {"date": "2028-02-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null, "dxy": null, "one_off": null, "fact": null}, {"date": "2028-03-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null, "dxy": null, "one_off": null, "fact": null}];
+  const RUB_YOY = [{"date": "2018-01-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2018-02-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2018-03-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2018-04-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2018-05-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2018-06-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2018-07-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2018-08-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2018-09-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2018-10-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2018-11-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2018-12-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2019-01-01", "export": -2.84, "cbr_ops": -0.2503, "debt_conv": -0.46, "imports": -0.8075, "debt_repay": -3.8475, "households": 1.6608, "other_flows": 4.3828}, {"date": "2019-02-01", "export": -0.145, "cbr_ops": -0.2503, "debt_conv": -1.17, "imports": -1.1505, "debt_repay": -3.8475, "households": 0.867, "other_flows": 4.3828}, {"date": "2019-03-01", "export": -1.9, "cbr_ops": -0.2503, "debt_conv": 0.33, "imports": -0.137, "debt_repay": -3.8475, "households": 1.2424, "other_flows": 4.3828}, {"date": "2019-04-01", "export": -0.585, "cbr_ops": 1.7613, "debt_conv": -0.75, "imports": -0.4245, "debt_repay": -5.3246, "households": 2.5913, "other_flows": 0.8219}, {"date": "2019-05-01", "export": 1.885, "cbr_ops": 1.7613, "debt_conv": -0.87, "imports": -1.2925, "debt_repay": -5.3246, "households": 3.1512, "other_flows": 0.8219}, {"date": "2019-06-01", "export": 4.445, "cbr_ops": 1.7613, "debt_conv": -0.36, "imports": 0.5505, "debt_repay": -5.3246, "households": 0.277, "other_flows": 0.8219}, {"date": "2019-07-01", "export": 3.065, "cbr_ops": 3.659, "debt_conv": -0.09, "imports": 1.2415, "debt_repay": -4.6665, "households": 1.3494, "other_flows": -4.1799}, {"date": "2019-08-01", "export": 2.68, "cbr_ops": 3.659, "debt_conv": 0.24, "imports": 1.359, "debt_repay": -4.6665, "households": -1.1493, "other_flows": -4.1799}, {"date": "2019-09-01", "export": 3.205, "cbr_ops": 3.659, "debt_conv": 2.67, "imports": 2.485, "debt_repay": -4.6665, "households": -1.7208, "other_flows": -4.1799}, {"date": "2019-10-01", "export": 3.72, "cbr_ops": 4.257, "debt_conv": -1.44, "imports": 2.746, "debt_repay": 1.8443, "households": -0.0773, "other_flows": -12.6078}, {"date": "2019-11-01", "export": 4.87, "cbr_ops": 4.257, "debt_conv": -1.62, "imports": 2.8955, "debt_repay": 1.8443, "households": -1.9888, "other_flows": -12.6078}, {"date": "2019-12-01", "export": 3.265, "cbr_ops": 4.257, "debt_conv": -2.16, "imports": 2.2095, "debt_repay": 1.8443, "households": -2.8061, "other_flows": -12.6078}, {"date": "2020-01-01", "export": 0.536, "cbr_ops": -4.5197, "debt_conv": 0.087, "imports": 0.9005, "debt_repay": 3.6249, "households": 0.5211, "other_flows": -1.3241}, {"date": "2020-02-01", "export": 2.795, "cbr_ops": -4.5197, "debt_conv": 0.066, "imports": -0.371, "debt_repay": 3.6249, "households": -2.2023, "other_flows": -1.3241}, {"date": "2020-03-01", "export": 6.709, "cbr_ops": -4.5197, "debt_conv": -0.087, "imports": -4.524, "debt_repay": 3.6249, "households": -1.3286, "other_flows": -1.3241}, {"date": "2020-04-01", "export": 10.3115, "cbr_ops": -9.822, "debt_conv": -0.3, "imports": -7.261, "debt_repay": 2.1564, "households": -9.3072, "other_flows": 2.5252}, {"date": "2020-05-01", "export": 13.1535, "cbr_ops": -9.822, "debt_conv": -0.345, "imports": -6.1935, "debt_repay": 2.1564, "households": 0.5935, "other_flows": 2.5252}, {"date": "2020-06-01", "export": 11.6755, "cbr_ops": -9.822, "debt_conv": 0.264, "imports": -6.4495, "debt_repay": 2.1564, "households": 1.4474, "other_flows": 2.5252}, {"date": "2020-07-01", "export": 10.662, "cbr_ops": -6.0643, "debt_conv": -1.56, "imports": -7.447, "debt_repay": 3.5669, "households": 0.9962, "other_flows": 0.3793}, {"date": "2020-08-01", "export": 12.047, "cbr_ops": -6.0643, "debt_conv": -0.354, "imports": -5.727, "debt_repay": 3.5669, "households": -1.1505, "other_flows": 0.3793}, {"date": "2020-09-01", "export": 9.521, "cbr_ops": -6.0643, "debt_conv": -0.564, "imports": -4.191, "debt_repay": 3.5669, "households": 1.9795, "other_flows": 0.3793}, {"date": "2020-10-01", "export": 7.949, "cbr_ops": -6.344, "debt_conv": 0.576, "imports": -3.7165, "debt_repay": -0.0437, "households": -1.0102, "other_flows": 3.7261}, {"date": "2020-11-01", "export": 8.2645, "cbr_ops": -6.344, "debt_conv": -0.321, "imports": -2.304, "debt_repay": -0.0437, "households": 1.5652, "other_flows": 3.7261}, {"date": "2020-12-01", "export": 5.312, "cbr_ops": -6.344, "debt_conv": 0.189, "imports": -2.011, "debt_repay": -0.0437, "households": 2.5148, "other_flows": 3.7261}, {"date": "2021-01-01", "export": 4.698, "cbr_ops": -0.9095, "debt_conv": -2.214, "imports": -0.7695, "debt_repay": 1.7357, "households": 2.3098, "other_flows": -1.8635}, {"date": "2021-02-01", "export": 2.4215, "cbr_ops": -0.747, "debt_conv": -0.009, "imports": 2.9045, "debt_repay": 1.7357, "households": -0.2976, "other_flows": -1.8635}, {"date": "2021-03-01", "export": -3.54, "cbr_ops": 0.0313, "debt_conv": 0.624, "imports": 7.6585, "debt_repay": 1.7357, "households": 0.8031, "other_flows": -1.8635}, {"date": "2021-04-01", "export": -9.502, "cbr_ops": 6.6209, "debt_conv": -2.37, "imports": 9.4585, "debt_repay": 2.036, "households": 5.733, "other_flows": -0.0159}, {"date": "2021-05-01", "export": -13.612, "cbr_ops": 6.0072, "debt_conv": 0.261, "imports": 8.3455, "debt_repay": 2.036, "households": -0.5928, "other_flows": -0.0159}, {"date": "2021-06-01", "export": -17.33, "cbr_ops": 7.1504, "debt_conv": 1.44, "imports": 8.2965, "debt_repay": 2.036, "households": -0.1449, "other_flows": -0.0159}, {"date": "2021-07-01", "export": -19.869, "cbr_ops": 4.5676, "debt_conv": 0.819, "imports": 8.613, "debt_repay": -3.803, "households": 0.4877, "other_flows": 13.0985}, {"date": "2021-08-01", "export": -20.572, "cbr_ops": 4.9867, "debt_conv": -0.033, "imports": 7.8625, "debt_repay": -3.803, "households": -0.4566, "other_flows": 13.0985}, {"date": "2021-09-01", "export": -18.3545, "cbr_ops": 5.2043, "debt_conv": -0.003, "imports": 6.8175, "debt_repay": -3.803, "households": -0.0419, "other_flows": 13.0985}, {"date": "2021-10-01", "export": -17.418, "cbr_ops": 5.6311, "debt_conv": -0.519, "imports": 6.5465, "debt_repay": 1.1793, "households": 2.0136, "other_flows": 12.3239}, {"date": "2021-11-01", "export": -19.8875, "cbr_ops": 7.6352, "debt_conv": 0.798, "imports": 6.8675, "debt_repay": 1.1793, "households": 0.7666, "other_flows": 12.3239}, {"date": "2021-12-01", "export": -21.8045, "cbr_ops": 8.2279, "debt_conv": 0.021, "imports": 7.6065, "debt_repay": 1.1793, "households": -4.1687, "other_flows": 12.3239}, {"date": "2022-01-01", "export": -10.42, "cbr_ops": 3.9271, "debt_conv": 1.215, "imports": 8.019, "debt_repay": 1.8043, "households": -3.6818, "other_flows": 15.7136}, {"date": "2022-02-01", "export": -20.1186, "cbr_ops": -2.2693, "debt_conv": -0.753, "imports": -5.0785, "debt_repay": 1.8043, "households": -3.0858, "other_flows": -3.3136}, {"date": "2022-03-01", "export": -3.4049, "cbr_ops": -1.7056, "debt_conv": -0.342, "imports": -7.238, "debt_repay": 1.8043, "households": 0.4368, "other_flows": -3.3136}, {"date": "2022-04-01", "export": 2.368, "cbr_ops": -2.3272, "debt_conv": 3.762, "imports": -5.0565, "debt_repay": 3.087, "households": -0.0224, "other_flows": -4.3539}, {"date": "2022-05-01", "export": 5.3399, "cbr_ops": -1.7135, "debt_conv": 0.984, "imports": -3.2372, "debt_repay": 3.087, "households": 1.237, "other_flows": -4.3539}, {"date": "2022-06-01", "export": 4.7438, "cbr_ops": -2.8567, "debt_conv": -0.705, "imports": -3.5728, "debt_repay": 3.087, "households": 1.9907, "other_flows": -4.3539}, {"date": "2022-07-01", "export": 1.8478, "cbr_ops": -3.8133, "debt_conv": 1.113, "imports": -3.2514, "debt_repay": 5.5397, "households": 1.5964, "other_flows": -13.3594}, {"date": "2022-08-01", "export": 3.3439, "cbr_ops": -4.2323, "debt_conv": 1.233, "imports": -1.24, "debt_repay": 5.5397, "households": 5.2334, "other_flows": -13.3594}, {"date": "2022-09-01", "export": 6.2816, "cbr_ops": -4.4499, "debt_conv": -0.09, "imports": 0.6735, "debt_repay": 5.5397, "households": 3.3057, "other_flows": -13.3594}, {"date": "2022-10-01", "export": 6.152, "cbr_ops": -4.4154, "debt_conv": 2.361, "imports": -1.7191, "debt_repay": 4.7943, "households": 2.2659, "other_flows": -11.7651}, {"date": "2022-11-01", "export": 10.1115, "cbr_ops": -6.4195, "debt_conv": -0.402, "imports": -7.6328, "debt_repay": 4.7943, "households": 1.8477, "other_flows": -11.7651}, {"date": "2022-12-01", "export": 16.4052, "cbr_ops": -7.0122, "debt_conv": 0.372, "imports": -3.6306, "debt_repay": 4.7943, "households": 5.4658, "other_flows": -11.7651}, {"date": "2023-01-01", "export": -0.9865, "cbr_ops": -5.2416, "debt_conv": 0.142, "imports": -0.8943, "debt_repay": 4.6317, "households": 3.2108, "other_flows": -19.0272}, {"date": "2023-02-01", "export": 15.2615, "cbr_ops": -0.4482, "debt_conv": 3.211, "imports": 7.4663, "debt_repay": 4.6317, "households": 7.0848, "other_flows": 0}, {"date": "2023-03-01", "export": 6.7957, "cbr_ops": -1.7947, "debt_conv": -1.1724, "imports": 7.1356, "debt_repay": 4.6317, "households": 1.6285, "other_flows": 0}, {"date": "2023-04-01", "export": 7.1196, "cbr_ops": -1.0427, "debt_conv": -1.8603, "imports": 4.9329, "debt_repay": -1.0857, "households": 5.441, "other_flows": 0}, {"date": "2023-05-01", "export": 1.121, "cbr_ops": -0.6174, "debt_conv": -0.1791, "imports": 3.8621, "debt_repay": -1.0857, "households": -0.7902, "other_flows": 0}, {"date": "2023-06-01", "export": 7.8197, "cbr_ops": -0.7979, "debt_conv": -0.254, "imports": 2.3202, "debt_repay": -1.0857, "households": -0.9703, "other_flows": 0}, {"date": "2023-07-01", "export": 16.354, "cbr_ops": -0.4892, "debt_conv": -0.727, "imports": 0.2876, "debt_repay": -0.9587, "households": -2.4166, "other_flows": 0}, {"date": "2023-08-01", "export": 17.2048, "cbr_ops": -0.0867, "debt_conv": -0.2447, "imports": -2.3135, "debt_repay": -0.9587, "households": -3.8128, "other_flows": 0}, {"date": "2023-09-01", "export": 11.8843, "cbr_ops": 0, "debt_conv": 0.657, "imports": -3.4757, "debt_repay": -0.9587, "households": -2.7407, "other_flows": 0}, {"date": "2023-10-01", "export": 9.3143, "cbr_ops": -0.5149, "debt_conv": -2.3777, "imports": -3.6469, "debt_repay": -5.8303, "households": -2.6547, "other_flows": 0}, {"date": "2023-11-01", "export": 6.4404, "cbr_ops": -0.5532, "debt_conv": -1.2985, "imports": -1.6527, "debt_repay": -5.8303, "households": -0.9292, "other_flows": 0}, {"date": "2023-12-01", "export": 7.8149, "cbr_ops": -0.5483, "debt_conv": -0.777, "imports": -2.2794, "debt_repay": -5.8303, "households": -0.6617, "other_flows": 0}, {"date": "2024-01-01", "export": 10.8448, "cbr_ops": -2.9293, "debt_conv": 0.1591, "imports": -4.3972, "debt_repay": -4.595, "households": -0.6408, "other_flows": 0}, {"date": "2024-02-01", "export": 5.5355, "cbr_ops": -0.0497, "debt_conv": -4.3912, "imports": -3.7422, "debt_repay": -4.595, "households": -2.0215, "other_flows": 0}, {"date": "2024-03-01", "export": 2.896, "cbr_ops": 0.1795, "debt_conv": -1.535, "imports": -3.273, "debt_repay": -4.595, "households": -1.4734, "other_flows": 0}, {"date": "2024-04-01", "export": -6.1252, "cbr_ops": 0.9695, "debt_conv": -1.5869, "imports": -2.7219, "debt_repay": -0.0343, "households": -1.1022, "other_flows": 0}, {"date": "2024-05-01", "export": -5.8288, "cbr_ops": -0.8258, "debt_conv": -2.5052, "imports": -1.907, "debt_repay": -0.0343, "households": 1.2655, "other_flows": 0}, {"date": "2024-06-01", "export": -7.9088, "cbr_ops": -0.3688, "debt_conv": 0.7876, "imports": -0.5974, "debt_repay": -0.0343, "households": 1.1489, "other_flows": 0}, {"date": "2024-07-01", "export": -0.9549, "cbr_ops": -0.0834, "debt_conv": -0.7051, "imports": 0.6318, "debt_repay": 0.3253, "households": 1.4629, "other_flows": 0}, {"date": "2024-08-01", "export": -4.3264, "cbr_ops": -1.5825, "debt_conv": 0.4487, "imports": 1.065, "debt_repay": 0.3253, "households": 1.2721, "other_flows": 0}, {"date": "2024-09-01", "export": 5.3663, "cbr_ops": -0.0109, "debt_conv": -1.0287, "imports": -0.3668, "debt_repay": 0.3253, "households": 1.9173, "other_flows": 0}, {"date": "2024-10-01", "export": 4.4256, "cbr_ops": -0.543, "debt_conv": 2.1949, "imports": -1.9625, "debt_repay": 3.4737, "households": -0.4794, "other_flows": 0}, {"date": "2024-11-01", "export": 4.9195, "cbr_ops": -0.3014, "debt_conv": 3.7486, "imports": -3.997, "debt_repay": 3.4737, "households": -1.8431, "other_flows": 0}, {"date": "2024-12-01", "export": -2.2013, "cbr_ops": -0.0297, "debt_conv": 4.0678, "imports": -4.8235, "debt_repay": 3.4737, "households": -2.2242, "other_flows": 0}, {"date": "2025-01-01", "export": 3.1942, "cbr_ops": 1.6855, "debt_conv": -0.3141, "imports": -2.2275, "debt_repay": -3.8033, "households": -1.7522, "other_flows": 0}, {"date": "2025-02-01", "export": -0.6452, "cbr_ops": -0.1492, "debt_conv": 1.2289, "imports": -2.022, "debt_repay": -3.8033, "households": -0.8418, "other_flows": 0}, {"date": "2025-03-01", "export": 3.3101, "cbr_ops": -0.5959, "debt_conv": 0.7064, "imports": -2.6105, "debt_repay": -3.8033, "households": -0.0016, "other_flows": 0}, {"date": "2025-04-01", "export": 7.2286, "cbr_ops": -3.3615, "debt_conv": 0.4245, "imports": -1.751, "debt_repay": -1.72, "households": -0.7097, "other_flows": 0}, {"date": "2025-05-01", "export": 10.1855, "cbr_ops": -1.1577, "debt_conv": -1.3464, "imports": -2.7905, "debt_repay": -1.72, "households": -0.1997, "other_flows": 0}, {"date": "2025-06-01", "export": 7.9662, "cbr_ops": -1.652, "debt_conv": -3.2898, "imports": -4.0055, "debt_repay": -1.72, "households": -0.8801, "other_flows": 0}, {"date": "2025-07-01", "export": 0.5698, "cbr_ops": -2.4138, "debt_conv": -0.2681, "imports": -3.176, "debt_repay": -2.0333, "households": -0.5657, "other_flows": 0}, {"date": "2025-08-01", "export": 0.4605, "cbr_ops": -1.1126, "debt_conv": -3.3666, "imports": -2.477, "debt_repay": -2.0333, "households": 1.274, "other_flows": 0}, {"date": "2025-09-01", "export": -1.4297, "cbr_ops": -2.9809, "debt_conv": -1.815, "imports": -0.164, "debt_repay": -2.0333, "households": -0.2039, "other_flows": 0}, {"date": "2025-10-01", "export": -3.5694, "cbr_ops": -1.794, "debt_conv": -3.9799, "imports": 0.0165, "debt_repay": -4.4833, "households": 1.4445, "other_flows": 0}, {"date": "2025-11-01", "export": 0.3105, "cbr_ops": -1.8771, "debt_conv": -1.419, "imports": 0.345, "debt_repay": -4.4833, "households": 2.6227, "other_flows": 0}, {"date": "2025-12-01", "export": 9.462, "cbr_ops": -3.7597, "debt_conv": -3.0552, "imports": 2.5125, "debt_repay": -4.4833, "households": 2.2646, "other_flows": 0}, {"date": "2026-01-01", "export": 3.1275, "cbr_ops": -1.8622, "debt_conv": -2.5707, "imports": 1.341, "debt_repay": -0.1433, "households": 0.8765, "other_flows": 0}, {"date": "2026-02-01", "export": 4.1365, "cbr_ops": -2.1314, "debt_conv": 0.3747, "imports": 0.8715, "debt_repay": -0.1433, "households": -1.0775, "other_flows": 0}, {"date": "2026-03-01", "export": 7.3333, "cbr_ops": 0.8914, "debt_conv": 3.1253, "imports": 1.8885, "debt_repay": -0.1433, "households": -0.8556, "other_flows": 0}, {"date": "2026-04-01", "export": -2.9603, "cbr_ops": 2.2574, "debt_conv": 1.3105, "imports": 2.051, "debt_repay": -0.6349, "households": -0.2059, "other_flows": 0}, {"date": "2026-05-01", "export": -10.0169, "cbr_ops": 2.8776, "debt_conv": 1.7037, "imports": 3.608, "debt_repay": -0.6349, "households": 1.0731, "other_flows": 0}, {"date": "2026-06-01", "export": -3.6301, "cbr_ops": 4.4177, "debt_conv": 2.9364, "imports": 3.8899, "debt_repay": -0.6349, "households": 1.4749, "other_flows": 0}, {"date": "2026-07-01", "export": -0.39, "cbr_ops": 4.4063, "debt_conv": -1.1605, "imports": 1.9692, "debt_repay": -0.0415, "households": 1.7028, "other_flows": 0}, {"date": "2026-08-01", "export": -0.2723, "cbr_ops": 4.2627, "debt_conv": 1.85, "imports": 0.95, "debt_repay": -0.0415, "households": -0.1847, "other_flows": 0}, {"date": "2026-09-01", "export": -5.4475, "cbr_ops": 3.497, "debt_conv": 2.6155, "imports": -2.1506, "debt_repay": -0.0415, "households": 0.731, "other_flows": 0}, {"date": "2026-10-01", "export": 2.511, "cbr_ops": 6.9849, "debt_conv": 2.1391, "imports": 3.0348, "debt_repay": -0.0609, "households": 0.7502, "other_flows": 0}, {"date": "2026-11-01", "export": -2.3131, "cbr_ops": 3.79, "debt_conv": -0.978, "imports": 3.4649, "debt_repay": -0.0609, "households": -0.3451, "other_flows": 0}, {"date": "2026-12-01", "export": -5.4861, "cbr_ops": 5.396, "debt_conv": 0.1514, "imports": -3.1105, "debt_repay": -0.0609, "households": -1.0543, "other_flows": 0}, {"date": "2027-01-01", "export": -5.2647, "cbr_ops": 4.3726, "debt_conv": 2.5557, "imports": -1.2917, "debt_repay": 0.7752, "households": -0.2469, "other_flows": 0}, {"date": "2027-02-01", "export": -4.6734, "cbr_ops": 5.5347, "debt_conv": -0.1274, "imports": -0.5654, "debt_repay": 0.7752, "households": 1.7912, "other_flows": 0}, {"date": "2027-03-01", "export": -7.4053, "cbr_ops": 2.7339, "debt_conv": -1.5793, "imports": -1.3786, "debt_repay": 0.7752, "households": 1.0011, "other_flows": 0}, {"date": "2027-04-01", "export": 3.7916, "cbr_ops": 2.6025, "debt_conv": -0.3497, "imports": -1.3018, "debt_repay": 0.252, "households": 0.235, "other_flows": 0}, {"date": "2027-05-01", "export": 8.5182, "cbr_ops": 0.7076, "debt_conv": 1.557, "imports": -1.8281, "debt_repay": 0.252, "households": -0.9851, "other_flows": 0}, {"date": "2027-06-01", "export": 4.8524, "cbr_ops": -0.6147, "debt_conv": -1.5492, "imports": -1.6289, "debt_repay": 0.252, "households": -1.9526, "other_flows": 0}, {"date": "2027-07-01", "export": 1.156, "cbr_ops": -0.1452, "debt_conv": 2.1988, "imports": -0.5934, "debt_repay": 0.0631, "households": -1.7839, "other_flows": 0}, {"date": "2027-08-01", "export": 2.389, "cbr_ops": -0.767, "debt_conv": 0.2467, "imports": -0.4109, "debt_repay": 0.0631, "households": -1.2262, "other_flows": 0}, {"date": "2027-09-01", "export": 2.3967, "cbr_ops": 0.2086, "debt_conv": -0.2618, "imports": -0.5591, "debt_repay": 0.0631, "households": -1.3141, "other_flows": 0}, {"date": "2027-10-01", "export": 1.8926, "cbr_ops": -3.4133, "debt_conv": -0.5544, "imports": -0.6148, "debt_repay": -0.7145, "households": -1.3141, "other_flows": 0}, {"date": "2027-11-01", "export": 1.2764, "cbr_ops": -0.4914, "debt_conv": -0.4681, "imports": -0.5389, "debt_repay": -0.7145, "households": -1.5324, "other_flows": 0}, {"date": "2027-12-01", "export": -0.5854, "cbr_ops": -0.4914, "debt_conv": -0.049, "imports": 0.555, "debt_repay": -0.7145, "households": -0.492, "other_flows": 0}, {"date": "2028-01-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2028-02-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}, {"date": "2028-03-01", "export": null, "cbr_ops": null, "debt_conv": null, "imports": null, "debt_repay": null, "households": null, "other_flows": null}];
+  const RUB_BALANCE = [{"date": "2025-08-01", "fx_sales": 14.3, "fx_purchases": -12.2506, "cbr_ops": 2.7819, "debt_conv": 2.1966, "debt_repay": -0.58, "households": -3.6013, "other_flows": 0, "one_off_pct": 0.0, "fact": 1.609}, {"date": "2025-09-01", "fx_sales": 14.6, "fx_purchases": -16.3922, "cbr_ops": 2.9918, "debt_conv": 2.4537, "debt_repay": -0.58, "households": -2.769, "other_flows": 0, "one_off_pct": 0.0, "fact": 3.5391}, {"date": "2025-10-01", "fx_sales": 18, "fx_purchases": -14.0556, "cbr_ops": 2.8519, "debt_conv": 1.9847, "debt_repay": -1.3033, "households": -2.7498, "other_flows": 0, "one_off_pct": 0.0, "fact": -2.5363}, {"date": "2025-11-01", "fx_sales": 13.4, "fx_purchases": -12.1279, "cbr_ops": 2.7317, "debt_conv": -1.0462, "debt_repay": -1.3033, "households": -3.8451, "other_flows": 0, "one_off_pct": 0.0, "fact": -0.6677}, {"date": "2025-12-01", "fx_sales": 21.6, "fx_purchases": -18.9791, "cbr_ops": 4.3377, "debt_conv": 0.5024, "debt_repay": -1.3033, "households": -3.5116, "other_flows": 0, "one_off_pct": 0.0, "fact": -2.377}, {"date": "2026-01-01", "fx_sales": 11.6, "fx_purchases": -11.1779, "cbr_ops": 3.6557, "debt_conv": 2.9557, "debt_repay": -0.21, "households": -2.7043, "other_flows": 0, "one_off_pct": 0.0, "fact": -1.5136}, {"date": "2026-02-01", "fx_sales": 16, "fx_purchases": -12.2153, "cbr_ops": 4.1204, "debt_conv": 0.2726, "debt_repay": -0.21, "households": -0.7652, "other_flows": 0, "one_off_pct": 0.0, "fact": -0.3719}, {"date": "2026-03-01", "fx_sales": 14.9, "fx_purchases": -12.8981, "cbr_ops": 1.3196, "debt_conv": -1.8293, "debt_repay": -0.21, "households": -1.5553, "other_flows": 0, "one_off_pct": 0.0, "fact": 4.6947}, {"date": "2026-04-01", "fx_sales": 29.8, "fx_purchases": -15.562, "cbr_ops": 1.1773, "debt_conv": 0.0503, "debt_repay": -0.3917, "households": -2.3214, "other_flows": 0, "one_off_pct": 0.0, "fact": -4.8953}, {"date": "2026-05-01", "fx_sales": 28.1, "fx_purchases": -12.6014, "cbr_ops": -0.2768, "debt_conv": 1.307, "debt_repay": -0.3917, "households": -3.396, "other_flows": 0, "one_off_pct": 0.0, "fact": -5.0788}, {"date": "2026-06-01", "fx_sales": 27.7, "fx_purchases": -15.4039, "cbr_ops": -1.5991, "debt_conv": -1.1492, "debt_repay": -0.3917, "households": -4.3612, "other_flows": 0, "one_off_pct": 0.0, "fact": 1.5125}, {"date": "2026-07-01", "fx_sales": 22.2, "fx_purchases": -12.7969, "cbr_ops": -1.4199, "debt_conv": 1.9488, "debt_repay": -0.5385, "households": -4.1926, "other_flows": 0, "one_off_pct": 0.0, "fact": 5.5922}, {"date": "2026-08-01", "fx_sales": 18.8, "fx_purchases": -12.8583, "cbr_ops": -1.4809, "debt_conv": 0.3467, "debt_repay": -0.5385, "households": -3.4166, "other_flows": 0, "one_off_pct": 0.0, "fact": 7.1476}];
+  const RUB_SNAPSHOT = {"snapshot_date": "2026-09-25", "rows": [{"date": "2026-09-01", "export": 32.2835, "cbr_ops": -0.5053, "debt_conv": -0.1618, "imports": -27.9574, "debt_repay": -0.5385, "households": -3.5, "other_flows": 0, "dxy": -0.0001}, {"date": "2026-10-01", "export": 32.1505, "cbr_ops": -4.133, "debt_conv": -0.1544, "imports": -29.9848, "debt_repay": -1.2424, "households": -3.5, "other_flows": 0, "dxy": -0.001}, {"date": "2026-11-01", "export": 33.6092, "cbr_ops": -1.0583, "debt_conv": -0.0681, "imports": -27.7969, "debt_repay": -1.2424, "households": -3.5, "other_flows": 0, "dxy": -0.001}, {"date": "2026-12-01", "export": 33.5079, "cbr_ops": -1.0583, "debt_conv": 0.351, "imports": -23.7625, "debt_repay": -1.2424, "households": -2.4573, "other_flows": 0, "dxy": -0.001}, {"date": "2027-01-01", "export": 35.3007, "cbr_ops": -0.7169, "debt_conv": 0.4, "imports": -24.4708, "debt_repay": -0.9852, "households": -2.4573, "other_flows": 0, "dxy": -0.001}, {"date": "2027-02-01", "export": 32.487, "cbr_ops": -1.4142, "debt_conv": 0.4, "imports": -25.4971, "debt_repay": -0.9852, "households": -2.5564, "other_flows": 0, "dxy": -0.001}, {"date": "2027-03-01", "export": 27.836, "cbr_ops": -1.4142, "debt_conv": -0.25, "imports": -26.1464, "debt_repay": -0.9852, "households": -2.5564, "other_flows": 0, "dxy": -0.001}, {"date": "2027-04-01", "export": 29.6382, "cbr_ops": -1.4253, "debt_conv": 0.4, "imports": -26.8982, "debt_repay": -0.6437, "households": -2.5564, "other_flows": 0, "dxy": -0.001}, {"date": "2027-05-01", "export": 30.7297, "cbr_ops": -0.9844, "debt_conv": -0.25, "imports": -28.2844, "debt_repay": -0.6437, "households": -2.411, "other_flows": 0, "dxy": -0.001}, {"date": "2027-06-01", "export": 29.4713, "cbr_ops": -0.9844, "debt_conv": 0.4, "imports": -28.7655, "debt_repay": -0.6437, "households": -2.4087, "other_flows": 0, "dxy": -0.001}, {"date": "2027-07-01", "export": 29.4894, "cbr_ops": -1.2747, "debt_conv": -0.25, "imports": -28.9878, "debt_repay": -0.6016, "households": -2.4087, "other_flows": 0, "dxy": -0.001}, {"date": "2027-08-01", "export": 29.3154, "cbr_ops": -0.7138, "debt_conv": 0.1, "imports": -28.4631, "debt_repay": -0.6016, "households": -2.1905, "other_flows": 0, "dxy": -0.001}, {"date": "2027-09-01", "export": 29.8868, "cbr_ops": -0.7138, "debt_conv": 0.1, "imports": -27.3982, "debt_repay": -0.6016, "households": -2.1859, "other_flows": 0, "dxy": -0.001}, {"date": "2027-10-01", "export": 30.258, "cbr_ops": -0.7197, "debt_conv": 0.4, "imports": -29.37, "debt_repay": -0.5279, "households": -2.1859, "other_flows": 0, "dxy": -0.001}, {"date": "2027-11-01", "export": 32.3328, "cbr_ops": -0.5669, "debt_conv": 0.4, "imports": -27.2579, "debt_repay": -0.5279, "households": -1.9676, "other_flows": 0, "dxy": -0.001}, {"date": "2027-12-01", "export": 34.0932, "cbr_ops": -0.5669, "debt_conv": 0.4, "imports": -24.3174, "debt_repay": -0.5279, "households": -1.9654, "other_flows": 0, "dxy": -0.001}]};
+
+  async function fetchJSON(url){
+    const r = await fetch(url, {headers:{"Accept":"application/json"}});
+    if(!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
+
+  let fullData = null;
+  const startInput = document.getElementById('fxStartDate');
+  const eurToggle = document.getElementById('fxShowEur');
+  const cnyToggle = document.getElementById('fxShowCny');
+  const rubDecompStartInput = document.getElementById('rubDecompStartDate');
+  const rubDecompDevStartInput = document.getElementById('rubDecompDevStartDate');
+  const rubYoyStartInput = document.getElementById('rubYoyStartDate');
+
+  function currencyTraces(key, dates, values, splitIdx, onSecondAxis){
+    const color = colors[key];
+    const histY = values.map((v, i) => i <= splitIdx ? v : null);
+    const fcstY = values.map((v, i) => i >= splitIdx ? v : null);
+    const axis = onSecondAxis ? {yaxis:'y2'} : {};
+    return [
+      {
+        x: dates, y: histY, type:'scatter', mode:'lines', name: labels[key],
+        line:{width:2.4, shape:'spline', smoothing:0.3, color}, connectgaps:false, ...axis,
+      },
+      {
+        x: dates, y: fcstY, type:'scatter', mode:'lines', name: labels[key] + ' — прогноз',
+        line:{width:2.4, shape:'spline', smoothing:0.3, color, dash:'dot'}, connectgaps:false, ...axis,
+        showlegend:false, hovertemplate:'%{x}<br>%{y:.2f}<extra>' + labels[key] + ' — прогноз</extra>',
+      },
+    ];
+  }
+
+  function render(){
+    if (!fullData) return;
+    const startDate = startInput.value || fullData.dates[0];
+    const startIdx = fullData.dates.findIndex(d => d >= startDate);
+    const from = startIdx === -1 ? fullData.dates.length : startIdx;
+    const dates = fullData.dates.slice(from);
+    const splitIdx = Math.max(fullData.dates.filter(d => d <= fullData.as_of).length - 1 - from, -1);
+
+    const keys = ['usd'];
+    if (eurToggle.checked) keys.push('eur');
+    if (cnyToggle.checked) keys.push('cny');
+
+    // CNY/RUB торгуется на порядок ниже USD/EUR — на общей оси его линия
+    // сплющивается в почти горизонтальную. Уводим его на вторую ось,
+    // кроме случая, когда CNY — единственная выбранная пара.
+    const cnyOnSecondAxis = keys.includes('cny') && keys.length > 1;
+
+    const traces = [];
+    keys.forEach(k => traces.push(...currencyTraces(k, dates, fullData[k].slice(from), splitIdx, k === 'cny' && cnyOnSecondAxis)));
+
+    const layout = {
+      margin:{l:48,r:cnyOnSecondAxis ? 48 : 16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'₽'},
+      legend:{orientation:'h', x:0.02, y:1.1, xanchor:'left', yanchor:'bottom'}
+    };
+    if (cnyOnSecondAxis) {
+      layout.yaxis2 = {overlaying:'y', side:'right', gridcolor:grid, tickfont:{color:text80}, title:'₽ (CNY/RUB)'};
+    }
+    Plotly.react('chartFx', traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  // Полупрозрачная заливка + подпись «Прогноз» справа от последней точки
+  // факта — общая для всех графиков с прогнозным хвостом на этой странице.
+  function forecastShading(dates, lastFactIdx){
+    if (lastFactIdx < 0 || lastFactIdx >= dates.length - 1) return {shapes: [], annotations: []};
+    const forecastStart = dates[lastFactIdx + 1];
+    const lastDate = dates[dates.length - 1];
+    return {
+      shapes: [{
+        type:'rect', xref:'x', yref:'paper', x0:forecastStart, x1:lastDate, y0:0, y1:1,
+        fillcolor:'rgba(255,255,255,0.05)', line:{width:0}, layer:'below',
+      }],
+      annotations: [{
+        x: forecastStart, y: 1, xref:'x', yref:'paper', yanchor:'bottom', xanchor:'left',
+        text:'Прогноз', showarrow:false, font:{size:10, color:text80},
+      }],
+    };
+  }
+
+  function renderDecompChart(fullSeries, elId, startInput, opts){
+    opts = opts || {};
+    const startDate = startInput.value || fullSeries[0].date;
+    const rows = fullSeries.filter(d => d.date >= startDate);
+    const dates = rows.map(d => d.date);
+    const lastFactIdx = rows.reduce((acc, d, i) => d.fact !== null ? i : acc, -1);
+    const factorKeys = Object.keys(RUB_DECOMP_LABELS);
+    const traces = factorKeys.map(k => ({
+      x: dates, y: rows.map(d => d[k]), type:'bar', name: RUB_DECOMP_LABELS[k],
+      marker:{color: RUB_DECOMP_COLORS[k]},
+    }));
+    const hasModel = rows.some(d => 'model' in d);
+    if (hasModel) {
+      // «Прочее» — остаток регрессии (факт минус сумма модельных факторов),
+      // добавлен в стек серым, чтобы сумма столбцов била ровно в «Факт» там,
+      // где он есть. Для будущих месяцев остатка не существует (факта ещё
+      // нет) — там столбец просто отсутствует, сумма стека = модель.
+      traces.push({
+        x: dates, y: rows.map(d => (d.fact !== null && d.model !== null) ? Math.round((d.fact - d.model)*10000)/10000 : null),
+        type:'bar', name:'Прочее (остаток модели)', marker:{color:'#8a8a8a'},
+      });
+    }
+    const factAxis = opts.factOnSecondAxis ? {yaxis:'y2'} : {};
+    traces.push({
+      x: dates, y: rows.map(d => d.fact), type:'scatter', mode:'lines+markers', name: opts.factOnSecondAxis ? 'Факт, % м/м' : 'Факт',
+      line:{width:2.6, color:'#ffffff'}, marker:{size:4, color:'#ffffff'}, connectgaps:false, ...factAxis,
+    });
+    if (hasModel) {
+      // Прогнозное (модельное) изменение — отдельной пунктирной линией,
+      // СТРОГО после последнего месяца с фактом (за него уже есть факт,
+      // прогноз там не нужен и не рисуется).
+      traces.push({
+        x: dates, y: rows.map((d, i) => i > lastFactIdx ? d.model : null), type:'scatter', mode:'lines',
+        name:'Прогноз (модель)', line:{width:2.2, color:'#bdbdbd', dash:'dot'}, connectgaps:false, ...factAxis,
+      });
+    }
+    const { shapes, annotations } = forecastShading(dates, lastFactIdx);
+    const layout = {
+      margin:{l:48,r: opts.factOnSecondAxis ? 48 : 16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      barmode:'relative',
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'% м/м', zerolinecolor:grid},
+      legend:{orientation:'h', x:0.02, y:1.22, xanchor:'left', yanchor:'bottom'},
+      shapes, annotations,
+    };
+    if (opts.factOnSecondAxis) {
+      layout.yaxis2 = {overlaying:'y', side:'right', gridcolor:grid, tickfont:{color:text80}, title:'курс, % м/м', zeroline:false};
+    }
+    Plotly.react(elId, traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  function renderRubDecomp(){
+    renderDecompChart(RUB_DECOMP, 'chartRubDecomp', rubDecompStartInput);
+  }
+
+  function renderRubDecompDev(){
+    // Отклонения от нормы намного меньше по модулю, чем полные вклады факторов
+    // в основной декомпозиции — если делить ось с «Фактом» (который колеблется
+    // в разы сильнее), столбцы визуально сплющиваются. Уводим факт на вторую
+    // ось, чтобы столбцы автоматически масштабировались под свой диапазон.
+    renderDecompChart(RUB_DECOMP_DEV, 'chartRubDecompDev', rubDecompDevStartInput, {factOnSecondAxis: true});
+  }
+
+  function renderRubYoy(){
+    const startDate = rubYoyStartInput.value || RUB_YOY[0].date;
+    const rows = RUB_YOY.filter(d => d.date >= startDate);
+    const dates = rows.map(d => d.date);
+    const yoyKeys = ['export','imports','cbr_ops','debt_conv','debt_repay','households','other_flows'];
+    const traces = yoyKeys.map(k => ({
+      x: dates, y: rows.map(d => d[k]), type:'bar', name: RUB_DECOMP_LABELS[k],
+      marker:{color: RUB_DECOMP_COLORS[k]},
+    }));
+    // Результирующая — сумма всех факторов, тот же знак (+ к ослаблению,
+    // − к укреплению): совокупное давление на курс со стороны потоков.
+    traces.push({
+      x: dates, y: rows.map(d => yoyKeys.some(k => d[k] === null) ? null : yoyKeys.reduce((s,k) => s + d[k], 0)),
+      type:'scatter', mode:'lines+markers', name:'Результирующая',
+      line:{width:2.6, color:'#ffffff'}, marker:{size:4, color:'#ffffff'}, connectgaps:false,
+    });
+    // РЯД Y/Y не содержит собственного признака факт/прогноз — берём ту же
+    // границу, что и в декомпозиции (последний месяц с фактом изменения курса).
+    const lastFactDateGlobal = [...RUB_DECOMP].reverse().find(d => d.fact !== null).date;
+    const lastFactIdx = rows.reduce((acc, d, i) => d.date <= lastFactDateGlobal ? i : acc, -1);
+    const { shapes, annotations } = forecastShading(dates, lastFactIdx);
+    const layout = {
+      margin:{l:56,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      barmode:'relative',
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'млрд $ (+ к ослаблению / − к укреплению)', zerolinecolor:grid},
+      legend:{orientation:'h', x:0.02, y:1.22, xanchor:'left', yanchor:'bottom'},
+      shapes, annotations,
+    };
+    Plotly.react('chartRubYoy', traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  function renderRubBalance(){
+    const dates = RUB_BALANCE.map(d => d.date);
+    const balanceKeys = ['fx_sales','fx_purchases','cbr_ops','debt_conv','debt_repay','households','other_flows'];
+    const balanceLabels = {
+      fx_sales: 'Продажи валюты нефинансовыми компаниями',
+      fx_purchases: 'Покупки валюты нефинансовыми компаниями',
+    };
+    const balanceColors = { fx_sales: RUB_DECOMP_COLORS.export, fx_purchases: RUB_DECOMP_COLORS.imports };
+    // Знак развёрнут: + = давление к ослаблению рубля, − = к укреплению —
+    // тот же знак, что и у линии факта, чтобы столбцы и линия совпадали по
+    // направлению (в исходном балансе потоков было наоборот: + = приток $).
+    const traces = balanceKeys.map(k => ({
+      x: dates, y: RUB_BALANCE.map(d => d[k] === null ? null : -d[k]), type:'bar',
+      name: balanceLabels[k] || RUB_DECOMP_LABELS[k],
+      marker:{color: balanceColors[k] || RUB_DECOMP_COLORS[k]},
+    }));
+    traces.push({
+      x: dates, y: RUB_BALANCE.map(d => d.fact), type:'scatter', mode:'lines+markers', name:'Факт, % м/м',
+      yaxis:'y2', line:{width:2.6, color:'#ffffff'}, marker:{size:4, color:'#ffffff'}, connectgaps:false,
+    });
+    const layout = {
+      margin:{l:56,r:56,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      barmode:'relative',
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'млрд $ (+ к ослаблению / − к укреплению)', zerolinecolor:grid},
+      yaxis2:{overlaying:'y', side:'right', gridcolor:grid, tickfont:{color:text80}, title:'% м/м', zeroline:false},
+      legend:{orientation:'h', x:0.02, y:1.24, xanchor:'left', yanchor:'bottom'}
+    };
+    Plotly.react('chartRubBalance', traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  function renderRubSnapshot(){
+    const keys = ['export','cbr_ops','debt_conv','imports','debt_repay','households','other_flows','dxy'];
+    const note = document.getElementById('rubSnapshotNote');
+    note.textContent = `Зафиксировано ${new Date(RUB_SNAPSHOT.snapshot_date + 'T00:00:00').toLocaleDateString('ru-RU')} — значения по модели (млрд $, DXY — в пунктах) от текущего месяца до конца прогноза. При следующем обновлении файла эта же таблица перестроится под новые допущения — сравнивайте со скриншотом/копией этого среза, чтобы увидеть, что именно поменялось в прогнозе факторов от версии к версии.`;
+
+    const thead = document.getElementById('rubSnapshotHead');
+    thead.innerHTML = '';
+    const thMonth = document.createElement('th'); thMonth.className = 'text-start'; thMonth.textContent = 'Месяц';
+    thead.appendChild(thMonth);
+    keys.forEach(k => {
+      const th = document.createElement('th');
+      th.textContent = RUB_DECOMP_LABELS[k];
+      thead.appendChild(th);
+    });
+
+    const tbody = document.getElementById('rubSnapshotBody');
+    tbody.innerHTML = '';
+    RUB_SNAPSHOT.rows.forEach(row => {
+      const tr = document.createElement('tr');
+      const tdMonth = document.createElement('td');
+      tdMonth.className = 'text-start fw-semibold';
+      tdMonth.textContent = new Date(row.date + 'T00:00:00').toLocaleDateString('ru-RU', {month:'long', year:'numeric'});
+      tr.appendChild(tdMonth);
+      keys.forEach(k => {
+        const td = document.createElement('td');
+        const v = row[k];
+        td.textContent = v === null || v === undefined ? '—' : v.toFixed(k === 'dxy' ? 4 : 2);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderTable(){
+    if (!fullData) return;
+    const tbody = document.getElementById('usdTableBody');
+    tbody.innerHTML = '';
+
+    // (year, month) -> % м/м, из полного ряда USD/RUB (индекс month 1-12)
+    const pctByYm = {};
+    for (let i = 1; i < fullData.dates.length; i++) {
+      const d = fullData.dates[i];
+      const prev = fullData.usd[i-1];
+      const v = fullData.usd[i];
+      if (!prev) continue;
+      const [y, m] = d.split('-').map(Number);
+      pctByYm[y + '-' + m] = ((v/prev - 1) * 100);
+    }
+
+    const asOfYm = fullData.as_of.slice(0,7); // 'YYYY-MM'
+
+    // Цвет ШРИФТА (не фона — фон в Bootstrap 5.3 перекрывается box-shadow
+    // таблицы, менять надёжно можно только текст) по модулю % м/м, с
+    // потолком CAP — иначе выбросы 2022 года (+34%/-25%) выжгут шкалу и
+    // обычные +/-2-5% станут неразличимы. Рост — зелёный, падение —
+    // фиолетовый, около нуля — почти белый; прогнозные месяцы остаются
+    // серыми, без раскраски, независимо от значения.
+    const CAP = 5;
+    const WHITE = [235, 235, 240];
+    const GREEN = [90, 220, 120];
+    const VIOLET = [190, 120, 255];
+    function mix(a, b, t){
+      return `rgb(${Math.round(a[0]+(b[0]-a[0])*t)},${Math.round(a[1]+(b[1]-a[1])*t)},${Math.round(a[2]+(b[2]-a[2])*t)})`;
+    }
+    function cellTextColor(pct){
+      const t = Math.min(Math.abs(pct) / CAP, 1);
+      return mix(WHITE, pct >= 0 ? GREEN : VIOLET, t);
+    }
+
+    for (let year = 2017; year <= 2026; year++) {
+      const tr = document.createElement('tr');
+      const tdYear = document.createElement('td');
+      tdYear.className = 'text-start fw-semibold';
+      tdYear.textContent = year;
+      tr.appendChild(tdYear);
+      for (let month = 1; month <= 12; month++) {
+        const td = document.createElement('td');
+        const pct = pctByYm[year + '-' + month];
+        const ym = year + '-' + String(month).padStart(2,'0');
+        const isForecast = ym > asOfYm;
+        if (pct === undefined) {
+          td.textContent = '';
+        } else {
+          td.textContent = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+          if (isForecast) {
+            td.className = 'text-muted';
+          } else {
+            td.style.color = cellTextColor(pct);
+            td.style.fontWeight = '600';
+          }
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function draw(){
+    fullData = await fetchJSON(URL_FX);
+    startInput.min = fullData.dates[0];
+    startInput.max = fullData.dates[fullData.dates.length - 1];
+    startInput.value = '2020-01-01';
+    render();
+    renderTable();
+  }
+
+  startInput.addEventListener('change', render);
+  eurToggle.addEventListener('change', render);
+  cnyToggle.addEventListener('change', render);
+
+  draw().catch(e => console.error(e));
+
+  // По умолчанию — последние 2 года факта + весь доступный прогноз.
+  const lastFactRow = [...RUB_DECOMP].reverse().find(d => d.fact !== null);
+  const lastFactDate = new Date((lastFactRow || RUB_DECOMP[RUB_DECOMP.length-1]).date + 'T00:00:00');
+  const defaultStart = new Date(lastFactDate);
+  defaultStart.setFullYear(defaultStart.getFullYear() - 2);
+  rubDecompStartInput.min = RUB_DECOMP[0].date;
+  rubDecompStartInput.max = RUB_DECOMP[RUB_DECOMP.length-1].date;
+  rubDecompStartInput.value = defaultStart.toISOString().slice(0,10);
+  rubDecompStartInput.addEventListener('change', renderRubDecomp);
+  renderRubDecomp();
+
+  rubDecompDevStartInput.min = RUB_DECOMP_DEV[0].date;
+  rubDecompDevStartInput.max = RUB_DECOMP_DEV[RUB_DECOMP_DEV.length-1].date;
+  rubDecompDevStartInput.value = defaultStart.toISOString().slice(0,10);
+  rubDecompDevStartInput.addEventListener('change', renderRubDecompDev);
+  renderRubDecompDev();
+
+  rubYoyStartInput.min = RUB_YOY[0].date;
+  rubYoyStartInput.max = RUB_YOY[RUB_YOY.length-1].date;
+  rubYoyStartInput.value = defaultStart.toISOString().slice(0,10);
+  rubYoyStartInput.addEventListener('change', renderRubYoy);
+  renderRubYoy();
+
+  renderRubBalance();
+
+  renderRubSnapshot();
+})();
+</script>
+{% endblock %}
