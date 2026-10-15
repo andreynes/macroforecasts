@@ -85,8 +85,8 @@
       <div class="card-body">
         <h5 class="card-title mb-1">Как правило работало на истории, 2018–2026, % годовых</h5>
         <div class="cbm-note mb-2">На дату каждого заседания ЦБ правило посчитано только по тем данным, которые были известны в тот день, и по последнему
-          опубликованному прогнозу инфляции ЦБ (опорные заседания с 2018 г., неопорные — с 2025 г.). Будущие данные не используются;
-          исключение — разрыв выпуска: это нынешняя (ретроспективная) оценка ЦБ для кварталов, известных на дату заседания.</div>
+          опубликованному прогнозу инфляции ЦБ (все заседания с апреля 2018 г.; на неопорных — прогноз с последнего опорного). Будущие данные не используются;
+          исключение — разрыв выпуска: как и в правиле КПМ, он берётся в квартале заседания, по нынешней (ретроспективной) оценке ЦБ.</div>
         <div class="cbm-legend mb-2">
           <span><i style="background:#fff"></i>Ключевая ставка</span>
           <span><i style="background:#ffb74d"></i>Ставка по правилу</span>
@@ -108,7 +108,8 @@
         <details class="cbm-details mt-3">
           <summary>Все входы по заседаниям</summary>
           <div class="table-responsive mt-2"><table class="table table-dark table-sm align-middle mb-0 cbm-table" id="cbmRtTable"></table></div>
-          <div class="cbm-note mt-1">* неопорное заседание (с 2025 г.): ЦБ не публикует новый прогноз, используется последний опубликованный.</div>
+          <div class="cbm-note mt-1">* неопорное заседание: ЦБ не публикует новый прогноз, используется последний опубликованный; ** внеочередное заседание
+            (решение вступило в силу в тот же день).</div>
         </details>
       </div>
     </div>
@@ -274,11 +275,11 @@
       <tr><td>r̄</td><td class="wrap">нейтральная реальная ставка: долгосрочная оценка ЦБ (номинальная − 4%)</td><td>${nf(p.neutral_history.at(-1).v - p.target, 1)}%</td></tr>
       <tr><td>ŷ</td><td class="wrap">разрыв выпуска, % от потенциала — оценка ЦБ («Основные направления ДКП 2026–2028», рис. 10.8)</td><td>см. график ВВП</td></tr></tbody>`;
     $("cbmExample").innerHTML = `
-      <div class="cbm-eyebrow mb-2">Пример: заседание ${ruDate(e.date)}${e.is_core ? "" : " (неопорное)"} — только данные на ту дату</div>
+      <div class="cbm-eyebrow mb-2">Пример: заседание ${ruDate(e.date)}${e.is_core ? "" : ` (${e.kind})`} — только данные на ту дату</div>
       <div class="row-l"><span>Нейтральная реальная r̄ (${nf(e.neutral, 1)}% − 4%)</span><span class="cbm-num">${nf(e.rbar)}</span></div>
       <div class="row-l"><span>π<sup>e</sup> через 3 кв.: 0,75·БИПЦ + 0,25·ИПЦ по прогнозу ЦБ от ${e.fc_date} (ИПЦ ${e.cbr_fc.split(" | ")[1]} на конец года)</span><span class="cbm-num">${nf(e.pi_e)}</span></div>
       <div class="row-l"><span>1,5 · (π<sup>e</sup> − 4)</span><span class="cbm-num">${sg(e.infl_term)}</span></div>
-      <div class="row-l"><span>0,5 · разрыв выпуска (${nf(e.gap)}%, ВВП известен по ${e.gdp_known})</span><span class="cbm-num">${sg(e.gap_term)}</span></div>
+      <div class="row-l"><span>0,5 · разрыв выпуска (${nf(e.gap)}% — оценка ЦБ за ${e.gap_q.replace("Q", " кв. ").replace(/(\d{4}) кв. (\d)/, "$2 кв. $1")})</span><span class="cbm-num">${sg(e.gap_term)}</span></div>
       <div class="row-l sum"><span>Если бы ЦБ менял ставку сразу</span><span class="cbm-num">${nf(e.notional)}%</span></div>
       <div class="row-l sum"><span>Ставка по правилу = 0,75 · ${nf(e.before)} (ставка до решения) + 0,25 · ${nf(e.notional)}</span><span class="cbm-num">${nf(e.rule)}%</span></div>
       <div class="row-l sum"><span>Решение ЦБ</span><span class="cbm-num">${nf(e.decision)}%</span></div>
@@ -405,7 +406,7 @@
     const x = R.map(r => r.date);
     Plotly.react('chartRealtime', [
       line(kr.x, kr.y, "Ключевая ставка", "#fff", { shape: 'hv' }),
-      line(x, R.map(r => r.rule), "Ставка по правилу", C_RULE, { extra: { mode: 'lines+markers', marker: { size: 6 } } }),
+      line(x, R.map(r => r.rule), "Ставка по правилу", C_RULE, { extra: { mode: 'lines+markers', marker: { size: R.map(r => r.is_core ? 7 : 4) } } }),
       line(x, R.map(r => r.notional), "Если бы ЦБ менял ставку сразу", C_RULE, { dash: 'dash', extra: { line: { color: C_RULE, width: 1.2, dash: 'dash' } } }),
       line(x, R.map(r => r.neutral), "Нейтральная ЦБ", "#aaa", { dash: 'dot', shape: 'hv', extra: { line: { color: '#aaa', width: 1.2, dash: 'dot', shape: 'hv' } } }),
     ], layout({
@@ -431,19 +432,19 @@
     });
     $("cbmMetrics").innerHTML = t + "</tbody>";
     $("cbmRtNote").innerHTML = `<b>Как считается.</b> На дату каждого заседания правило знает только опубликованное к этому дню: ставку до решения,
-      ИПЦ за известные месяцы, разрыв выпуска по уже опубликованному ВВП, прогноз инфляции ЦБ (PDF «Среднесрочный прогноз»; 2018 г. — пресс-релизы)
+      ИПЦ за известные месяцы, разрыв выпуска в квартале заседания (как в правиле КПМ; оценка ЦБ, ретроспективная), прогноз инфляции ЦБ (PDF «Среднесрочный прогноз»; 2018 г. — пресс-релизы)
       и оценку нейтральной ставки на тот момент. Будущие данные не используются, параметры не подбираются.<br>
       <b>Вывод.</b> Как прогноз решений правило не обыгрывает «ставка не изменится»: ЦБ меняет ставку плавнее. В 2018–2021 гг. ЦБ
       действовал близко к правилу, в 2022 г. сознательно отошёл от него, с 2023 г. держит ставку заметно выше пунктира — ставки, которая нужна при нынешних инфляции и экономике,
       (в среднем на ${nf(D.rt_metrics.find(m => m.sample === "2023–2026" && m.series.startsWith("Правило без")).me, 1)} п.п.) — частично потому, что прогноз ЦБ уже
       учитывает высокую ставку, частично из-за краткосрочной нейтральной ставки выше 8%.`;
 
-    let rt = `<thead><tr><th>Заседание</th><th>Прогноз ЦБ, дек/дек</th><th>ИПЦ (мес.)</th><th>πᵉ</th><th>ŷ (ВВП по)</th><th>Нейтр.</th>
+    let rt = `<thead><tr><th>Заседание</th><th>Прогноз ЦБ, дек/дек</th><th>ИПЦ (мес.)</th><th>πᵉ</th><th>ŷ (квартал)</th><th>Нейтр.</th>
       <th>До решения</th><th>Решение</th><th>Если менять сразу</th><th>Ставка по правилу</th><th>Решение − ставка по правилу</th></tr></thead><tbody>`;
     R.slice().reverse().forEach(r => {
       const d = r.decision - r.rule;
-      rt += `<tr><td>${ruDate(r.date)}${r.is_core ? "" : "*"}</td><td>${r.is_core ? "" : "от " + r.fc_date + ": "}${r.cbr_fc}</td><td>${nf(r.cpi)} (${r.m_last})</td><td>${nf(r.pi_e)}</td>
-        <td>${nf(r.gap)} (${r.gdp_known})</td><td>${nf(r.neutral, 1)}</td><td>${nf(r.before)}</td><td>${nf(r.decision)}</td>
+      rt += `<tr><td>${ruDate(r.date)}${r.kind === "внеочередное" ? "**" : r.is_core ? "" : "*"}</td><td>${r.is_core ? "" : "от " + r.fc_date + ": "}${r.cbr_fc}</td><td>${nf(r.cpi)} (${r.m_last})</td><td>${nf(r.pi_e)}</td>
+        <td>${nf(r.gap)} (${r.gap_q})</td><td>${nf(r.neutral, 1)}</td><td>${nf(r.before)}</td><td>${nf(r.decision)}</td>
         <td>${nf(r.notional)}</td><td>${nf(r.rule)}</td><td class="${cls(d)}">${sg(d)}</td></tr>`;
     });
     $("cbmRtTable").innerHTML = rt + "</tbody>";
