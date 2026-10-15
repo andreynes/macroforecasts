@@ -42,6 +42,7 @@
       <a href="{{ url_for('inflation_monthly') }}" class="page-tab {{ 'active' if active_page == 'inflation_monthly' else '' }}">Месячная инфляция</a>
       <a href="{{ url_for('ruble') }}" class="page-tab {{ 'active' if active_page == 'ruble' else '' }}">Рубль</a>
       <a href="{{ url_for('ngd') }}" class="page-tab {{ 'active' if active_page == 'ngd' else '' }}">НГД</a>
+      <a href="{{ url_for('cbr_models') }}" class="page-tab {{ 'active' if active_page == 'cbr_models' else '' }}">Модели ЦБ</a>
     </nav>
 
     {% block content %}{% endblock %}

@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .cbm-eyebrow { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-80); font-weight: 600; }
+  .cbm-kpi-v { font-size: 1.9rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .cbm-kpi-v.fc { color: var(--pink-2); }
+  .cbm-kpi-v.rule { color: #ffb74d; }
+  .cbm-kpi-sub { font-size: .82rem; color: var(--text-80); }
+  .cbm-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cbm-note { font-size: .84rem; color: var(--text-80); }
+  .cbm-note b { color: #fff; }
+  .cbm-formula { font-family: "JetBrains Mono", Consolas, monospace; font-size: .95rem; background: rgba(255,255,255,.04);
+                 border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: .8rem 1rem; line-height: 1.7; overflow-x: auto; }
+  .cbm-formula .hl { color: #ffb74d; }
+  .cbm-calc .row-l { display: flex; justify-content: space-between; gap: 1rem; padding: .34rem 0;
+                     border-bottom: 1px dashed rgba(255,255,255,.08); font-size: .92rem; }
+  .cbm-calc .row-l.sum { border-bottom: 0; border-top: 1px solid rgba(255,255,255,.35); font-weight: 700; margin-top: .2rem; }
+  .cbm-table th, .cbm-table td { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; font-size: .84rem; padding: .35rem .55rem; }
+  .cbm-table th:first-child, .cbm-table td:first-child { text-align: left; }
+  .cbm-table thead th { color: var(--text-80); font-weight: 600; vertical-align: bottom; white-space: normal; }
+  .cbm-table td.wrap, .cbm-table th.wrap { white-space: normal; text-align: left; }
+  .cbm-table tr.tot td { font-weight: 700; border-top: 1px solid rgba(255,255,255,.35); }
+  .cbm-table .pos { color: #ff8a80; } .cbm-table .neg { color: #8fd694; }
+  .cbm-legend { font-size: .8rem; color: var(--text-80); display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
+  .cbm-legend i { display: inline-block; width: 14px; height: 3px; margin-right: .35rem; vertical-align: 3px; }
+  .cbm-legend i.dash { background: none !important; border-top: 3px dashed; height: 0; }
+  .cbm-legend i.dot { border-top: 3px dotted; background: none !important; height: 0; }
+  .cbm-legend i.bar { height: 10px; vertical-align: -1px; border-radius: 2px; }
+  .cbm-select { background: #0f1220; color: #fff; border: 1px solid var(--grid); border-radius: 8px; padding: .25rem .5rem; font-size: .9rem; }
+  details.cbm-details summary { cursor: pointer; color: var(--text-80); font-size: .88rem; }
+  .cbm-chip { display: inline-block; font-size: .78rem; padding: .2rem .6rem; border-radius: 999px; margin: 0 .3rem .35rem 0;
+              background: rgba(255, 213, 79, .12); color: #ffd54f; }
+</style>
+
+<div id="cbmError" class="alert alert-warning" hidden></div>
+
+<div class="row g-4">
+  <!-- KPI -->
+  <div class="col-12"><div class="row g-3" id="cbmKpis"></div></div>
+
+  <!-- Правило и пример -->
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="row g-4">
+          <div class="col-12 col-xl-7">
+            <h5 class="card-title mb-2">Правило денежно-кредитной политики КПМ Банка России</h5>
+            <div class="cbm-formula mb-3">
+              i<sub>t</sub> = <span class="hl">ρ</span>·i<sub>t−1</sub> + (1 − <span class="hl">ρ</span>)·[ r̄ + π<sup>e</sup><sub>t+3</sub> + <span class="hl">φ<sub>π</sub></span>·(π<sup>e</sup><sub>t+3</sub> − 4) + <span class="hl">φ<sub>y</sub></span>·ŷ<sub>t</sub> ]
+            </div>
+            <div class="table-responsive">
+              <table class="table table-dark table-sm align-middle mb-2 cbm-table" id="cbmParams"></table>
+            </div>
+            <div class="cbm-note">
+              Правило — одно из четырёх уравнений Квартальной прогнозной модели (КПМ) ЦБ наряду с кривой IS, кривой Филлипса и
+              непокрытым паритетом. Коэффициенты взяты из опубликованного ЦБ кода модели (<i>parameters_main.mod</i>), не оценены нами.
+              Источники: Орлов (2021) «Квартальная прогнозная модель России», ур. (10); Орлов, Шарафутдинов (2024) «КПМ России с рынком труда», ур. (75).
+            </div>
+          </div>
+          <div class="col-12 col-xl-5 cbm-calc" id="cbmExample"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Наш прогноз vs правило -->
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Наш прогноз ключевой ставки и правило ЦБ, % годовых</h5>
+        <div class="cbm-legend mb-2">
+          <span><i style="background:#fff"></i>Ключевая ставка, факт</span>
+          <span><i class="dash" style="border-color:#fff"></i>Наш прогноз</span>
+          <span><i style="background:#ffb74d"></i>Правило ЦБ на наших данных (ИПЦ)</span>
+          <span><i class="dot" style="border-color:#ffb74d"></i>то же, 0,75·БИПЦ + 0,25·ИПЦ</span>
+          <span><i class="dash" style="border-color:var(--blue)"></i>Правило на входах прогноза ЦБ</span>
+          <span><i class="bar" style="background:rgba(47,128,237,.55)"></i>Прогноз ЦБ: средняя ставка за период</span>
+        </div>
+        <div id="chartOurs" class="chart"></div>
+        <div class="cbm-note mt-2" id="cbmOursNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-2">По кварталам: прогноз и правило</h5>
+        <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0 cbm-table" id="cbmOursTable"></table></div>
+        <div class="cbm-note mt-2">πᵉ — инфляция г/г через 3 квартала (наш прогноз); ŷ — разрыв выпуска; r̄ — нейтральная реальная ставка
+          с надбавкой ЦБ из последнего прогноза ЦБ (затухает к 4%). «Без сглаж.» — уровень, к которому правило подтягивает ставку.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Инфляция, % г/г: факт и наш прогноз</h5>
+        <div class="cbm-legend mb-2">
+          <span><i style="background:var(--pink-2)"></i>ИПЦ</span>
+          <span><i style="background:#ffb74d"></i>БИПЦ</span>
+          <span><i style="background:#9be7ff"></i>0,75·БИПЦ + 0,25·ИПЦ</span>
+          <span><i class="dash" style="border-color:#aaa"></i>прогноз</span>
+        </div>
+        <div id="chartInfl" class="chart" style="height:300px"></div>
+        <div class="cbm-note mt-2" id="cbmInflNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Калибровка по прогнозам ЦБ -->
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
+          <h5 class="card-title mb-0">Воспроизводит ли правило прогноз ставки самого ЦБ?</h5>
+          <label class="cbm-note">Прогноз ЦБ от <select id="cbmVintage" class="cbm-select ms-1"></select></label>
+        </div>
+        <div class="cbm-legend mb-2">
+          <span><i class="bar" style="background:#fff"></i>Прогноз ЦБ: средняя ставка (остаток года, далее по годам)</span>
+          <span><i class="dash" style="border-color:var(--blue)"></i>Правило с долгосрочной нейтральной ЦБ</span>
+          <span><i style="background:#ffb74d"></i>Правило + затухающая надбавка ЦБ</span>
+        </div>
+        <div class="row g-3">
+          <div class="col-12 col-xl-8"><div id="chartVintage" class="chart"></div></div>
+          <div class="col-12 col-xl-4">
+            <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-2 cbm-table" id="cbmVintageTable"></table></div>
+            <div class="cbm-note" id="cbmVintageNote"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Надбавка ЦБ к правилу и точность по всем прогнозам ЦБ с 2023 г.</h5>
+        <div class="cbm-legend mb-2">
+          <span><i class="bar" style="background:#ffb74d"></i>Надбавка к средней ставке на остаток года, п.п.</span>
+          <span><i class="bar" style="background:rgba(47,128,237,.7)"></i>Ошибка правила без надбавки (RMSE)</span>
+          <span><i class="bar" style="background:rgba(255,114,192,.7)"></i>Ошибка с надбавкой (RMSE)</span>
+        </div>
+        <div id="chartPremium" class="chart" style="height:320px"></div>
+        <div class="cbm-note mt-2" id="cbmPremiumNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Бэктест в реальном времени -->
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Бэктест в реальном времени: правило на дату каждого опорного заседания, % годовых</h5>
+        <div class="cbm-legend mb-2">
+          <span><i style="background:#fff"></i>Ключевая ставка</span>
+          <span><i style="background:#ffb74d"></i>Правило (ставка до решения + прогноз ЦБ)</span>
+          <span><i class="dash" style="border-color:#ffb74d"></i>Правило без сглаживания</span>
+          <span><i class="dot" style="border-color:#aaa"></i>Нейтральная ставка (оценка ЦБ)</span>
+        </div>
+        <div id="chartRealtime" class="chart"></div>
+        <div class="row g-3 mt-1">
+          <div class="col-12 col-xl-7">
+            <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0 cbm-table" id="cbmMetrics"></table></div>
+          </div>
+          <div class="col-12 col-xl-5 cbm-note" id="cbmRtNote"></div>
+        </div>
+        <details class="cbm-details mt-3">
+          <summary>Все входы по заседаниям</summary>
+          <div class="table-responsive mt-2"><table class="table table-dark table-sm align-middle mb-0 cbm-table" id="cbmRtTable"></table></div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- Методология -->
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body cbm-note" id="cbmMethod"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const API = "{{ url_for('api_cbr_models') }}";
+  const styles = getComputedStyle(document.documentElement);
+  const grid   = styles.getPropertyValue('--grid').trim();
+  const text80 = styles.getPropertyValue('--text-80').trim();
+  const bgCard = styles.getPropertyValue('--card').trim();
+  const C_BLUE = styles.getPropertyValue('--blue').trim() || '#2f80ed';
+  const C_PINK = styles.getPropertyValue('--pink-2').trim() || '#ff72c0';
+  const C_RULE = '#ffb74d', C_MIX = '#9be7ff';
+
+  const $ = id => document.getElementById(id);
+  const nf = (v, d = 2) => v == null ? "—" : Number(v).toLocaleString("ru-RU", { minimumFractionDigits: d, maximumFractionDigits: d }).replace("-", "−");
+  const sg = (v, d = 2) => v == null ? "—" : (v > 0 ? "+" : "") + nf(v, d);
+  const cls = v => v == null ? "" : (v > 0 ? "pos" : v < 0 ? "neg" : "");
+  const ruDate = s => s.length === 10 ? s.split("-").reverse().join(".") : s;
+  const cfg = { displayModeBar: false, responsive: true, locale: 'ru' };
+  const layout = (extra = {}) => Object.assign({
+    margin: { l: 48, r: 12, t: 10, b: 36 }, showlegend: false, hovermode: 'x unified',
+    paper_bgcolor: bgCard, plot_bgcolor: bgCard, font: { family: 'Montserrat, system-ui', color: 'white' },
+    xaxis: { gridcolor: grid, tickfont: { color: text80 } },
+    yaxis: { gridcolor: grid, tickfont: { color: text80 }, zerolinecolor: text80, ticksuffix: '%' },
+    hoverlabel: { bgcolor: '#0f1220', font: { color: '#fff' } },
+  }, extra);
+  const line = (x, y, name, color, o = {}) => Object.assign({ type: 'scatter', mode: 'lines', x, y, name,
+    line: { color, width: 2.5, dash: o.dash || 'solid', shape: o.shape || 'linear' },
+    hovertemplate: `${name}: %{y:.2f}%<extra></extra>`, connectgaps: false }, o.extra || {});
+  const seg = (a, b, v, color, name, w = 7) => ({ type: 'scatter', mode: 'lines', x: [a, b], y: [v, v], name,
+    line: { color, width: w }, hovertemplate: `${name}: ${nf(v)}%<extra></extra>` });
+  const monthStart = m => m + "-01";
+
+  function kpi(eyebrow, value, sub, k = "") {
+    return `<div class="col-12 col-md-6 col-xl-3"><div class="card glass shadow-soft h-100"><div class="card-body">
+      <div class="cbm-eyebrow">${eyebrow}</div><div class="cbm-kpi-v ${k}">${value}</div><div class="cbm-kpi-sub mt-1">${sub}</div>
+    </div></div></div>`;
+  }
+
+  function renderKpis(D) {
+    const k = D.kpi;
+    $("cbmKpis").innerHTML =
+      kpi(`Ключевая ставка · ${k.key_rate_date}`, nf(k.key_rate) + "%", `Последнее опорное заседание с прогнозом ЦБ: ${k.cbr_date}`) +
+      kpi(`Правило ЦБ на ${k.next_q}`, nf(k.next_rule_cpi) + "%",
+          `на наших данных (ИПЦ); с БИПЦ — ${nf(k.next_rule_mix)}%<br>наш прогноз: ${nf(k.next_our)}%`, "rule") +
+      kpi(`Средняя ставка за ${k.year}`, nf(k.year_our) + "%",
+          `наш прогноз · правило ЦБ на наших данных: ${nf(k.year_rule_cpi)}% (с БИПЦ ${nf(k.year_rule_mix)}%)<br>прогноз ЦБ от ${k.cbr_date}: ${nf(k.year_cbr, 1)}%`, "fc") +
+      kpi(`Жёсткость ДКП · ${ruDate(k.stance_date)}`, sg(k.stance) + " п.п.",
+          `решение ЦБ минус правило без сглаживания на дату заседания (только данные на тот момент + прогноз ЦБ); &gt; 0 — жёстче правила`);
+  }
+
+  function renderRule(D) {
+    const p = D.params, e = D.example;
+    $("cbmParams").innerHTML = `<thead><tr><th>Обозначение</th><th class="wrap">Смысл</th><th>Значение</th></tr></thead><tbody>
+      <tr><td>ρ</td><td class="wrap">сглаживание: какая доля прошлой ставки сохраняется за квартал</td><td>${nf(p.rho)}</td></tr>
+      <tr><td>φ<sub>π</sub></td><td class="wrap">реакция на отклонение ожидаемой инфляции от цели</td><td>${nf(p.phi_pi, 1)}</td></tr>
+      <tr><td>φ<sub>y</sub></td><td class="wrap">реакция на разрыв выпуска</td><td>${nf(p.phi_y, 1)}</td></tr>
+      <tr><td>π<sup>e</sup><sub>t+3</sub></td><td class="wrap">инфляция г/г через 3 квартала; в модели ЦБ ${nf(p.w_core)}·БИПЦ + ${nf(1 - p.w_core)}·ИПЦ</td><td>цель ${nf(p.target, 0)}%</td></tr>
+      <tr><td>r̄</td><td class="wrap">нейтральная реальная ставка: долгосрочная оценка ЦБ (номинальная − 4%)</td><td>${nf(p.neutral_history.at(-1).v - p.target, 1)}%</td></tr>
+      <tr><td>ŷ</td><td class="wrap">разрыв выпуска, % от потенциала</td><td>HP-фильтр</td></tr></tbody>`;
+    $("cbmExample").innerHTML = `
+      <div class="cbm-eyebrow mb-2">Пример: заседание ${ruDate(e.date)} — только данные на ту дату</div>
+      <div class="row-l"><span>Нейтральная реальная r̄ (${nf(e.neutral, 1)}% − 4%)</span><span class="cbm-num">${nf(e.rbar)}</span></div>
+      <div class="row-l"><span>π<sup>e</sup> через 3 кв. по прогнозу ЦБ (${e.cbr_fc.split(" | ")[1]} на конец года)</span><span class="cbm-num">${nf(e.pi_e)}</span></div>
+      <div class="row-l"><span>1,5 · (π<sup>e</sup> − 4)</span><span class="cbm-num">${sg(e.infl_term)}</span></div>
+      <div class="row-l"><span>0,5 · разрыв выпуска (${nf(e.gap)}%, ВВП известен по ${e.gdp_known})</span><span class="cbm-num">${sg(e.gap_term)}</span></div>
+      <div class="row-l sum"><span>Ставка без сглаживания</span><span class="cbm-num">${nf(e.notional)}%</span></div>
+      <div class="row-l"><span>0,75 · ${nf(e.before)} (ставка до решения) + 0,25 · ${nf(e.notional)}</span><span class="cbm-num">${nf(e.rule)}%</span></div>
+      <div class="row-l sum"><span>Решение ЦБ</span><span class="cbm-num">${nf(e.decision)}%</span></div>
+      <div class="cbm-note mt-2">Правило подталкивало ставку к ${nf(e.rule)}% при целевом уровне ${nf(e.notional)}%; ЦБ снизил меньше — политика жёстче правила на ${sg(e.decision - e.notional)} п.п. относительно уровня без сглаживания.</div>`;
+  }
+
+  function renderOurs(D) {
+    const o = D.ours, kr = D.key_rate;
+    const krx = kr.x.filter(d => d >= "2025-01-01"), kry = kr.y.slice(kr.x.length - krx.length);
+    const x = o.x.map(monthStart);
+    // отрезки прогноза ЦБ — только в пределах нашего горизонта
+    const end = o.x.at(-1) + "-31";
+    const avgs = o.cbr_avgs.filter(s => s.from <= end).map(s => ({ ...s, to: s.to > end ? end : s.to }));
+    const tr = [
+      line(krx, kry, "Ключевая ставка", "#fff", { shape: 'hv' }),
+      line(x, o.our_kr, "Наш прогноз", "#fff", { dash: 'dash', shape: 'hv' }),
+      line(x, o.rule_cpi, "Правило (ИПЦ)", C_RULE),
+      line(x, o.rule_mix, "Правило (БИПЦ/ИПЦ)", C_RULE, { dash: 'dot' }),
+      line(o.cbr_rule_x.map(monthStart), o.cbr_rule, `Правило на прогнозе ЦБ ${o.cbr_date}`, C_BLUE, { dash: 'dash' }),
+      ...avgs.map(s => seg(s.from, s.to, s.v, 'rgba(47,128,237,.55)', `Прогноз ЦБ ${o.cbr_date}, ср.`)),
+    ];
+    Plotly.react('chartOurs', tr, layout({ yaxis: { gridcolor: grid, tickfont: { color: text80 }, ticksuffix: '%' } }), cfg);
+    const y = D.ours_y[0];
+    $("cbmOursNote").innerHTML = y ? `<b>Как читать.</b> Оранжевая линия — правило ЦБ, откалиброванное на последнем прогнозе ЦБ (${o.cbr_date}),
+      но с нашей инфляцией и нашим ВВП. В ${y.y} г. средняя ставка: наш прогноз <b>${nf(y.our)}%</b>, правило <b>${nf(y.rule_cpi)}%</b>
+      (с БИПЦ ${nf(y.rule_mix)}%), прогноз ЦБ <b>${nf(y.cbr, 1)}%</b>. Если наш прогноз близок к правилу, то расхождение с ЦБ объясняется
+      прогнозом инфляции и ВВП, а не реакцией на них. Синяя пунктирная — то же правило на входах ЦБ: она показывает, насколько
+      правило воспроизводит траекторию ЦБ.` : "";
+
+    let th = `<thead><tr><th>Квартал</th><th>Наш прогноз КС</th><th>Правило (ИПЦ)</th><th>Правило (БИПЦ/ИПЦ)</th><th>Наш − правило</th>
+      <th>πᵉ ИПЦ</th><th>πᵉ БИПЦ/ИПЦ</th><th>ŷ</th><th>r̄</th><th>Без сглаж. (ИПЦ)</th></tr></thead><tbody>`;
+    D.ours_q.forEach(r => {
+      const d = r.our - r.rule_cpi;
+      th += `<tr><td>${r.q}</td><td>${nf(r.our)}</td><td>${nf(r.rule_cpi)}</td><td>${nf(r.rule_mix)}</td><td class="${cls(d)}">${sg(d)}</td>
+        <td>${nf(r.pi_e_cpi)}</td><td>${nf(r.pi_e_mix)}</td><td>${nf(r.gap)}</td><td>${nf(r.rbar)}</td><td>${nf(r.notional_cpi)}</td></tr>`;
+    });
+    D.ours_y.forEach(r => {
+      const d = r.our - r.rule_cpi;
+      th += `<tr class="tot"><td>${r.y}, среднее</td><td>${nf(r.our)}</td><td>${nf(r.rule_cpi)}</td><td>${nf(r.rule_mix)}</td>
+        <td class="${cls(d)}">${sg(d)}</td><td colspan="5" style="text-align:left">прогноз ЦБ: ${nf(r.cbr, 1)}%</td></tr>`;
+    });
+    $("cbmOursTable").innerHTML = th + "</tbody>";
+  }
+
+  function renderInfl(D) {
+    const I = D.inflation, x = I.x.map(monthStart);
+    const iA = I.x.indexOf(I.last_actual);
+    const part = (arr, fc) => arr.map((v, i) => fc ? (i >= iA ? v : null) : (i <= iA ? v : null));
+    const tr = [];
+    [["ИПЦ", I.cpi, C_PINK], ["БИПЦ", I.core, C_RULE], ["0,75·БИПЦ+0,25·ИПЦ", I.mix, C_MIX]].forEach(([n, a, c]) => {
+      tr.push(line(x, part(a, false), n, c));
+      tr.push(line(x, part(a, true), n + " (прогноз)", c, { dash: 'dash' }));
+    });
+    tr.push(line([x[0], x.at(-1)], [4, 4], "Цель", "#777", { dash: 'dot', extra: { line: { color: '#777', width: 1, dash: 'dot' }, hoverinfo: 'skip' } }));
+    Plotly.react('chartInfl', tr, layout(), cfg);
+    const ex = Object.entries(I.extra_dec).map(([y, v]) => `дек. ${y}: ИПЦ ${nf(v.cpi, 1)}%, БИПЦ ${nf(v.core, 1)}%`).join("; ");
+    $("cbmInflNote").innerHTML = `Факт по ${I.last_actual} (Росстат, ЕМИСС). Прогноз ИПЦ — наш файл прогноза; БИПЦ на прогнозе: ${I.core_src}.
+      Далее — наши ориентиры (${ex}), месяцы между ними по прямой. Правило смотрит на инфляцию на 3 квартала вперёд, поэтому для ставки 2027 г. нужна инфляция 2028 г.`;
+  }
+
+  function renderVintage(D, i) {
+    const v = D.vintages[i];
+    const x = v.x.map(monthStart);
+    const tr = [
+      line(x, v.path_rule, "Правило с долгоср. нейтральной", C_BLUE, { dash: 'dash' }),
+      line(x, v.path_prem, "Правило + надбавка ЦБ", C_RULE),
+      ...v.periods.map(p => seg(p.from, p.to, p.cbr, '#fff', `ЦБ: ${p.label}`, 6)),
+    ];
+    Plotly.react('chartVintage', tr, layout(), cfg);
+    let t = `<thead><tr><th>Период</th><th>ЦБ</th><th>Правило</th><th>+ надбавка</th></tr></thead><tbody>`;
+    v.periods.forEach(p => t += `<tr><td>${p.label}</td><td>${nf(p.cbr)}</td><td>${nf(p.rule)}</td><td>${nf(p.rule_prem)}</td></tr>`);
+    $("cbmVintageTable").innerHTML = t + `<tr class="tot"><td>RMSE, п.п.</td><td></td><td>${nf(v.rmse_rule)}</td><td>${nf(v.rmse_prem)}</td></tr></tbody>`;
+    $("cbmVintageNote").innerHTML = `Входы прогноза ЦБ от ${v.date}: ставка после решения <b>${nf(v.i_new)}%</b>, πᵉ через 3 кв. <b>${nf(v.pi_e)}%</b>,
+      разрыв выпуска на дату <b>${nf(v.gap0)}%</b>, потенциальный рост ЦБ <b>${nf(v.g_pot, 1)}%</b>, долгосрочная нейтральная <b>${nf(v.neutral, 1)}%</b>.
+      Надбавка ЦБ на остаток года: <b>${sg(v.premium_rest)} п.п.</b>`;
+  }
+
+  function renderCalibration(D) {
+    const sel = $("cbmVintage");
+    sel.innerHTML = D.vintages.map((v, i) => `<option value="${i}">${v.date}</option>`).join("");
+    sel.value = D.vintages.length - 1;
+    sel.onchange = () => renderVintage(D, +sel.value);
+    renderVintage(D, D.vintages.length - 1);
+
+    const lab = D.vintages.map(v => v.date.slice(3));
+    Plotly.react('chartPremium', [
+      { type: 'bar', x: lab, y: D.vintages.map(v => v.premium_rest), name: 'Надбавка', marker: { color: C_RULE },
+        hovertemplate: 'Надбавка: %{y:.2f} п.п.<extra></extra>' },
+      { type: 'bar', x: lab, y: D.vintages.map(v => v.rmse_rule), name: 'RMSE без надбавки', marker: { color: 'rgba(47,128,237,.7)' },
+        hovertemplate: 'RMSE без надбавки: %{y:.2f}<extra></extra>' },
+      { type: 'bar', x: lab, y: D.vintages.map(v => v.rmse_prem), name: 'RMSE с надбавкой', marker: { color: 'rgba(255,114,192,.7)' },
+        hovertemplate: 'RMSE с надбавкой: %{y:.2f}<extra></extra>' },
+    ], layout({ barmode: 'group', xaxis: { type: 'category', gridcolor: grid, tickfont: { color: text80 } },
+                yaxis: { gridcolor: grid, tickfont: { color: text80 }, ticksuffix: '' } }), cfg);
+    const p = D.params;
+    $("cbmPremiumNote").innerHTML = `<b>Метод.</b> Для каждого прогноза ЦБ правило КПМ прогоняется на инфляции и росте ВВП из этого прогноза
+      (разрыв выпуска — известный на дату, далее меняется на рост ВВП минус потенциальный рост ЦБ) и сравнивается с опубликованной
+      средней ключевой ставкой (остаток года — из сноски к таблице прогноза, далее по годам). Неизвестна только нейтральная ставка:
+      к долгосрочной оценке ЦБ добавляется надбавка, которая затухает с общей для всех прогнозов скоростью (полураспад ≈ ${nf(p.half_life, 1)} мес.).
+      <b>Вывод:</b> через год и дальше прогноз ЦБ близок к чистому правилу с нейтральной ставкой 8%; ЦБ держит ставку выше правила
+      в ближайшие месяцы (обычно на +0,5…1,5 п.п. к средней ставке на остаток года). В терминах КПМ это шок ДКП, а не другая нейтральная ставка.`;
+  }
+
+  function renderRealtime(D) {
+    const kr = D.key_rate, R = D.realtime;
+    const x = R.map(r => r.date);
+    Plotly.react('chartRealtime', [
+      line(kr.x, kr.y, "Ключевая ставка", "#fff", { shape: 'hv' }),
+      line(x, R.map(r => r.rule), "Правило", C_RULE, { extra: { mode: 'lines+markers', marker: { size: 6 } } }),
+      line(x, R.map(r => r.notional), "Без сглаживания", C_RULE, { dash: 'dash', extra: { line: { color: C_RULE, width: 1.2, dash: 'dash' } } }),
+      line(x, R.map(r => r.neutral), "Нейтральная ЦБ", "#aaa", { dash: 'dot', shape: 'hv', extra: { line: { color: '#aaa', width: 1.2, dash: 'dot', shape: 'hv' } } }),
+    ], layout(), cfg);
+
+    const order = ["все заседания", "без 2022 г.", "2023–2026"];
+    let t = `<thead><tr><th>Ряд</th>` + order.map(s => `<th>RMSE<br><span class="fw-normal">${s}</span></th>`).join("") +
+            `<th>Направление угадано, %<br><span class="fw-normal">все заседания</span></th></tr></thead><tbody>`;
+    [...new Set(D.rt_metrics.map(m => m.series))].forEach(sname => {
+      const g = s => D.rt_metrics.find(m => m.series === sname && m.sample === s) || {};
+      t += `<tr><td class="wrap">${sname}</td>` + order.map(s => `<td>${nf(g(s).rmse)}</td>`).join("") + `<td>${nf(g(order[0]).hit, 0)}</td></tr>`;
+    });
+    $("cbmMetrics").innerHTML = t + "</tbody>";
+    $("cbmRtNote").innerHTML = `<b>Как считается.</b> На дату каждого заседания правило знает только опубликованное к этому дню: ставку до решения,
+      ИПЦ за известные месяцы, разрыв выпуска по уже опубликованному ВВП, прогноз инфляции ЦБ (PDF «Среднесрочный прогноз»; 2018 г. — пресс-релизы)
+      и оценку нейтральной ставки на тот момент. Будущие данные не используются, параметры не подбираются.<br>
+      <b>Вывод.</b> Как прогноз решений правило не обыгрывает «ставка не изменится»: ЦБ меняет ставку плавнее. В 2018–2021 гг. ЦБ
+      действовал близко к правилу, в 2022 г. сознательно отошёл от него, с 2023 г. держит ставку заметно выше уровня без сглаживания
+      (в среднем на ${nf(D.rt_metrics.find(m => m.sample === "2023–2026" && m.series.startsWith("Правило без")).me, 1)} п.п.) — частично потому, что прогноз ЦБ уже
+      учитывает высокую ставку, частично из-за краткосрочной нейтральной ставки выше 8%.`;
+
+    let rt = `<thead><tr><th>Заседание</th><th>Прогноз ЦБ, дек/дек</th><th>ИПЦ (мес.)</th><th>πᵉ</th><th>ŷ (ВВП по)</th><th>Нейтр.</th>
+      <th>До решения</th><th>Решение</th><th>Без сглаж.</th><th>Правило</th><th>Решение − правило</th></tr></thead><tbody>`;
+    R.slice().reverse().forEach(r => {
+      const d = r.decision - r.rule;
+      rt += `<tr><td>${ruDate(r.date)}</td><td>${r.cbr_fc}</td><td>${nf(r.cpi)} (${r.m_last})</td><td>${nf(r.pi_e)}</td>
+        <td>${nf(r.gap)} (${r.gdp_known})</td><td>${nf(r.neutral, 1)}</td><td>${nf(r.before)}</td><td>${nf(r.decision)}</td>
+        <td>${nf(r.notional)}</td><td>${nf(r.rule)}</td><td class="${cls(d)}">${sg(d)}</td></tr>`;
+    });
+    $("cbmRtTable").innerHTML = rt + "</tbody>";
+  }
+
+  function renderMethod(D) {
+    const nh = D.params.neutral_history.map(n => `${n.from}: ${nf(n.v, 1)}%`).join(" → ");
+    $("cbmMethod").innerHTML = `
+      <h6 class="text-light">Методология и ограничения</h6>
+      <div class="mb-2"><b>Данные.</b> Ключевая ставка и ИПЦ — Банк России; БИПЦ — Росстат (ЕМИСС); ВВП с исключением сезонности в ценах 2021 г. — Росстат;
+        прогнозы ЦБ — PDF «Среднесрочный прогноз Банка России» (с 2019 г.) и пресс-релизы (2018 г.); наш прогноз — файл макропрогноза сайта.</div>
+      <div class="mb-2"><b>Нейтральная ставка ЦБ (номинальная, середина диапазона):</b> ${nh}. Даты пересмотров до 2023 г. приблизительные.</div>
+      <div class="mb-2"><b>Разрыв выпуска.</b> ЦБ не публикует свою оценку численно; используется HP-фильтр (λ = 1600) по данным, известным на дату,
+        на прогнозе — изменение на (рост ВВП − потенциальный рост ЦБ). Это главное отличие от КПМ, где разрыв оценивается фильтром Калмана.</div>
+      <div class="mb-2"><b>Инфляция.</b> ЦБ публикует прогноз только общего ИПЦ, поэтому калибровка и основной вариант — по ИПЦ;
+        вариант 0,75·БИПЦ + 0,25·ИПЦ (как в правиле КПМ) показан для сравнения.</div>
+      <div class="mb-2"><b>Частота.</b> Правило квартальное (ρ = 0,75); на прогнозе считается помесячно со сглаживанием 0,75<sup>1/3</sup> за месяц (та же скорость).</div>
+      <div><span class="cbm-chip">не является прогнозом решений ЦБ</span><span class="cbm-chip">ряды ИПЦ и ВВП — текущей версии, без исторических ревизий</span>
+        <span class="cbm-chip">расчёт ${D.generated}</span></div>`;
+  }
+
+  fetch(API).then(r => r.json()).then(D => {
+    if (D.error) { $("cbmError").textContent = D.error; $("cbmError").hidden = false; return; }
+    renderKpis(D); renderRule(D); renderOurs(D); renderInfl(D); renderCalibration(D); renderRealtime(D); renderMethod(D);
+  }).catch(e => { $("cbmError").textContent = "Не удалось загрузить данные: " + e; $("cbmError").hidden = false; });
+})();
+</script>
+{% endblock %}

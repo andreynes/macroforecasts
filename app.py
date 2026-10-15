@@ -935,6 +935,27 @@ def api_ngd():
     except FileNotFoundError:
         return jsonify({"error": "Нет данных НГД: запустите модель ngd_model.py"}), 404
 
+CBR_MODELS_FILE = os.path.join(BASE_DIR, "data", "cbr_models.json")
+
+
+@app.route("/cbr-models")
+def cbr_models():
+    return render_template(
+        "cbr_models.html",
+        active_page="cbr_models",
+        page_title="Модели ЦБ",
+        page_subtitle="Правило Тейлора из квартальной прогнозной модели Банка России: калибровка, бэктест, наш прогноз"
+    )
+
+@app.route("/api/cbr_models")
+def api_cbr_models():
+    # Файл пишет проект «Правило Тейлора» (src/export_site.py) при каждом запуске
+    try:
+        with open(CBR_MODELS_FILE, encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных: запустите src/export_site.py в проекте «Правило Тейлора»"}), 404
+
 @app.route("/api/ruble/fx")
 def api_ruble_fx():
     try:
