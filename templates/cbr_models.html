@@ -150,6 +150,22 @@
     </div>
   </div>
 
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">ВВП и разрыв выпуска, %: факт и наш прогноз</h5>
+        <div class="cbm-legend mb-2">
+          <span><i style="background:#fff"></i>Рост ВВП, г/г</span>
+          <span><i class="dash" style="border-color:#fff"></i>рост ВВП — прогноз</span>
+          <span><i class="bar" style="background:#9be7ff"></i>Разрыв выпуска (оценка на тот момент)</span>
+          <span><i class="bar" style="background:rgba(155,231,255,.35)"></i>Разрыв выпуска — прогноз (идёт в правило)</span>
+        </div>
+        <div id="chartGdp" class="chart" style="height:320px"></div>
+        <div class="cbm-note mt-2" id="cbmGdpNote"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Калибровка по прогнозам ЦБ -->
   <div class="col-12">
     <div class="card glass shadow-soft">
@@ -170,21 +186,7 @@
             <div class="cbm-note" id="cbmVintageNote"></div>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-12">
-    <div class="card glass shadow-soft">
-      <div class="card-body">
-        <h5 class="card-title mb-1">Надбавка ЦБ к правилу и точность по всем прогнозам ЦБ с 2023 г.</h5>
-        <div class="cbm-legend mb-2">
-          <span><i class="bar" style="background:#ffb74d"></i>Надбавка к средней ставке на остаток года, п.п.</span>
-          <span><i class="bar" style="background:rgba(47,128,237,.7)"></i>Ошибка правила без надбавки (RMSE)</span>
-          <span><i class="bar" style="background:rgba(255,114,192,.7)"></i>Ошибка с надбавкой (RMSE)</span>
-        </div>
-        <div id="chartPremium" class="chart" style="height:320px"></div>
-        <div class="cbm-note mt-2" id="cbmPremiumNote"></div>
+        <div class="cbm-note mt-2" id="cbmCalibNote"></div>
       </div>
     </div>
   </div>
@@ -318,9 +320,30 @@
     });
     tr.push(line([x[0], x.at(-1)], [4, 4], "Цель", "#777", { dash: 'dot', extra: { line: { color: '#777', width: 1, dash: 'dot' }, hoverinfo: 'skip' } }));
     Plotly.react('chartInfl', tr, layout(), cfg);
-    const ex = Object.entries(I.extra_dec).map(([y, v]) => `дек. ${y}: ИПЦ ${nf(v.cpi, 1)}%, БИПЦ ${nf(v.core, 1)}%`).join("; ");
-    $("cbmInflNote").innerHTML = `Факт по ${I.last_actual} (Росстат, ЕМИСС). Прогноз ИПЦ — наш файл прогноза; БИПЦ на прогнозе: ${I.core_src}.
-      Далее — наши ориентиры (${ex}), месяцы между ними по прямой. Правило смотрит на инфляцию на 3 квартала вперёд, поэтому для ставки 2027 г. нужна инфляция 2028 г.`;
+    const ex = Object.entries(I.extra_dec).map(([y, v]) => `ИПЦ на декабрь ${y} г. — ${nf(v, 1)}%`).join("; ");
+    $("cbmInflNote").innerHTML = `Факт по ${I.last_actual} (Росстат, ЕМИСС). Прогноз ИПЦ — наш файл прогноза, далее наш ориентир (${ex}),
+      месяцы между — по прямой. <b>БИПЦ на прогнозе = ИПЦ − спред:</b> до конца ${I.spread_converge_year - 1} г. спред держится на текущем уровне
+      ${nf(I.spread_now)} п.п. (среднее за ${I.spread_now_months} мес.), в течение ${I.spread_converge_year} г. линейно возвращается к среднему за
+      последние ${I.spread_long_years} года — ${nf(I.spread_long)} п.п., дальше постоянный. Правило смотрит на инфляцию на 3 квартала вперёд,
+      поэтому для ставки ${I.spread_converge_year} г. нужна инфляция ${I.spread_converge_year + 1} г.`;
+  }
+
+  function renderGdp(D) {
+    const G = D.gdp, fc = G.is_fc, iA = fc.indexOf(true) - 1;
+    const part = (arr, f) => arr.map((v, i) => f ? (i >= iA ? v : null) : (i <= iA ? v : null));
+    Plotly.react('chartGdp', [
+      { type: 'bar', x: G.x, y: G.gap, name: 'Разрыв выпуска', customdata: G.q,
+        marker: { color: fc.map(f => f ? 'rgba(155,231,255,.35)' : C_MIX) },
+        hovertemplate: '%{customdata}: разрыв %{y:.2f}%<extra></extra>' },
+      line(G.x, part(G.yoy, false), "Рост ВВП г/г", "#fff"),
+      line(G.x, part(G.yoy, true), "Рост ВВП г/г, прогноз", "#fff", { dash: 'dash' }),
+    ], layout({ yaxis: { gridcolor: grid, tickfont: { color: text80 }, ticksuffix: '%', zerolinecolor: text80 } }), cfg);
+    const g = Object.entries(G.growth_fc).map(([y, v]) => `${y} — ${nf(v, 1)}%`).join(", ");
+    $("cbmGdpNote").innerHTML = `ВВП в ценах 2021 г. с исключением сезонности (Росстат), факт по ${G.last_actual}
+      (последний квартал — по первой оценке роста г/г). <b>Прогноз</b> — наш годовой рост ВВП (${g}): квартальный уровень подобран так,
+      чтобы среднегодовой рост совпал с прогнозом. <b>Разрыв выпуска</b> — отклонение ВВП от потенциала: на истории — оценка, доступная
+      в каждом квартале (HP-фильтр по данным до этого квартала), на прогнозе — меняется на рост ВВП минус потенциальный рост
+      ${nf(G.g_pot, 1)}% в год (оценка ЦБ). Именно этот разрыв идёт в правило.`;
   }
 
   function renderVintage(D, i) {
@@ -347,18 +370,8 @@
     sel.onchange = () => renderVintage(D, +sel.value);
     renderVintage(D, D.vintages.length - 1);
 
-    const lab = D.vintages.map(v => v.date.slice(3));
-    Plotly.react('chartPremium', [
-      { type: 'bar', x: lab, y: D.vintages.map(v => v.premium_rest), name: 'Надбавка', marker: { color: C_RULE },
-        hovertemplate: 'Надбавка: %{y:.2f} п.п.<extra></extra>' },
-      { type: 'bar', x: lab, y: D.vintages.map(v => v.rmse_rule), name: 'RMSE без надбавки', marker: { color: 'rgba(47,128,237,.7)' },
-        hovertemplate: 'RMSE без надбавки: %{y:.2f}<extra></extra>' },
-      { type: 'bar', x: lab, y: D.vintages.map(v => v.rmse_prem), name: 'RMSE с надбавкой', marker: { color: 'rgba(255,114,192,.7)' },
-        hovertemplate: 'RMSE с надбавкой: %{y:.2f}<extra></extra>' },
-    ], layout({ barmode: 'group', xaxis: { type: 'category', gridcolor: grid, tickfont: { color: text80 } },
-                yaxis: { gridcolor: grid, tickfont: { color: text80 }, ticksuffix: '' } }), cfg);
     const p = D.params;
-    $("cbmPremiumNote").innerHTML = `<b>Метод.</b> Для каждого прогноза ЦБ правило КПМ прогоняется на инфляции и росте ВВП из этого прогноза
+    $("cbmCalibNote").innerHTML = `<b>Метод.</b> Для каждого прогноза ЦБ правило КПМ прогоняется на инфляции и росте ВВП из этого прогноза
       (разрыв выпуска — известный на дату, далее меняется на рост ВВП минус потенциальный рост ЦБ) и сравнивается с опубликованной
       средней ключевой ставкой (остаток года — из сноски к таблице прогноза, далее по годам). Неизвестна только нейтральная ставка:
       к долгосрочной оценке ЦБ добавляется надбавка, которая затухает с общей для всех прогнозов скоростью (полураспад ≈ ${nf(p.half_life, 1)} мес.).
@@ -426,7 +439,8 @@
         на прогнозе — изменение на (рост ВВП − потенциальный рост ЦБ). Это главное отличие от КПМ, где разрыв оценивается фильтром Калмана.</div>
       <div class="mb-2"><b>Инфляция.</b> Во всех расчётах — 0,75·БИПЦ + 0,25·ИПЦ, как в правиле КПМ. ЦБ публикует прогноз только общего ИПЦ,
         поэтому на прогнозе ЦБ БИПЦ = ИПЦ − спред, где спред (ИПЦ − БИПЦ) от последнего факта линейно сходится к нулю к концу следующего года
-        (ЦБ ожидает обе инфляции у цели). На нашем прогнозе БИПЦ = наш ИПЦ − средний спред за 24 мес., на 2028 г. — наш ориентир.</div>
+        (ЦБ ожидает обе инфляции у цели). На нашем прогнозе БИПЦ = наш ИПЦ − спред: текущий уровень до конца ${D.inflation.spread_converge_year - 1} г.,
+        в ${D.inflation.spread_converge_year} г. возврат к среднему за ${D.inflation.spread_long_years} года, дальше постоянный.</div>
       <div class="mb-2"><b>Частота.</b> Правило квартальное (ρ = 0,75); на прогнозе считается помесячно со сглаживанием 0,75<sup>1/3</sup> за месяц (та же скорость).</div>
       <div><span class="cbm-chip">не является прогнозом решений ЦБ</span><span class="cbm-chip">ряды ИПЦ и ВВП — текущей версии, без исторических ревизий</span>
         <span class="cbm-chip">расчёт ${D.generated}</span></div>`;
@@ -434,7 +448,7 @@
 
   fetch(API).then(r => r.json()).then(D => {
     if (D.error) { $("cbmError").textContent = D.error; $("cbmError").hidden = false; return; }
-    renderKpis(D); renderRule(D); renderOurs(D); renderInfl(D); renderCalibration(D); renderRealtime(D); renderMethod(D);
+    renderKpis(D); renderRule(D); renderOurs(D); renderInfl(D); renderGdp(D); renderCalibration(D); renderRealtime(D); renderMethod(D);
   }).catch(e => { $("cbmError").textContent = "Не удалось загрузить данные: " + e; $("cbmError").hidden = false; });
 })();
 </script>
