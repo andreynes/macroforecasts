@@ -944,7 +944,7 @@ def cbr_models():
         "cbr_models.html",
         active_page="cbr_models",
         page_title="Модели ЦБ",
-        page_subtitle="Правило Тейлора из квартальной прогнозной модели Банка России: калибровка, бэктест, наш прогноз"
+        page_subtitle=""  # всё содержимое — под вкладками
     )
 
 @app.route("/api/cbr_models")

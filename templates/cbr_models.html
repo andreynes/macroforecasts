@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
+  .cbm-hero { font-size: clamp(1.8rem, 3.4vw, 2.6rem); font-weight: 800; letter-spacing: -.01em; color: #fff; }
+  .cbm-lead { font-size: 1rem; color: var(--text-80); max-width: 980px; }
   .cbm-eyebrow { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-80); font-weight: 600; }
   .cbm-kpi-v { font-size: 1.9rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .cbm-kpi-v.fc { color: var(--pink-2); }
@@ -35,6 +37,13 @@
 <div id="cbmError" class="alert alert-warning" hidden></div>
 
 <div class="row g-4">
+  <!-- Заголовок -->
+  <div class="col-12">
+    <h2 class="cbm-hero mb-1">Модель правила Тейлора Банка России</h2>
+    <div class="cbm-lead">Правило денежно-кредитной политики из Квартальной прогнозной модели ЦБ: какую ставку оно давало на истории,
+      насколько точно воспроизводит прогнозы самого ЦБ и какую ставку дало бы при нашем макропрогнозе.</div>
+  </div>
+
   <!-- KPI -->
   <div class="col-12"><div class="row g-3" id="cbmKpis"></div></div>
 
@@ -59,6 +68,34 @@
           </div>
           <div class="col-12 col-xl-5 cbm-calc" id="cbmExample"></div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Бэктест в реальном времени -->
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Как правило работало на истории, 2018–2026, % годовых</h5>
+        <div class="cbm-note mb-2">На дату каждого опорного заседания ЦБ правило посчитано только по тем данным, которые были известны в тот день,
+          и по прогнозу инфляции, опубликованному ЦБ на этом заседании. Будущие данные не используются.</div>
+        <div class="cbm-legend mb-2">
+          <span><i style="background:#fff"></i>Ключевая ставка</span>
+          <span><i style="background:#ffb74d"></i>Правило (ставка до решения + прогноз ЦБ)</span>
+          <span><i class="dash" style="border-color:#ffb74d"></i>Правило без сглаживания</span>
+          <span><i class="dot" style="border-color:#aaa"></i>Нейтральная ставка (оценка ЦБ)</span>
+        </div>
+        <div id="chartRealtime" class="chart"></div>
+        <div class="row g-3 mt-1">
+          <div class="col-12 col-xl-7">
+            <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0 cbm-table" id="cbmMetrics"></table></div>
+          </div>
+          <div class="col-12 col-xl-5 cbm-note" id="cbmRtNote"></div>
+        </div>
+        <details class="cbm-details mt-3">
+          <summary>Все входы по заседаниям</summary>
+          <div class="table-responsive mt-2"><table class="table table-dark table-sm align-middle mb-0 cbm-table" id="cbmRtTable"></table></div>
+        </details>
       </div>
     </div>
   </div>
@@ -148,32 +185,6 @@
     </div>
   </div>
 
-  <!-- Бэктест в реальном времени -->
-  <div class="col-12">
-    <div class="card glass shadow-soft">
-      <div class="card-body">
-        <h5 class="card-title mb-1">Бэктест в реальном времени: правило на дату каждого опорного заседания, % годовых</h5>
-        <div class="cbm-legend mb-2">
-          <span><i style="background:#fff"></i>Ключевая ставка</span>
-          <span><i style="background:#ffb74d"></i>Правило (ставка до решения + прогноз ЦБ)</span>
-          <span><i class="dash" style="border-color:#ffb74d"></i>Правило без сглаживания</span>
-          <span><i class="dot" style="border-color:#aaa"></i>Нейтральная ставка (оценка ЦБ)</span>
-        </div>
-        <div id="chartRealtime" class="chart"></div>
-        <div class="row g-3 mt-1">
-          <div class="col-12 col-xl-7">
-            <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0 cbm-table" id="cbmMetrics"></table></div>
-          </div>
-          <div class="col-12 col-xl-5 cbm-note" id="cbmRtNote"></div>
-        </div>
-        <details class="cbm-details mt-3">
-          <summary>Все входы по заседаниям</summary>
-          <div class="table-responsive mt-2"><table class="table table-dark table-sm align-middle mb-0 cbm-table" id="cbmRtTable"></table></div>
-        </details>
-      </div>
-    </div>
-  </div>
-
   <!-- Методология -->
   <div class="col-12">
     <div class="card glass shadow-soft">
@@ -221,14 +232,16 @@
 
   function renderKpis(D) {
     const k = D.kpi;
+    const q = k.next_q.replace(/(\d{4}) Q(\d)/, (m, y, n) => ["I", "II", "III", "IV"][n - 1] + " кв. " + y);
+    const e = D.example;
     $("cbmKpis").innerHTML =
-      kpi(`Ключевая ставка · ${k.key_rate_date}`, nf(k.key_rate) + "%", `Последнее опорное заседание с прогнозом ЦБ: ${k.cbr_date}`) +
-      kpi(`Правило ЦБ на ${k.next_q}`, nf(k.next_rule_cpi) + "%",
-          `на наших данных (ИПЦ); с БИПЦ — ${nf(k.next_rule_mix)}%<br>наш прогноз: ${nf(k.next_our)}%`, "rule") +
-      kpi(`Средняя ставка за ${k.year}`, nf(k.year_our) + "%",
-          `наш прогноз · правило ЦБ на наших данных: ${nf(k.year_rule_cpi)}% (с БИПЦ ${nf(k.year_rule_mix)}%)<br>прогноз ЦБ от ${k.cbr_date}: ${nf(k.year_cbr, 1)}%`, "fc") +
-      kpi(`Жёсткость ДКП · ${ruDate(k.stance_date)}`, sg(k.stance) + " п.п.",
-          `решение ЦБ минус правило без сглаживания на дату заседания (только данные на тот момент + прогноз ЦБ); &gt; 0 — жёстче правила`);
+      kpi(`Ключевая ставка · ${k.key_rate_date}`, nf(k.key_rate) + "%", `Последний прогноз ЦБ — от ${k.cbr_date}`) +
+      kpi(`Ставка по правилу ЦБ · ${q}`, nf(k.next_rule_cpi) + "%",
+          `столько дало бы правило ЦБ при нашем прогнозе инфляции и ВВП (по БИПЦ — ${nf(k.next_rule_mix)}%)<br>наш прогноз ставки: ${nf(k.next_our)}%`, "rule") +
+      kpi(`Средняя ставка в ${k.year} г. · наш прогноз`, nf(k.year_our) + "%",
+          `по правилу ЦБ при нашем прогнозе: ${nf(k.year_rule_cpi)}% (по БИПЦ ${nf(k.year_rule_mix)}%)<br>прогноз самого ЦБ: ${nf(k.year_cbr, 1)}%`, "fc") +
+      kpi(`Насколько ЦБ жёстче правила`, sg(k.stance, 1) + " п.п.",
+          `${ruDate(e.date)} ЦБ установил ${nf(e.decision)}%, а правило по данным на тот день считало нормальным уровнем ${nf(e.notional)}% — к нему ставку нужно постепенно вести`);
   }
 
   function renderRule(D) {
@@ -249,7 +262,8 @@
       <div class="row-l sum"><span>Ставка без сглаживания</span><span class="cbm-num">${nf(e.notional)}%</span></div>
       <div class="row-l"><span>0,75 · ${nf(e.before)} (ставка до решения) + 0,25 · ${nf(e.notional)}</span><span class="cbm-num">${nf(e.rule)}%</span></div>
       <div class="row-l sum"><span>Решение ЦБ</span><span class="cbm-num">${nf(e.decision)}%</span></div>
-      <div class="cbm-note mt-2">Правило подталкивало ставку к ${nf(e.rule)}% при целевом уровне ${nf(e.notional)}%; ЦБ снизил меньше — политика жёстче правила на ${sg(e.decision - e.notional)} п.п. относительно уровня без сглаживания.</div>`;
+      <div class="cbm-note mt-2">Правило считало нормальным уровень ${nf(e.notional)}% и рекомендовало за квартал пройти к нему четверть пути — до ${nf(e.rule)}%.
+        ЦБ снизил ставку меньше: ${nf(e.decision)}%, то есть на ${sg(e.decision - e.notional, 1)} п.п. выше нормального по правилу уровня.</div>`;
   }
 
   function renderOurs(D) {
@@ -357,7 +371,13 @@
       line(x, R.map(r => r.rule), "Правило", C_RULE, { extra: { mode: 'lines+markers', marker: { size: 6 } } }),
       line(x, R.map(r => r.notional), "Без сглаживания", C_RULE, { dash: 'dash', extra: { line: { color: C_RULE, width: 1.2, dash: 'dash' } } }),
       line(x, R.map(r => r.neutral), "Нейтральная ЦБ", "#aaa", { dash: 'dot', shape: 'hv', extra: { line: { color: '#aaa', width: 1.2, dash: 'dot', shape: 'hv' } } }),
-    ], layout(), cfg);
+    ], layout({
+      // пик правила без сглаживания в апреле 2022 г. (прогноз инфляции ЦБ 18–23%) обрезан, чтобы были видны остальные годы
+      yaxis: { gridcolor: grid, tickfont: { color: text80 }, ticksuffix: '%', range: [0, 26] },
+      annotations: (() => { const p = R.reduce((a, r) => r.notional > a.notional ? r : a);
+        return p.notional > 26 ? [{ x: p.date, y: 25.5, text: `без сглаживания: ${nf(p.notional, 0)}% ↑`, showarrow: false,
+          font: { color: C_RULE, size: 11 }, xanchor: 'left' }] : []; })(),
+    }), cfg);
 
     const order = ["все заседания", "без 2022 г.", "2023–2026"];
     let t = `<thead><tr><th>Ряд</th>` + order.map(s => `<th>RMSE<br><span class="fw-normal">${s}</span></th>`).join("") +
