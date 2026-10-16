@@ -60,7 +60,7 @@
             </div>
             <div class="cbm-eyebrow mb-1">То же с коэффициентами ЦБ</div>
             <div class="cbm-formula cbm-formula-plain mb-2">
-              Ставка = <span class="hl">0,75</span> · Ставка<sub>пр. кв.</sub> + <span class="hl">0,25</span> · [ 4 + Инфл + <span class="hl">1,5</span> · (Инфл − 4) + <span class="hl">0,5</span> · Разрыв ]<br>
+              Ставка = <span class="hl">0,75</span> · Ставка<sub>пр. кв.</sub> + <span class="hl">0,25</span> · [ 4 + Инфл + <span class="hl">1,5</span> · (Инфл − 4) + <span class="hl">0,5</span> · Разрыв ВВП ]<br>
               где Инфл = <span class="hl">0,75</span> · БИПЦ<sub>г/г через 3 кв.</sub> + <span class="hl">0,25</span> · ИПЦ<sub>г/г через 3 кв.</sub>
             </div>
             <div class="cbm-note mb-3">
@@ -69,7 +69,7 @@
               <b>4</b> (первое) — нейтральная реальная ставка: нейтральная номинальная 8% минус цель 4% ·
               <b>Инфл</b> — взвешенная инфляция через 3 квартала: 75% базового ИПЦ г/г и 25% ИПЦ г/г, оба в квартале через 3 квартала от текущего ·
               <b>4</b> (в скобках) — цель по инфляции, % ·
-              <b>Разрыв</b> — разрыв выпуска в текущем квартале, % от потенциала.<br>
+              <b>Разрыв ВВП</b> — разрыв выпуска (отклонение ВВП от потенциала) в текущем квартале, %.<br>
               В наших расчётах к нейтральной реальной ставке 4 добавляется затухающая надбавка ЦБ из его последнего прогноза (около +0,2…0,3 п.п. к ставке).
             </div>
             <div class="cbm-note mb-3">
@@ -156,7 +156,7 @@
           <span><i class="bar" style="background:#8a93a6"></i>Инерция (текущая ставка)</span>
           <span><i class="bar" style="background:#ff72c0"></i>Инфляция выше цели</span>
           <span><i class="bar" style="background:#2f80ed"></i>Надбавка ЦБ к нейтральной ставке</span>
-          <span><i class="bar" style="background:#9be7ff"></i>Разрыв выпуска</span>
+          <span><i class="bar" style="background:#9be7ff"></i>Разрыв ВВП</span>
           <span><i style="background:#ffb74d"></i>Ставка по правилу</span>
           <span><i class="dash" style="border-color:#fff"></i>Прогноз СКБ</span>
         </div>
@@ -367,7 +367,7 @@
     const C = D.decomp, N = C.neutral;
     const rows = C.rows.filter(r => !r.is_year), x = rows.map(r => r.label);
     const parts = [["inertia", "Инерция (текущая ставка)", "#8a93a6"], ["inflation", "Инфляция выше цели", C_PINK],
-                   ["premium", "Надбавка ЦБ", C_BLUE], ["gap", "Разрыв выпуска", C_MIX]];
+                   ["premium", "Надбавка ЦБ", C_BLUE], ["gap", "Разрыв ВВП", C_MIX]];
     const tr = parts.map(([k, n, c]) => ({ type: 'bar', x, y: rows.map(r => r[k]), name: n, marker: { color: c },
       hovertemplate: `${n}: %{y:+.2f} п.п.<extra></extra>` }));
     tr.push({ type: 'scatter', mode: 'lines+markers+text', x, y: rows.map(r => r.rule - N), name: 'Ставка по правилу',
@@ -380,7 +380,7 @@
       yaxis: { gridcolor: grid, tickfont: { color: text80 }, zerolinecolor: '#fff', ticksuffix: ' п.п.',
                title: { text: `к нейтральной ставке ${nf(N, 0)}%`, font: { color: text80, size: 11 } } } }), cfg);
     let t = `<thead><tr><th>Заседание ЦБ</th><th>Нейтральная ставка</th><th>Инерция</th><th>Инфляция</th><th>Надбавка ЦБ</th>
-      <th>Разрыв выпуска</th><th>Ставка по правилу</th><th>Прогноз СКБ</th></tr></thead><tbody>`;
+      <th>Разрыв ВВП</th><th>Ставка по правилу</th><th>Прогноз СКБ</th></tr></thead><tbody>`;
     C.rows.forEach(r => t += `<tr class="${r.is_year ? "tot" : ""}"><td>${r.label}</td><td>${nf(N)}</td><td>${sg(r.inertia)}</td>
       <td>${sg(r.inflation)}</td><td>${sg(r.premium)}</td><td>${sg(r.gap)}</td><td>${nf(r.rule)}</td><td>${nf(r.our)}</td></tr>`);
     $("cbmDecompTable").innerHTML = t + "</tbody>";
