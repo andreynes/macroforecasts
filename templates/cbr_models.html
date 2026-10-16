@@ -572,7 +572,7 @@
           2,5·(πᵉ − 4) + 0,5·разрыв ВВП], старт — текущая ставка ${nf(S.i0)}%. πᵉ = 0,75·БИПЦ + 0,25·ИПЦ, г/г, в среднем за квартал через 3 кв.
           Разница с прогнозом СКБ в декабре распределяется линейно от последнего фактического месяца (${S.cpi_last}). Разрыв ВВП — от оценки
           за ${S.q0.replace("Q", " кв. ").replace(/(\d{4}) кв. (\d)/, "$2 кв. $1")} (${nf(S.gap0)}%) плюс рост ВВП минус потенциальный. Пресет «Прогноз ЦБ» — середины
-          диапазонов ЦБ от ${S.cbr_preset.date}; ЦБ не публикует БИПЦ, поэтому БИПЦ = ИПЦ − спред из прогноза СКБ.
+          диапазонов ЦБ от ${S.cbr_preset.date}; ЦБ не публикует БИПЦ: при ИПЦ на цели БИПЦ = 4%, иначе ИПЦ − спред из прогноза СКБ.
           <div class="table-responsive mt-2"><table class="table table-dark table-sm mb-0 cbm-table"><thead><tr><th>Заседание</th><th>πᵉ через 3 кв.</th>
           <th>Разрыв ВВП</th><th>ρ</th><th>Оценка по инфляции и разрыву</th><th>Ставка по правилу</th></tr></thead><tbody>${R.rows.map(r =>
           `<tr><td>${ruDate(r.date)}</td><td>${nf(r.pe)}</td><td>${nf(r.g)}</td><td>${nf(r.rho)}</td><td>${nf(r.level)}</td><td>${nf(r.rule)}</td></tr>`).join("")}</tbody></table></div>`)}`;
@@ -581,8 +581,9 @@
       $("simPrem").checked = true; $("simGpot").value = S.g_pot; $("simNeutral").value = S.rbar_lr;
       Y.forEach(y => $("simCpi" + y).value = r1(cpi[y] ?? B.cpi[y]));
       GY.forEach(y => $("simGdp" + y).value = r1(gdp[y] ?? B.gdp[y]));
-      // БИПЦ: в прогнозе СКБ — свой; для ЦБ (публикует только ИПЦ) — ИПЦ минус спред из прогноза СКБ
-      Y.forEach(y => $("simCore" + y).value = r1(cpi === B.cpi ? B.core[y] : (cpi[y] ?? B.cpi[y]) - (B.cpi[y] - B.core[y])));
+      // БИПЦ: в прогнозе СКБ — свой; для ЦБ (публикует только ИПЦ): при ИПЦ на цели 4% — тоже 4%, иначе ИПЦ минус спред из прогноза СКБ
+      const coreCbr = y => { const c = cpi[y] ?? B.cpi[y]; return c <= 4 ? c : c - (B.cpi[y] - B.core[y]); };
+      Y.forEach(y => $("simCore" + y).value = r1(cpi === B.cpi ? B.core[y] : coreCbr(y)));
       draw();
     }
     $("simSkb").onclick = () => preset(B.cpi, B.gdp);
