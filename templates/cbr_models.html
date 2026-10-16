@@ -473,8 +473,8 @@
     const B = { cpi: {}, core: {}, gdp: {} };
     Y.forEach(y => { B.cpi[y] = S.cpi[dec(y)]; B.core[y] = S.core[dec(y)]; });
     GY.forEach(y => B.gdp[y] = S.gdp_growth[y]);
-    const r2 = v => Math.round(v * 100) / 100;
-    const inp = (id, v) => `<input type="number" step="0.1" class="cbm-input" id="${id}" value="${r2(v)}">`;
+    const r1 = v => Math.round(v * 10) / 10;
+    const inp = (id, v) => `<input type="number" step="0.1" class="cbm-input" id="${id}" value="${r1(v)}">`;
     let t = `<thead><tr><th>Прогноз</th>${Y.map(y => `<th>${y}</th>`).join("")}</tr></thead><tbody>`;
     t += `<tr><td class="wrap">ИПЦ, % дек/дек</td>${Y.map(y => `<td>${inp("simCpi" + y, B.cpi[y])}</td>`).join("")}</tr>`;
     t += `<tr><td class="wrap">БИПЦ, % дек/дек</td>${Y.map(y => `<td>${inp("simCore" + y, B.core[y])}</td>`).join("")}</tr>`;
@@ -518,12 +518,12 @@
     function compute() {
       const dC = {}, dK = {}, gr = {};
       Y.forEach(y => {
-        const d = (id, b) => Math.abs(val(id) - r2(b)) < 1e-9 ? 0 : val(id) - b;
+        const d = (id, b) => Math.abs(val(id) - r1(b)) < 1e-9 ? 0 : val(id) - b;
         dC[y] = d("simCpi" + y, B.cpi[y]);
         dK[y] = d("simCore" + y, B.core[y]);
       });
       // в поле — округлённое значение; если его не меняли, берём точное (иначе база СКБ сдвинется на округление)
-      GY.forEach(y => gr[y] = Math.abs(val("simGdp" + y) - r2(B.gdp[y])) < 1e-9 ? B.gdp[y] : val("simGdp" + y));
+      GY.forEach(y => gr[y] = Math.abs(val("simGdp" + y) - r1(B.gdp[y])) < 1e-9 ? B.gdp[y] : val("simGdp" + y));
       const cpi = shifted(S.cpi, S.cpi_last, dC), core = shifted(S.core, S.core_last, dK);
       const piq = {}, cnt = {};
       S.months.forEach((m, i) => { const k = qOf(m); piq[k] = (piq[k] || 0) + 0.75 * core[i] + 0.25 * cpi[i]; cnt[k] = (cnt[k] || 0) + 1; });
@@ -551,7 +551,7 @@
       const R = compute(), o = D.ours, kr = D.key_rate;
       Y.forEach(y => ["simCpi", "simCore", "simGdp"].forEach(p => { const el = $(p + y); if (el) {
         const b = p === "simCpi" ? B.cpi[y] : p === "simCore" ? B.core[y] : B.gdp[y];
-        el.classList.toggle("chg", Math.abs(parseFloat(el.value) - r2(b)) > 1e-6); } }));
+        el.classList.toggle("chg", Math.abs(parseFloat(el.value) - r1(b)) > 1e-6); } }));
       const krx = kr.x.filter(d => d >= "2025-01-01"), kry = kr.y.slice(kr.x.length - krx.length);
       const sx = [S.start, ...R.rows.map(r => r.eff), S.end], sy = [S.i0, ...R.rows.map(r => r.rule), R.rows.at(-1).rule];
       const G = '#7ee081';
@@ -579,10 +579,10 @@
     }
     function preset(cpi, gdp) {
       $("simPrem").checked = true; $("simGpot").value = S.g_pot; $("simNeutral").value = S.rbar_lr;
-      Y.forEach(y => $("simCpi" + y).value = r2(cpi[y] ?? B.cpi[y]));
-      GY.forEach(y => $("simGdp" + y).value = r2(gdp[y] ?? B.gdp[y]));
+      Y.forEach(y => $("simCpi" + y).value = r1(cpi[y] ?? B.cpi[y]));
+      GY.forEach(y => $("simGdp" + y).value = r1(gdp[y] ?? B.gdp[y]));
       // БИПЦ: в прогнозе СКБ — свой; для ЦБ (публикует только ИПЦ) — ИПЦ минус спред из прогноза СКБ
-      Y.forEach(y => $("simCore" + y).value = r2(cpi === B.cpi ? B.core[y] : (cpi[y] ?? B.cpi[y]) - (B.cpi[y] - B.core[y])));
+      Y.forEach(y => $("simCore" + y).value = r1(cpi === B.cpi ? B.core[y] : (cpi[y] ?? B.cpi[y]) - (B.cpi[y] - B.core[y])));
       draw();
     }
     $("simSkb").onclick = () => preset(B.cpi, B.gdp);
