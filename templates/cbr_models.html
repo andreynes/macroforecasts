@@ -263,7 +263,6 @@
             </div>
             <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-2 cbm-table" id="simInputs"></table></div>
             <div class="cbm-note d-flex flex-column gap-1">
-              <label><input type="checkbox" id="simLink" checked> БИПЦ = ИПЦ − спред, как в прогнозе СКБ</label>
               <label><input type="checkbox" id="simPrem" checked> Надбавка ЦБ к нейтральной ставке</label>
               <label>Потенциальный рост ВВП, % <input type="number" step="0.1" class="cbm-input ms-1" id="simGpot"></label>
               <label>Нейтральная реальная ставка, % <input type="number" step="0.1" class="cbm-input ms-1" id="simNeutral"></label>
@@ -276,7 +275,6 @@
               <span><i class="dash" style="border-color:#fff"></i>Прогноз СКБ</span>
               <span><i style="background:rgba(255,183,77,.45)"></i>Правило при прогнозе СКБ</span>
               <span><i style="background:#7ee081"></i>Правило при вашем прогнозе</span>
-              <span><i class="dot" style="border-color:#7ee081"></i>Оценка по инфляции и разрыву ВВП</span>
             </div>
             <div id="chartSim" class="chart" style="height:360px"></div>
           </div>
@@ -518,14 +516,11 @@
       return L;
     }
     function compute() {
-      const link = $("simLink").checked;
       const dC = {}, dK = {}, gr = {};
       Y.forEach(y => {
         const d = (id, b) => Math.abs(val(id) - r2(b)) < 1e-9 ? 0 : val(id) - b;
         dC[y] = d("simCpi" + y, B.cpi[y]);
-        if (link) $("simCore" + y).value = r2(B.core[y] + dC[y]);
-        $("simCore" + y).disabled = link;
-        dK[y] = link ? dC[y] : d("simCore" + y, B.core[y]);
+        dK[y] = d("simCore" + y, B.core[y]);
       });
       // в поле — округлённое значение; если его не меняли, берём точное (иначе база СКБ сдвинется на округление)
       GY.forEach(y => gr[y] = Math.abs(val("simGdp" + y) - r2(B.gdp[y])) < 1e-9 ? B.gdp[y] : val("simGdp" + y));
@@ -559,13 +554,11 @@
         el.classList.toggle("chg", Math.abs(parseFloat(el.value) - r2(b)) > 1e-6); } }));
       const krx = kr.x.filter(d => d >= "2025-01-01"), kry = kr.y.slice(kr.x.length - krx.length);
       const sx = [S.start, ...R.rows.map(r => r.eff), S.end], sy = [S.i0, ...R.rows.map(r => r.rule), R.rows.at(-1).rule];
-      const lx = [...R.rows.map(r => r.eff), S.end], ly = [...R.rows.map(r => r.level), R.rows.at(-1).level];
       const G = '#7ee081';
       Plotly.react('chartSim', [
         line(krx, kry, "Ключевая ставка", "#fff", { shape: 'hv' }),
         line(o.our_kr_daily.x, o.our_kr_daily.y, "Прогноз СКБ", "#fff", { dash: 'dash', shape: 'hv' }),
         line(o.rule_steps.x, o.rule_steps.y, "Правило при прогнозе СКБ", 'rgba(255,183,77,.45)', { shape: 'hv' }),
-        line(lx, ly, "Оценка по инфляции и разрыву ВВП", G, { extra: { line: { color: G, width: 1.5, dash: 'dot', shape: 'hv' } } }),
         line(sx, sy, "Правило при вашем прогнозе", G, { shape: 'hv', extra: { hoverinfo: 'skip' } }),
         line(R.rows.map(r => r.date), R.rows.map(r => r.rule), "Правило при вашем прогнозе, заседание", G,
           { extra: { mode: 'markers+text', marker: { size: 7 }, text: R.rows.map(r => nf(r.rule, 1)), textposition: 'top center', textfont: { color: G, size: 11 } } }),
@@ -579,22 +572,23 @@
           2,5·(πᵉ − 4) + 0,5·разрыв ВВП], старт — текущая ставка ${nf(S.i0)}%. πᵉ = 0,75·БИПЦ + 0,25·ИПЦ, г/г, в среднем за квартал через 3 кв.
           Разница с прогнозом СКБ в декабре распределяется линейно от последнего фактического месяца (${S.cpi_last}). Разрыв ВВП — от оценки
           за ${S.q0.replace("Q", " кв. ").replace(/(\d{4}) кв. (\d)/, "$2 кв. $1")} (${nf(S.gap0)}%) плюс рост ВВП минус потенциальный. Пресет «Прогноз ЦБ» — середины
-          диапазонов ЦБ от ${S.cbr_preset.date}, БИПЦ через спред.
+          диапазонов ЦБ от ${S.cbr_preset.date}; ЦБ не публикует БИПЦ, поэтому БИПЦ = ИПЦ − спред из прогноза СКБ.
           <div class="table-responsive mt-2"><table class="table table-dark table-sm mb-0 cbm-table"><thead><tr><th>Заседание</th><th>πᵉ через 3 кв.</th>
           <th>Разрыв ВВП</th><th>ρ</th><th>Оценка по инфляции и разрыву</th><th>Ставка по правилу</th></tr></thead><tbody>${R.rows.map(r =>
           `<tr><td>${ruDate(r.date)}</td><td>${nf(r.pe)}</td><td>${nf(r.g)}</td><td>${nf(r.rho)}</td><td>${nf(r.level)}</td><td>${nf(r.rule)}</td></tr>`).join("")}</tbody></table></div>`)}`;
     }
     function preset(cpi, gdp) {
-      $("simLink").checked = true; $("simPrem").checked = true; $("simGpot").value = S.g_pot; $("simNeutral").value = S.rbar_lr;
+      $("simPrem").checked = true; $("simGpot").value = S.g_pot; $("simNeutral").value = S.rbar_lr;
       Y.forEach(y => $("simCpi" + y).value = r2(cpi[y] ?? B.cpi[y]));
       GY.forEach(y => $("simGdp" + y).value = r2(gdp[y] ?? B.gdp[y]));
-      if (cpi === B.cpi) Y.forEach(y => $("simCore" + y).value = r2(B.core[y]));
+      // БИПЦ: в прогнозе СКБ — свой; для ЦБ (публикует только ИПЦ) — ИПЦ минус спред из прогноза СКБ
+      Y.forEach(y => $("simCore" + y).value = r2(cpi === B.cpi ? B.core[y] : (cpi[y] ?? B.cpi[y]) - (B.cpi[y] - B.core[y])));
       draw();
     }
     $("simSkb").onclick = () => preset(B.cpi, B.gdp);
     $("simCbr").onclick = () => preset(S.cbr_preset.cpi, S.cbr_preset.gdp);
     $("simCbr").textContent = `Прогноз ЦБ (${S.cbr_preset.date})`;
-    ["simInputs", "simLink", "simPrem", "simGpot", "simNeutral"].forEach(id => $(id).addEventListener(id === "simInputs" ? "input" : "change", draw));
+    ["simInputs", "simPrem", "simGpot", "simNeutral"].forEach(id => $(id).addEventListener(id === "simInputs" ? "input" : "change", draw));
     ["simGpot", "simNeutral"].forEach(id => $(id).addEventListener("input", draw));
     preset(B.cpi, B.gdp);
   }
