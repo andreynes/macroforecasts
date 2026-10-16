@@ -28,10 +28,12 @@
           <div class="text-secondary mt-1">Автообновляемая таблица и график выбранного показателя</div>
         {% endif %}
       </div>
+      {% if active_page == 'macro' %}
       <div class="pt-2 position-relative">
         <a href="/export" class="btn-excel">Экспорт в Excel</a>
         <span class="btn-excel-glow"></span>
       </div>
+      {% endif %}
     </header>
 
     <nav class="page-tabs mb-4">

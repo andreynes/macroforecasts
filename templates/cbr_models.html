@@ -14,6 +14,7 @@
   .cbm-formula { font-family: "JetBrains Mono", Consolas, monospace; font-size: .95rem; background: rgba(255,255,255,.04);
                  border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: .8rem 1rem; line-height: 1.7; overflow-x: auto; }
   .cbm-formula .hl { color: #ffb74d; }
+  .cbm-formula-plain { font-family: inherit; font-size: 1rem; }
   .cbm-calc .row-l { display: flex; justify-content: space-between; gap: 1rem; padding: .34rem 0;
                      border-bottom: 1px dashed rgba(255,255,255,.08); font-size: .92rem; }
   .cbm-calc .row-l.sum { border-bottom: 0; border-top: 1px solid rgba(255,255,255,.35); font-weight: 700; margin-top: .2rem; }
@@ -56,6 +57,19 @@
             <h5 class="card-title mb-2">Правило денежно-кредитной политики КПМ Банка России</h5>
             <div class="cbm-formula mb-3">
               i<sub>t</sub> = <span class="hl">ρ</span>·i<sub>t−1</sub> + (1 − <span class="hl">ρ</span>)·[ r̄ + π<sup>e</sup><sub>t+3</sub> + <span class="hl">φ<sub>π</sub></span>·(π<sup>e</sup><sub>t+3</sub> − 4) + <span class="hl">φ<sub>y</sub></span>·ŷ<sub>t</sub> ]
+            </div>
+            <div class="cbm-eyebrow mb-1">То же с коэффициентами ЦБ</div>
+            <div class="cbm-formula cbm-formula-plain mb-2">
+              Ставка = <span class="hl">0,75</span> · Ставка<sub>пр. кв.</sub> + <span class="hl">0,25</span> · [ 4 + Инфл + <span class="hl">1,5</span> · (Инфл − 4) + <span class="hl">0,5</span> · Разрыв ]
+            </div>
+            <div class="cbm-note mb-3">
+              <b>Ставка</b> — ключевая ставка в квартале, % ·
+              <b>Ставка<sub>пр. кв.</sub></b> — ставка в прошлом квартале ·
+              <b>4</b> (первое) — нейтральная реальная ставка: нейтральная номинальная 8% минус цель 4% ·
+              <b>Инфл</b> — инфляция через 3 квартала, % г/г: 0,75·БИПЦ + 0,25·ИПЦ ·
+              <b>4</b> (в скобках) — цель по инфляции, % ·
+              <b>Разрыв</b> — разрыв выпуска в текущем квартале, % от потенциала.<br>
+              В наших расчётах к нейтральной реальной ставке 4 добавляется затухающая надбавка ЦБ из его последнего прогноза (около +0,2…0,3 п.п. к ставке).
             </div>
             <div class="cbm-note mb-3">
               <b>Как читать две линии правила.</b> <b>Пунктир «Если бы ЦБ менял ставку сразу»</b> — какой должна быть ставка
