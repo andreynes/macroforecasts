@@ -144,11 +144,11 @@
       <div class="card-body">
         <h5 class="card-title mb-1">Декомпозиция ставки по правилу Тейлора при прогнозе СКБ, % годовых</h5>
         <div class="cbm-legend mb-2">
-          <span><i class="bar" style="background:#4a5163"></i>Нейтральная ставка 8%</span>
+          <span><i class="bar" style="background:#8a93a6"></i>Прошлая ставка × ρ</span>
+          <span><i class="bar" style="background:#4a5163"></i>Нейтральная 8% × (1−ρ)</span>
           <span><i class="bar" style="background:#ff72c0"></i>Инфляция выше цели</span>
           <span><i class="bar" style="background:#2f80ed"></i>Надбавка ЦБ</span>
           <span><i class="bar" style="background:#9be7ff"></i>Разрыв ВВП</span>
-          <span><i class="bar" style="background:#8a93a6"></i>Инерция</span>
           <span><i style="background:#ffb74d"></i>Ставка по правилу</span>
           <span><i class="dash" style="border-color:#fff"></i>Прогноз СКБ</span>
         </div>
@@ -356,9 +356,9 @@
   function renderDecomp(D) {
     const C = D.decomp, N = C.neutral;
     const rows = C.rows.filter(r => !r.is_year), x = rows.map(r => r.label);
-    const parts = [["neutral", "Нейтральная ставка", "#4a5163"], ["inflation", "Инфляция выше цели", C_PINK],
-                   ["premium", "Надбавка ЦБ", C_BLUE], ["inertia", "Инерция", "#8a93a6"], ["gap", "Разрыв ВВП", C_MIX]];
-    const tr = parts.map(([k, n, c]) => ({ type: 'bar', x, y: rows.map(r => k === "neutral" ? N : r[k]), name: n, marker: { color: c },
+    const parts = [["prev", "Прошлая ставка × ρ", "#8a93a6"], ["neutral", "Нейтральная 8% × (1−ρ)", "#4a5163"],
+                   ["inflation", "Инфляция выше цели", C_PINK], ["premium", "Надбавка ЦБ", C_BLUE], ["gap", "Разрыв ВВП", C_MIX]];
+    const tr = parts.map(([k, n, c]) => ({ type: 'bar', x, y: rows.map(r => r[k]), name: n, marker: { color: c },
       hovertemplate: `${n}: %{y:.2f}<extra></extra>` }));
     tr.push({ type: 'scatter', mode: 'lines+markers+text', x, y: rows.map(r => r.rule), name: 'Ставка по правилу',
       line: { color: C_RULE, width: 2.5 }, marker: { size: 8 }, text: rows.map(r => nf(r.rule)), textposition: 'top center',
@@ -367,16 +367,19 @@
       line: { color: '#fff', width: 1.5, dash: 'dash' }, marker: { size: 6 }, hovertemplate: 'Прогноз СКБ: %{y:.2f}%<extra></extra>' });
     Plotly.react('chartDecomp', tr, layout({ barmode: 'relative', bargap: 0.35,
       xaxis: { type: 'category', gridcolor: grid, tickfont: { color: text80 } } }), cfg);
-    let t = `<thead><tr><th>Заседание ЦБ</th><th>Нейтральная</th><th>Инфляция</th><th>Надбавка ЦБ</th><th>Разрыв ВВП</th>
-      <th>Инерция</th><th>Ставка по правилу</th><th>Прогноз СКБ</th></tr></thead><tbody>`;
-    C.rows.forEach(r => t += `<tr class="${r.is_year ? "tot" : ""}"><td>${r.label}</td><td>${nf(N)}</td><td>${sg(r.inflation)}</td>
-      <td>${sg(r.premium)}</td><td>${sg(r.gap)}</td><td>${sg(r.inertia)}</td><td>${nf(r.rule)}</td><td>${nf(r.our)}</td></tr>`);
+    let t = `<thead><tr><th>Заседание ЦБ</th><th>Ставка до заседания</th><th>ρ</th><th>Прошлая ставка × ρ</th><th>Нейтральная × (1−ρ)</th>
+      <th>Инфляция</th><th>Надбавка ЦБ</th><th>Разрыв ВВП</th><th>Ставка по правилу</th><th>Прогноз СКБ</th></tr></thead><tbody>`;
+    C.rows.forEach(r => t += `<tr class="${r.is_year ? "tot" : ""}"><td>${r.label}</td><td>${r.is_year ? "" : nf(r.before)}</td>
+      <td>${r.is_year ? "" : nf(r.rho)}</td><td>${nf(r.prev)}</td><td>${nf(r.neutral)}</td><td>${sg(r.inflation)}</td>
+      <td>${sg(r.premium)}</td><td>${sg(r.gap)}</td><td>${nf(r.rule)}</td><td>${nf(r.our)}</td></tr>`);
     $("cbmDecompTable").innerHTML = t + "</tbody>";
-    $("cbmDecompNote").innerHTML = `Ставка по правилу = ${nf(N, 0)}% + инфляция + надбавка ЦБ + разрыв ВВП + инерция.
-      ${more(`<b>Инфляция</b> — 2,5·(πᵉ − 4): ожидаемая инфляция входит и в номинальную нейтральную ставку (×1), и в реакцию правила (×1,5);
-        снижается вместе с прогнозом инфляции. <b>Надбавка ЦБ</b> — затухающая надбавка к нейтральной ставке из прогноза ЦБ.
-        <b>Разрыв ВВП</b> — 0,5·ŷ. <b>Инерция</b> = ρ·(ставка до заседания − уровень «если менять сразу»): правило снижает ставку постепенно,
-        поэтому при снижении нужного уровня она положительная. Строка за год — средние по дням.`)}`;
+    $("cbmDecompNote").innerHTML = `Ставка по правилу = ρ · ставка до заседания + (1−ρ) · [${nf(N, 0)}% + инфляция + надбавка ЦБ + разрыв ВВП].
+      ρ = 0,75 за квартал; на шаг между заседаниями (~6 недель) это ≈ 0,87.
+      ${more(`<b>Почему ρ не 0,75.</b> В модели ЦБ (КПМ) 0,75 — вес ставки прошлого <i>квартала</i>. Заседания идут чаще, поэтому на шаг
+        между ними вес пересчитывается: ρ = 0,75^(дней между заседаниями / 91). За квартал (два шага) получаются те же 0,75.
+        <b>Инфляция</b> — 2,5·(πᵉ − 4)·(1−ρ): ожидаемая инфляция входит и в номинальную нейтральную ставку (×1), и в реакцию правила (×1,5);
+        πᵉ = 0,75·БИПЦ + 0,25·ИПЦ, г/г через 3 кв. <b>Надбавка ЦБ</b> — (r̄ − 4)·(1−ρ): затухающая надбавка к нейтральной ставке
+        из прогноза ЦБ. <b>Разрыв ВВП</b> — 0,5·ŷ·(1−ρ), ŷ в квартале заседания. Строка за год — средние по дням.`)}`;
   }
 
   function renderInfl(D) {
