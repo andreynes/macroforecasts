@@ -70,10 +70,10 @@
             </div>
             <div class="cbm-note mb-3">
               Ставка<sub>пр. кв.</sub> — ставка прошлого квартала · 4 — нейтральная реальная ставка (8% − цель 4%) ·
-              Разрыв ВВП — в текущем квартале. Выражение в скобках — ставка, «если бы ЦБ менял её сразу»; правило идёт к ней на ¼ за квартал.
+              Разрыв ВВП — в текущем квартале. Выражение в скобках — оценка по инфляции и разрыву ВВП; правило идёт к ней на ¼ за квартал.
               <details class="cbm-more"><summary>Подробнее</summary><div>Инфл — 75% базового ИПЦ г/г и 25% ИПЦ г/г, оба в квартале через 3 квартала от текущего. «4» в скобках — цель по инфляции.
                 Разрыв ВВП — отклонение ВВП от потенциала, %. В наших расчётах к нейтральной реальной ставке добавляется затухающая надбавка ЦБ
-                из его последнего прогноза (+0,2…0,3 п.п.). Сплошная линия «Ставка по правилу» = ¾ ставки до заседания + ¼ уровня «если менять сразу»;
+                из его последнего прогноза (+0,2…0,3 п.п.). Сплошная линия «Ставка по правилу» = ¾ ставки до заседания + ¼ оценки по инфляции и разрыву ВВП;
                 если инфляция и экономика не меняются, она за несколько кварталов приходит к этому уровню.</div></details>
             </div>
             <div class="table-responsive">
@@ -102,7 +102,7 @@
         <div class="cbm-legend mb-2">
           <span><i style="background:#fff"></i>Ключевая ставка</span>
           <span><i style="background:#ffb74d"></i>Ставка по правилу</span>
-          <span><i class="dash" style="border-color:#ffb74d"></i>Если бы ЦБ менял ставку сразу</span>
+          <span><i class="dash" style="border-color:#ffb74d"></i>Оценка по инфляции и разрыву ВВП (без инерции)</span>
           <span><i class="dot" style="border-color:#aaa"></i>Нейтральная ставка (оценка ЦБ)</span>
         </div>
         <div id="chartRealtime" class="chart"></div>
@@ -130,7 +130,7 @@
           <span><i style="background:#fff"></i>Ключевая ставка, факт</span>
           <span><i class="dash" style="border-color:#fff"></i>Прогноз СКБ (по датам заседаний ЦБ)</span>
           <span><i style="background:#ffb74d"></i>Ставка по правилу при прогнозе СКБ (точки — заседания ЦБ)</span>
-          <span><i class="dot" style="border-color:#ffb74d"></i>Если бы ЦБ менял ставку сразу (прогноз СКБ)</span>
+          <span><i class="dot" style="border-color:#ffb74d"></i>Оценка по инфляции и разрыву ВВП (прогноз СКБ)</span>
           <span><i class="dash" style="border-color:var(--blue)"></i>Ставка по правилу при прогнозе ЦБ (ромбы — заседания)</span>
           <span><i class="bar" style="background:rgba(47,128,237,.35)"></i>Прогноз ЦБ: диапазон средней ставки за период</span>
         </div>
@@ -180,7 +180,7 @@
         <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0 cbm-table" id="cbmOursTable"></table></div>
         <div class="cbm-note mt-2">πᵉ — инфляция г/г через 3 кв. (0,75·БИПЦ + 0,25·ИПЦ, прогноз СКБ) · ŷ — разрыв ВВП · r̄ — нейтральная реальная ставка с надбавкой ЦБ.
           <details class="cbm-more"><summary>Подробнее</summary><div>Прогноз СКБ — ставка после заседания. πᵉ — средняя за квартал через 3 квартала от квартала заседания; ŷ — в квартале заседания;
-            надбавка ЦБ затухает к нулю (r̄ → 4%). «Если менять сразу» — ставка без постепенного шага; «по правилу» — шаг ¼ разрыва за квартал
+            надбавка ЦБ затухает к нулю (r̄ → 4%). «Оценка по инфляции и разрыву ВВП» — 8% + 2,5·(πᵉ − 4) + 0,5·ŷ, без надбавки ЦБ и постепенного шага; «по правилу» — шаг ¼ разрыва за квартал
             (между заседаниями — пропорционально числу дней). Средние за год — по дням.</div></details></div>
       </div>
     </div>
@@ -302,9 +302,9 @@
       kpi(`Ставка по правилу · заседание ${k.next_date}`, nf(k.next_rule) + "%",
           `при прогнозе СКБ; без надбавки ЦБ — ${nf(k.next_no_prem)}%<br>при прогнозе ЦБ — ${nf(k.next_cbr_rule)}% · прогноз СКБ: ${nf(k.next_our)}%`, "rule") +
       kpi(`Средняя ставка в ${k.year} г. · прогноз СКБ`, nf(k.year_our) + "%",
-          `по правилу при прогнозе СКБ: ${nf(k.year_rule)}% (если бы ЦБ менял сразу: ${nf(k.year_notional)}%)<br>при прогнозе ЦБ: ${nf(k.year_cbr_rule)}% · прогноз ЦБ: ${rng(k.year_cbr_lo, k.year_cbr_hi)}%`, "fc") +
+          `по правилу при прогнозе СКБ: ${nf(k.year_rule)}% (оценка по инфляции и разрыву ВВП: ${nf(k.year_notional)}%)<br>при прогнозе ЦБ: ${nf(k.year_cbr_rule)}% · прогноз ЦБ: ${rng(k.year_cbr_lo, k.year_cbr_hi)}%`, "fc") +
       kpi(`Насколько ЦБ жёстче правила`, sg(k.stance, 1) + " п.п.",
-          `${ruDate(e.date)} ЦБ установил ${nf(e.decision)}%, а ставка по правилу — ${nf(e.rule)}%. Если бы ЦБ менял ставку сразу, правило дало бы ${nf(e.notional)}%`);
+          `${ruDate(e.date)} ЦБ установил ${nf(e.decision)}%, а ставка по правилу — ${nf(e.rule)}%. Оценка по инфляции и разрыву ВВП — ${nf(e.notional)}%`);
   }
 
   function renderRule(D) {
@@ -322,7 +322,7 @@
       <div class="row-l"><span>π<sup>e</sup> через 3 кв.: 0,75·БИПЦ + 0,25·ИПЦ по прогнозу ЦБ от ${e.fc_date} (ИПЦ ${e.cbr_fc.split(" | ")[1]} на конец года)</span><span class="cbm-num">${nf(e.pi_e)}</span></div>
       <div class="row-l"><span>1,5 · (π<sup>e</sup> − 4)</span><span class="cbm-num">${sg(e.infl_term)}</span></div>
       <div class="row-l"><span>0,5 · разрыв выпуска (${nf(e.gap)}% — оценка ЦБ за ${e.gap_q.replace("Q", " кв. ").replace(/(\d{4}) кв. (\d)/, "$2 кв. $1")})</span><span class="cbm-num">${sg(e.gap_term)}</span></div>
-      <div class="row-l sum"><span>Если бы ЦБ менял ставку сразу</span><span class="cbm-num">${nf(e.notional)}%</span></div>
+      <div class="row-l sum"><span>Оценка по инфляции и разрыву ВВП (без инерции)</span><span class="cbm-num">${nf(e.notional)}%</span></div>
       <div class="row-l sum"><span>Ставка по правилу = 0,75 · ${nf(e.before)} (ставка до решения) + 0,25 · ${nf(e.notional)}</span><span class="cbm-num">${nf(e.rule)}%</span></div>
       <div class="row-l sum"><span>Решение ЦБ</span><span class="cbm-num">${nf(e.decision)}%</span></div>
       <div class="cbm-note mt-2">ЦБ выше ставки по правилу на ${sg(e.decision - e.rule, 1)} п.п.</div>`;
@@ -339,7 +339,7 @@
       line(o.our_kr_daily.x, o.our_kr_daily.y, "Прогноз СКБ", "#fff", { dash: 'dash', shape: 'hv' }),
       line(o.rule_steps.x, o.rule_steps.y, "Ставка по правилу при прогнозе СКБ", C_RULE, { shape: 'hv', extra: { hoverinfo: 'skip' } }),
       line(o.rule_pts.x, o.rule_pts.y, "Правило при прогнозе СКБ, заседание", C_RULE, { extra: { mode: 'markers', marker: { size: 7 } } }),
-      line(o.notional_pts.x, o.notional_pts.y, "Если бы ЦБ менял ставку сразу (СКБ)", C_RULE,
+      line(o.notional_pts.x, o.notional_pts.y, "Оценка по инфляции и разрыву ВВП (СКБ)", C_RULE,
         { extra: { mode: 'lines+markers', line: { color: C_RULE, width: 1.5, dash: 'dot', shape: 'hv' }, marker: { size: 4 } } }),
       line(o.cbr_rule_steps.x, o.cbr_rule_steps.y, `Ставка по правилу при прогнозе ЦБ ${o.cbr_date}`, C_BLUE, { dash: 'dash', shape: 'hv', extra: { hoverinfo: 'skip' } }),
       line(o.cbr_rule_pts.x, o.cbr_rule_pts.y, `Правило при прогнозе ЦБ, заседание`, C_BLUE, { extra: { mode: 'markers', marker: { size: 6, symbol: 'diamond' } } }),
@@ -349,14 +349,14 @@
     const y = D.ours_y[0];
     $("cbmOursNote").innerHTML = y ? `Одно правило, разные входы: оранжевая — прогноз СКБ, синяя — прогноз ЦБ. ${y.y} г., средняя:
       СКБ <b>${nf(y.our)}%</b> · правило <b>${nf(y.rule)}%</b> · правило при прогнозе ЦБ <b>${nf(y.cbr_rule)}%</b> · ЦБ <b>${rng(y.cbr_lo, y.cbr_hi)}%</b>.
-      Пунктир — куда правило тянет ставку без постепенного шага: в среднем <b>${nf(y.notional)}%</b>, СКБ выше на <b>${sg(y.our - y.notional, 1)} п.п.</b>
+      Точечная линия — оценка только по прогнозу инфляции и разрыву ВВП (8% + 2,5·(πᵉ − 4) + 0,5·ŷ): в среднем <b>${nf(y.notional)}%</b>, СКБ выше на <b>${sg(y.our - y.notional, 1)} п.п.</b>
       ${more(`Правило считается на каждом заседании ЦБ по календарю (точки), новая ставка — со следующего рабочего дня. Надбавка ЦБ — из его
         прогноза от ${o.cbr_date}. ЦБ публикует только ИПЦ, БИПЦ для его прогноза — через сходящийся к нулю спред. Разница между линиями —
         следствие разных прогнозов инфляции и ВВП, а не разной реакции. Прогноз СКБ по ставке задан на конец месяца и привязан к заседаниям ЦБ
         (${o.our_kr_changes.map(c => `${c.date} — ${nf(c.v)}%`).join(", ")}); средние — по дням.`)}` : "";
 
     let th = `<thead><tr><th>Заседание ЦБ</th><th>Прогноз СКБ</th><th>Ставка по правилу при прогнозе СКБ</th><th>СКБ − правило</th>
-      <th>Ставка по правилу при прогнозе ЦБ</th><th>πᵉ через 3 кв. (СКБ)</th><th>ŷ</th><th>r̄</th><th>Если бы ЦБ менял сразу</th></tr></thead><tbody>`;
+      <th>Ставка по правилу при прогнозе ЦБ</th><th>πᵉ через 3 кв. (СКБ)</th><th>ŷ</th><th>r̄</th><th>Оценка по инфляции и разрыву ВВП</th></tr></thead><tbody>`;
     D.ours_meet.forEach(r => {
       const d = r.our - r.rule;
       th += `<tr><td>${r.date}</td><td>${nf(r.our)}</td><td>${nf(r.rule)}</td><td class="${cls(d)}">${sg(d)}</td><td>${nf(r.cbr_rule)}</td>
@@ -506,13 +506,13 @@
     Plotly.react('chartRealtime', [
       line(kr.x, kr.y, "Ключевая ставка", "#fff", { shape: 'hv' }),
       line(x, R.map(r => r.rule), "Ставка по правилу", C_RULE, { extra: { mode: 'lines+markers', marker: { size: R.map(r => r.is_core ? 7 : 4) } } }),
-      line(x, R.map(r => r.notional), "Если бы ЦБ менял ставку сразу", C_RULE, { dash: 'dash', extra: { line: { color: C_RULE, width: 1.2, dash: 'dash' } } }),
+      line(x, R.map(r => r.notional), "Оценка по инфляции и разрыву ВВП", C_RULE, { dash: 'dash', extra: { line: { color: C_RULE, width: 1.2, dash: 'dash' } } }),
       line(x, R.map(r => r.neutral), "Нейтральная ЦБ", "#aaa", { dash: 'dot', shape: 'hv', extra: { line: { color: '#aaa', width: 1.2, dash: 'dot', shape: 'hv' } } }),
     ], layout({
       // пик пунктира в апреле 2022 г. (прогноз инфляции ЦБ 18–23%) обрезан, чтобы были видны остальные годы
       yaxis: { gridcolor: grid, tickfont: { color: text80 }, ticksuffix: '%', range: [0, 26] },
       annotations: (() => { const p = R.reduce((a, r) => r.notional > a.notional ? r : a);
-        return p.notional > 26 ? [{ x: p.date, y: 25.5, text: `если менять сразу: ${nf(p.notional, 0)}% ↑`, showarrow: false,
+        return p.notional > 26 ? [{ x: p.date, y: 25.5, text: `оценка по инфляции и разрыву: ${nf(p.notional, 0)}% ↑`, showarrow: false,
           font: { color: C_RULE, size: 11 }, xanchor: 'left' }] : []; })(),
     }), cfg);
 
@@ -522,7 +522,7 @@
     const SERIES = {
       "Правило (прогноз ЦБ)": "Ставка по правилу (прогноз инфляции ЦБ)",
       "Правило (текущая π, без прогноза)": "Ставка по правилу (текущая инфляция вместо прогноза)",
-      "Правило без сглаживания (прогноз ЦБ)": "Если бы ЦБ менял ставку сразу",
+      "Правило без сглаживания (прогноз ЦБ)": "Оценка по инфляции и разрыву ВВП",
       "Наивный: ставка не меняется": "Наивный прогноз: ставка не меняется",
     };
     [...new Set(D.rt_metrics.map(m => m.series))].forEach(sname => {
@@ -533,14 +533,14 @@
     const mm = (ser, smp) => D.rt_metrics.find(m => m.series === ser && m.sample === smp) || {};
     $("cbmRtNote").innerHTML = `Без 2022 г. ставка по правилу ошибается в среднем на <b>${nf(mm("Правило (прогноз ЦБ)", "без 2022 г.").rmse, 1)} п.п.</b>,
       «ставка не меняется» — на ${nf(mm("Наивный: ставка не меняется", "без 2022 г.").rmse, 1)} п.п.; направление решения правило угадывает чаще.
-      С 2023 г. ЦБ держит ставку выше уровня «если менять сразу» в среднем на ${nf(mm("Правило без сглаживания (прогноз ЦБ)", "2023–2026").me, 1)} п.п.
+      С 2023 г. ЦБ держит ставку выше оценки по инфляции и разрыву ВВП в среднем на ${nf(mm("Правило без сглаживания (прогноз ЦБ)", "2023–2026").me, 1)} п.п.
       ${more(`На дату заседания правило знает: ставку до решения, ИПЦ за опубликованные месяцы, разрыв ВВП в квартале заседания (оценка ЦБ,
         ретроспективная), прогноз инфляции ЦБ (PDF «Среднесрочный прогноз»; 2018 г. — пресс-релизы) и оценку нейтральной ставки на тот момент.
         Параметры не подбираются. В 2018–2021 гг. ЦБ действовал близко к правилу, в 2022 г. сознательно отошёл от него; с 2023 г. жёстче —
         частично потому, что прогноз ЦБ уже учитывает высокую ставку, частично из-за краткосрочной нейтральной ставки выше 8%.`)}`;
 
     let rt = `<thead><tr><th>Заседание</th><th>Прогноз ЦБ, дек/дек</th><th>ИПЦ (мес.)</th><th>πᵉ</th><th>ŷ (квартал)</th><th>Нейтр.</th>
-      <th>До решения</th><th>Решение</th><th>Если менять сразу</th><th>Ставка по правилу</th><th>Решение − ставка по правилу</th></tr></thead><tbody>`;
+      <th>До решения</th><th>Решение</th><th>Оценка по инфляции и разрыву ВВП</th><th>Ставка по правилу</th><th>Решение − ставка по правилу</th></tr></thead><tbody>`;
     R.slice().reverse().forEach(r => {
       const d = r.decision - r.rule;
       rt += `<tr><td>${ruDate(r.date)}${r.kind === "внеочередное" ? "**" : r.is_core ? "" : "*"}</td><td>${r.is_core ? "" : "от " + r.fc_date + ": "}${r.cbr_fc}</td><td>${nf(r.cpi)} (${r.m_last})</td><td>${nf(r.pi_e)}</td>
