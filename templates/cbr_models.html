@@ -29,6 +29,12 @@
   .cbm-legend i.dash { background: none !important; border-top: 3px dashed; height: 0; }
   .cbm-legend i.dot { border-top: 3px dotted; background: none !important; height: 0; }
   .cbm-legend i.bar { height: 10px; vertical-align: -1px; border-radius: 2px; }
+  .cbm-input { width: 5.2rem; background: #0f1220; color: #fff; border: 1px solid var(--grid); border-radius: 6px; padding: .15rem .4rem; text-align: right; font-size: .9rem; }
+  .cbm-input:disabled { color: var(--text-80); opacity: .6; }
+  .cbm-input.chg { border-color: #7ee081; }
+  .cbm-btn { background: transparent; color: #fff; border: 1px solid var(--grid); border-radius: 8px; padding: .2rem .7rem; font-size: .85rem; }
+  .cbm-btn:hover { border-color: #7ee081; }
+  .cbm-sim-out b { color: #7ee081; }
   .cbm-select { background: #0f1220; color: #fff; border: 1px solid var(--grid); border-radius: 8px; padding: .25rem .5rem; font-size: .9rem; }
   details.cbm-details summary { cursor: pointer; color: var(--text-80); font-size: .88rem; }
   details.cbm-more { margin-top: .3rem; }
@@ -243,6 +249,43 @@
     </div>
   </div>
 
+  <!-- Конструктор -->
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Конструктор: ставка по правилу Тейлора при своём прогнозе ИПЦ и ВВП, % годовых</h5>
+        <div class="cbm-note mb-2">Измените прогноз в таблице — траектория ставки по правилу пересчитается сразу.</div>
+        <div class="row g-3">
+          <div class="col-12 col-xl-5">
+            <div class="d-flex gap-2 mb-2 flex-wrap">
+              <button class="cbm-btn" id="simSkb">Прогноз СКБ</button>
+              <button class="cbm-btn" id="simCbr">Прогноз ЦБ</button>
+            </div>
+            <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-2 cbm-table" id="simInputs"></table></div>
+            <div class="cbm-note d-flex flex-column gap-1">
+              <label><input type="checkbox" id="simLink" checked> БИПЦ = ИПЦ − спред, как в прогнозе СКБ</label>
+              <label><input type="checkbox" id="simPrem" checked> Надбавка ЦБ к нейтральной ставке</label>
+              <label>Потенциальный рост ВВП, % <input type="number" step="0.1" class="cbm-input ms-1" id="simGpot"></label>
+              <label>Нейтральная реальная ставка, % <input type="number" step="0.1" class="cbm-input ms-1" id="simNeutral"></label>
+            </div>
+            <div class="cbm-note mt-2 cbm-sim-out" id="simOut"></div>
+          </div>
+          <div class="col-12 col-xl-7">
+            <div class="cbm-legend mb-2">
+              <span><i style="background:#fff"></i>Ключевая ставка, факт</span>
+              <span><i class="dash" style="border-color:#fff"></i>Прогноз СКБ</span>
+              <span><i style="background:rgba(255,183,77,.45)"></i>Правило при прогнозе СКБ</span>
+              <span><i style="background:#7ee081"></i>Правило при вашем прогнозе</span>
+              <span><i class="dot" style="border-color:#7ee081"></i>Оценка по инфляции и разрыву ВВП</span>
+            </div>
+            <div id="chartSim" class="chart" style="height:360px"></div>
+          </div>
+        </div>
+        <div class="cbm-note mt-2" id="simNote"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Методология -->
   <div class="col-12">
     <div class="card glass shadow-soft">
@@ -425,6 +468,137 @@
         действует только с даты решения, поэтому средняя за квартал отстаёт от квартального правила.`)}`;
   }
 
+  function initSim(D) {
+    const S = D.sim, Y = S.years, GY = S.gdp_years;
+    const mi = Object.fromEntries(S.months.map((m, i) => [m, i]));
+    const dec = y => mi[`${y}-12`];
+    const B = { cpi: {}, core: {}, gdp: {} };
+    Y.forEach(y => { B.cpi[y] = S.cpi[dec(y)]; B.core[y] = S.core[dec(y)]; });
+    GY.forEach(y => B.gdp[y] = S.gdp_growth[y]);
+    const r2 = v => Math.round(v * 100) / 100;
+    const inp = (id, v) => `<input type="number" step="0.1" class="cbm-input" id="${id}" value="${r2(v)}">`;
+    let t = `<thead><tr><th>Прогноз</th>${Y.map(y => `<th>${y}</th>`).join("")}</tr></thead><tbody>`;
+    t += `<tr><td class="wrap">ИПЦ, % дек/дек</td>${Y.map(y => `<td>${inp("simCpi" + y, B.cpi[y])}</td>`).join("")}</tr>`;
+    t += `<tr><td class="wrap">БИПЦ, % дек/дек</td>${Y.map(y => `<td>${inp("simCore" + y, B.core[y])}</td>`).join("")}</tr>`;
+    t += `<tr><td class="wrap">ВВП, % г/г (среднегодовой)</td>${Y.map(y => `<td>${GY.includes(y) ? inp("simGdp" + y, B.gdp[y]) : "—"}</td>`).join("")}</tr>`;
+    $("simInputs").innerHTML = t + "</tbody>";
+    const val = id => parseFloat($(id).value);
+    const qKey = (y, q) => `${y}Q${q}`;
+    const qOf = m => qKey(+m.slice(0, 4), Math.floor((+m.slice(5, 7) - 1) / 3) + 1);
+    const qAdd = (k, n) => { const y = +k.slice(0, 4), q = +k.slice(5) - 1 + n; return qKey(y + Math.floor(q / 4), ((q % 4) + 4) % 4 + 1); };
+    const qDiff = (a, b) => (+a.slice(0, 4) - +b.slice(0, 4)) * 4 + (+a.slice(5) - +b.slice(5));
+
+    // сдвиг относительно прогноза СКБ: 0 в последнем фактическом месяце, далее линейно к сдвигу в каждом декабре
+    function shifted(base, lastM, decDelta) {
+      const pts = [[mi[lastM], 0], ...Y.filter(y => dec(y) > mi[lastM]).map(y => [dec(y), decDelta[y]])];
+      return base.map((v, i) => {
+        if (i <= pts[0][0]) return v;
+        for (let j = 1; j < pts.length; j++) if (i <= pts[j][0]) {
+          const [a, da] = pts[j - 1], [b, db] = pts[j]; return v + da + (db - da) * (i - a) / (b - a);
+        }
+        return v + pts.at(-1)[1];
+      });
+    }
+    function gdpLevels(growth) {
+      const L = { ...S.gdp_q };
+      GY.forEach(y => {
+        const qs = [1, 2, 3, 4].map(q => qKey(y, q)), miss = qs.filter(k => !(k in L));
+        if (!miss.length) return;
+        const prevAvg = [1, 2, 3, 4].map(q => L[qKey(y - 1, q)]).reduce((a, b) => a + b) / 4;
+        const target = 4 * prevAvg * (1 + growth[y] / 100), known = qs.filter(k => k in L).reduce((a, k) => a + L[k], 0);
+        const base = L[qAdd(miss[0], -1)];
+        let lo = -0.2, hi = 0.2, g = 0;
+        for (let it = 0; it < 100; it++) {
+          g = (lo + hi) / 2;
+          const sum = miss.reduce((a, _, k) => a + base * Math.pow(1 + g, k + 1), 0);
+          if (known + sum < target) lo = g; else hi = g;
+        }
+        miss.forEach((k, j) => L[k] = base * Math.pow(1 + g, j + 1));
+      });
+      return L;
+    }
+    function compute() {
+      const link = $("simLink").checked;
+      const dC = {}, dK = {}, gr = {};
+      Y.forEach(y => {
+        const d = (id, b) => Math.abs(val(id) - r2(b)) < 1e-9 ? 0 : val(id) - b;
+        dC[y] = d("simCpi" + y, B.cpi[y]);
+        if (link) $("simCore" + y).value = r2(B.core[y] + dC[y]);
+        $("simCore" + y).disabled = link;
+        dK[y] = link ? dC[y] : d("simCore" + y, B.core[y]);
+      });
+      // в поле — округлённое значение; если его не меняли, берём точное (иначе база СКБ сдвинется на округление)
+      GY.forEach(y => gr[y] = Math.abs(val("simGdp" + y) - r2(B.gdp[y])) < 1e-9 ? B.gdp[y] : val("simGdp" + y));
+      const cpi = shifted(S.cpi, S.cpi_last, dC), core = shifted(S.core, S.core_last, dK);
+      const piq = {}, cnt = {};
+      S.months.forEach((m, i) => { const k = qOf(m); piq[k] = (piq[k] || 0) + 0.75 * core[i] + 0.25 * cpi[i]; cnt[k] = (cnt[k] || 0) + 1; });
+      Object.keys(piq).forEach(k => piq[k] /= cnt[k]);
+      const L = gdpLevels(gr), gpot = val("simGpot"), rlr = val("simNeutral"), prem = $("simPrem").checked;
+      const gap = k => S.gap0 + 100 * Math.log(L[k] / L[S.q0]) - gpot * qDiff(k, S.q0) / 4;
+      let i = S.i0;
+      const rows = S.meetings.map(m => {
+        const pe = piq[qAdd(m.q, 3)], g = gap(m.q);
+        const level = rlr + 4 + 2.5 * (pe - 4) + 0.5 * g;
+        i = m.rho * i + (1 - m.rho) * (level + (prem ? m.prem : 0));
+        return { ...m, pe, g, level, rule: i };
+      });
+      // средние за год — по дням, новая ставка со следующего рабочего дня после заседания
+      const sum = {}, n = {};
+      for (let d = new Date(S.start), r = S.i0, j = 0; d <= new Date(S.end); d.setUTCDate(d.getUTCDate() + 1)) {
+        const ds = d.toISOString().slice(0, 10);
+        while (j < rows.length && rows[j].eff <= ds) r = rows[j++].rule;
+        const y = ds.slice(0, 4); sum[y] = (sum[y] || 0) + r; n[y] = (n[y] || 0) + 1;
+      }
+      const avg = Object.fromEntries(Object.keys(sum).filter(y => n[y] >= 365).map(y => [y, sum[y] / n[y]]));
+      return { rows, avg };
+    }
+    function draw() {
+      const R = compute(), o = D.ours, kr = D.key_rate;
+      Y.forEach(y => ["simCpi", "simCore", "simGdp"].forEach(p => { const el = $(p + y); if (el) {
+        const b = p === "simCpi" ? B.cpi[y] : p === "simCore" ? B.core[y] : B.gdp[y];
+        el.classList.toggle("chg", Math.abs(parseFloat(el.value) - r2(b)) > 1e-6); } }));
+      const krx = kr.x.filter(d => d >= "2025-01-01"), kry = kr.y.slice(kr.x.length - krx.length);
+      const sx = [S.start, ...R.rows.map(r => r.eff), S.end], sy = [S.i0, ...R.rows.map(r => r.rule), R.rows.at(-1).rule];
+      const lx = [...R.rows.map(r => r.eff), S.end], ly = [...R.rows.map(r => r.level), R.rows.at(-1).level];
+      const G = '#7ee081';
+      Plotly.react('chartSim', [
+        line(krx, kry, "Ключевая ставка", "#fff", { shape: 'hv' }),
+        line(o.our_kr_daily.x, o.our_kr_daily.y, "Прогноз СКБ", "#fff", { dash: 'dash', shape: 'hv' }),
+        line(o.rule_steps.x, o.rule_steps.y, "Правило при прогнозе СКБ", 'rgba(255,183,77,.45)', { shape: 'hv' }),
+        line(lx, ly, "Оценка по инфляции и разрыву ВВП", G, { extra: { line: { color: G, width: 1.5, dash: 'dot', shape: 'hv' } } }),
+        line(sx, sy, "Правило при вашем прогнозе", G, { shape: 'hv', extra: { hoverinfo: 'skip' } }),
+        line(R.rows.map(r => r.date), R.rows.map(r => r.rule), "Правило при вашем прогнозе, заседание", G,
+          { extra: { mode: 'markers+text', marker: { size: 7 }, text: R.rows.map(r => nf(r.rule, 1)), textposition: 'top center', textfont: { color: G, size: 11 } } }),
+      ], layout({ yaxis: { gridcolor: grid, tickfont: { color: text80 }, ticksuffix: '%' } }), cfg);
+      const r0 = R.rows[0], yy = Object.keys(R.avg)[0], base = D.ours_y.find(r => String(r.y) === yy) || {};
+      $("simOut").innerHTML = `Заседание ${ruDate(r0.date)}: <b>${nf(r0.rule)}%</b> (при прогнозе СКБ ${nf(r0.base)}%)<br>
+        Средняя ставка в ${yy} г.: <b>${nf(R.avg[yy])}%</b> (при прогнозе СКБ ${nf(base.rule)}%; прогноз СКБ ${nf(base.our)}%)<br>
+        Конец ${yy} г.: <b>${nf(R.rows.at(-1).rule)}%</b>`;
+      $("simNote").innerHTML = `Инфляция по месяцам — прогноз СКБ, сдвинутый так, чтобы попасть в заданный декабрь; ВВП — равномерный рост кв/кв до заданного среднегодового.
+        ${more(`Траектория считается так же, как оранжевая линия выше: на каждом заседании ЦБ ставка = ρ·ставка до заседания + (1−ρ)·[нейтральная + надбавка ЦБ +
+          2,5·(πᵉ − 4) + 0,5·разрыв ВВП], старт — текущая ставка ${nf(S.i0)}%. πᵉ = 0,75·БИПЦ + 0,25·ИПЦ, г/г, в среднем за квартал через 3 кв.
+          Разница с прогнозом СКБ в декабре распределяется линейно от последнего фактического месяца (${S.cpi_last}). Разрыв ВВП — от оценки
+          за ${S.q0.replace("Q", " кв. ").replace(/(\d{4}) кв. (\d)/, "$2 кв. $1")} (${nf(S.gap0)}%) плюс рост ВВП минус потенциальный. Пресет «Прогноз ЦБ» — середины
+          диапазонов ЦБ от ${S.cbr_preset.date}, БИПЦ через спред.
+          <div class="table-responsive mt-2"><table class="table table-dark table-sm mb-0 cbm-table"><thead><tr><th>Заседание</th><th>πᵉ через 3 кв.</th>
+          <th>Разрыв ВВП</th><th>ρ</th><th>Оценка по инфляции и разрыву</th><th>Ставка по правилу</th></tr></thead><tbody>${R.rows.map(r =>
+          `<tr><td>${ruDate(r.date)}</td><td>${nf(r.pe)}</td><td>${nf(r.g)}</td><td>${nf(r.rho)}</td><td>${nf(r.level)}</td><td>${nf(r.rule)}</td></tr>`).join("")}</tbody></table></div>`)}`;
+    }
+    function preset(cpi, gdp) {
+      $("simLink").checked = true; $("simPrem").checked = true; $("simGpot").value = S.g_pot; $("simNeutral").value = S.rbar_lr;
+      Y.forEach(y => $("simCpi" + y).value = r2(cpi[y] ?? B.cpi[y]));
+      GY.forEach(y => $("simGdp" + y).value = r2(gdp[y] ?? B.gdp[y]));
+      if (cpi === B.cpi) Y.forEach(y => $("simCore" + y).value = r2(B.core[y]));
+      draw();
+    }
+    $("simSkb").onclick = () => preset(B.cpi, B.gdp);
+    $("simCbr").onclick = () => preset(S.cbr_preset.cpi, S.cbr_preset.gdp);
+    $("simCbr").textContent = `Прогноз ЦБ (${S.cbr_preset.date})`;
+    ["simInputs", "simLink", "simPrem", "simGpot", "simNeutral"].forEach(id => $(id).addEventListener(id === "simInputs" ? "input" : "change", draw));
+    ["simGpot", "simNeutral"].forEach(id => $(id).addEventListener("input", draw));
+    preset(B.cpi, B.gdp);
+  }
+
   function renderInfl(D) {
     const I = D.inflation, x = I.x.map(monthStart);
     const iA = I.x.indexOf(I.last_actual);
@@ -571,7 +745,7 @@
 
   fetch(API).then(r => r.json()).then(D => {
     if (D.error) { $("cbmError").textContent = D.error; $("cbmError").hidden = false; return; }
-    renderKpis(D); renderRule(D); renderOurs(D); renderDecomp(D); renderSens(D); renderInfl(D); renderGdp(D); renderCalibration(D); renderRealtime(D); renderMethod(D);
+    renderKpis(D); renderRule(D); renderOurs(D); renderDecomp(D); renderSens(D); renderInfl(D); renderGdp(D); renderCalibration(D); initSim(D); renderRealtime(D); renderMethod(D);
   }).catch(e => { $("cbmError").textContent = "Не удалось загрузить данные: " + e; $("cbmError").hidden = false; });
 })();
 </script>
