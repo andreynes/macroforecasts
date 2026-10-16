@@ -1,5 +1,57 @@
 # Сайт макропрогнозов (Flask)
 
+## Как поднять сайт без Яндекс Облака
+
+Сайт — обычное Flask-приложение в Docker, к Яндексу не привязан (с ним связаны только `deploy_yc.sh`
+и `serverless-containers.yaml`). Всё нужное лежит в этом репозитории: код, шаблоны и Excel-файлы с данными.
+
+### Вариант 1: Docker (любой сервер или хостинг контейнеров)
+```bash
+git clone https://github.com/andreynes/macroforecasts.git
+cd macroforecasts
+docker build -t macro-site .
+docker run -d -p 80:5000 \
+  -e DATA_FILE=/app/macro_main_linked.xlsx \
+  -e REQUIRE_BASIC_AUTH=0 \
+  --name macro-site --restart unless-stopped macro-site
+```
+Сайт откроется на `http://<адрес сервера>/`. Подойдёт любой VPS с Docker или облако, которое запускает контейнер
+по Dockerfile (Render, Railway, Fly.io, Cloud Run, другие serverless-контейнеры). Порт берётся из переменной `PORT`
+(по умолчанию 5000).
+
+### Вариант 2: без Docker
+```bash
+python3.10 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+DATA_FILE=macro_main_linked.xlsx gunicorn app:app --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:8000
+```
+
+### Переменные окружения
+| Переменная | Зачем | По умолчанию |
+|---|---|---|
+| `DATA_FILE` | основной Excel с прогнозами | `macro_main_linked.xlsx` в корне |
+| `REQUIRE_BASIC_AUTH` | `1` — вход по логину и паролю | `0` |
+| `BASIC_AUTH_USER`, `BASIC_AUTH_PASS` | логин и пароль, если вход включён | `user` / `pass` |
+| `PORT` | порт внутри контейнера | `5000` |
+
+Остальные Excel (`yield_forecast_data.xlsx`, `analyst_forecasts.xlsx`, файлы по денежному рынку, ОФЗ и т.д.)
+читаются из корня проекта; пути можно переопределить переменными, см. `utils/*.py`.
+
+### Данные вкладки «Модели ЦБ»
+Сайт читает готовый `data/cbr_models.json`. Пересчитать его (код модели — в `models/taylor_rule`):
+```bash
+cd models/taylor_rule
+pip install -r requirements.txt
+python src/download_data.py   # свежие данные ЦБ и Росстата
+python src/export_site.py     # пишет ../../data/cbr_models.json
+```
+Прогноз СКБ модель берёт из `macro_main_linked.xlsx` в корне сайта. PDF ЦБ в git не хранятся —
+`download_data.py` скачивает их заново.
+
+---
+
+## Локальный запуск и формат данных (исходная инструкция)
+
 Готовый мини‑сайт, который **автоматически подхватывает данные из вашего Excel/CSV**, показывает их в таблице, строит **графики по выбранному показателю** и позволяет **выгружать всё в Excel**.
 
 ## Быстрый старт

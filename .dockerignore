@@ -1,0 +1,7 @@
+# В образ сайта не нужны: история git, модели (их результат уже в data/*.json), кеши
+.git
+models/
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
