@@ -60,13 +60,14 @@
             </div>
             <div class="cbm-eyebrow mb-1">То же с коэффициентами ЦБ</div>
             <div class="cbm-formula cbm-formula-plain mb-2">
-              Ставка = <span class="hl">0,75</span> · Ставка<sub>пр. кв.</sub> + <span class="hl">0,25</span> · [ 4 + Инфл + <span class="hl">1,5</span> · (Инфл − 4) + <span class="hl">0,5</span> · Разрыв ]
+              Ставка = <span class="hl">0,75</span> · Ставка<sub>пр. кв.</sub> + <span class="hl">0,25</span> · [ 4 + Инфл + <span class="hl">1,5</span> · (Инфл − 4) + <span class="hl">0,5</span> · Разрыв ]<br>
+              где Инфл = <span class="hl">0,75</span> · БИПЦ<sub>г/г через 3 кв.</sub> + <span class="hl">0,25</span> · ИПЦ<sub>г/г через 3 кв.</sub>
             </div>
             <div class="cbm-note mb-3">
               <b>Ставка</b> — ключевая ставка в квартале, % ·
               <b>Ставка<sub>пр. кв.</sub></b> — ставка в прошлом квартале ·
               <b>4</b> (первое) — нейтральная реальная ставка: нейтральная номинальная 8% минус цель 4% ·
-              <b>Инфл</b> — инфляция через 3 квартала, % г/г: 0,75·БИПЦ + 0,25·ИПЦ ·
+              <b>Инфл</b> — взвешенная инфляция через 3 квартала: 75% базового ИПЦ г/г и 25% ИПЦ г/г, оба в квартале через 3 квартала от текущего ·
               <b>4</b> (в скобках) — цель по инфляции, % ·
               <b>Разрыв</b> — разрыв выпуска в текущем квартале, % от потенциала.<br>
               В наших расчётах к нейтральной реальной ставке 4 добавляется затухающая надбавка ЦБ из его последнего прогноза (около +0,2…0,3 п.п. к ставке).
@@ -137,8 +138,8 @@
         <div class="cbm-legend mb-2">
           <span><i style="background:#fff"></i>Ключевая ставка, факт</span>
           <span><i class="dash" style="border-color:#fff"></i>Прогноз СКБ (по датам заседаний ЦБ)</span>
-          <span><i style="background:#ffb74d"></i>Ставка по правилу при нашем прогнозе</span>
-          <span><i class="dash" style="border-color:var(--blue)"></i>Ставка по правилу при прогнозе ЦБ</span>
+          <span><i style="background:#ffb74d"></i>Ставка по правилу при прогнозе СКБ (точки — заседания ЦБ)</span>
+          <span><i class="dash" style="border-color:var(--blue)"></i>Ставка по правилу при прогнозе ЦБ (ромбы — заседания)</span>
           <span><i class="bar" style="background:rgba(47,128,237,.35)"></i>Прогноз ЦБ: диапазон средней ставки за период</span>
         </div>
         <div id="chartOurs" class="chart"></div>
@@ -169,10 +170,11 @@
   <div class="col-12">
     <div class="card glass shadow-soft h-100">
       <div class="card-body">
-        <h5 class="card-title mb-2">По кварталам: прогноз и правило</h5>
+        <h5 class="card-title mb-2">По заседаниям ЦБ: прогноз СКБ и правило Тейлора</h5>
         <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0 cbm-table" id="cbmOursTable"></table></div>
-        <div class="cbm-note mt-2">πᵉ — инфляция г/г через 3 квартала (наш прогноз); ŷ — разрыв выпуска; r̄ — нейтральная реальная ставка
-          с надбавкой ЦБ из последнего прогноза ЦБ (затухает к 4%). «Если менять сразу» — какой должна быть ставка при нынешних инфляции и экономике без постепенного шага; «по правилу» — с шагом в ¼ разрыва за квартал.</div>
+        <div class="cbm-note mt-2">Прогноз СКБ — ставка после заседания. πᵉ — инфляция г/г (0,75·БИПЦ + 0,25·ИПЦ), средняя за квартал через 3 квартала
+          от квартала заседания (прогноз СКБ); ŷ — разрыв выпуска в квартале заседания; r̄ — нейтральная реальная ставка
+          с надбавкой ЦБ из последнего прогноза ЦБ (затухает к 4%). «Если менять сразу» — какой должна быть ставка при нынешних инфляции и экономике без постепенного шага; «по правилу» — с шагом в ¼ разрыва за квартал (между заседаниями — пропорционально числу дней).</div>
       </div>
     </div>
   </div>
@@ -286,14 +288,13 @@
 
   function renderKpis(D) {
     const k = D.kpi;
-    const q = k.next_q.replace(/(\d{4}) Q(\d)/, (m, y, n) => ["I", "II", "III", "IV"][n - 1] + " кв. " + y);
     const e = D.example;
     $("cbmKpis").innerHTML =
       kpi(`Ключевая ставка · ${k.key_rate_date}`, nf(k.key_rate) + "%", `Последний прогноз ЦБ — от ${k.cbr_date}`) +
-      kpi(`Ставка по правилу ЦБ · ${q}`, nf(k.next_rule) + "%",
-          `при нашем прогнозе инфляции и ВВП; при прогнозе ЦБ — ${nf(k.next_cbr_rule)}%<br>наш прогноз ставки: ${nf(k.next_our)}%`, "rule") +
-      kpi(`Средняя ставка в ${k.year} г. · наш прогноз`, nf(k.year_our) + "%",
-          `по правилу при нашем прогнозе: ${nf(k.year_rule)}%; при прогнозе ЦБ: ${nf(k.year_cbr_rule)}%<br>прогноз ставки самого ЦБ: ${nf(k.year_cbr, 1)}%`, "fc") +
+      kpi(`Ставка по правилу · заседание ${k.next_date}`, nf(k.next_rule) + "%",
+          `при прогнозе СКБ по инфляции и ВВП; при прогнозе ЦБ — ${nf(k.next_cbr_rule)}%<br>прогноз СКБ: ${nf(k.next_our)}%`, "rule") +
+      kpi(`Средняя ставка в ${k.year} г. · прогноз СКБ`, nf(k.year_our) + "%",
+          `по правилу при прогнозе СКБ: ${nf(k.year_rule)}%; при прогнозе ЦБ: ${nf(k.year_cbr_rule)}%<br>прогноз ставки самого ЦБ: ${rng(k.year_cbr_lo, k.year_cbr_hi)}%`, "fc") +
       kpi(`Насколько ЦБ жёстче правила`, sg(k.stance, 1) + " п.п.",
           `${ruDate(e.date)} ЦБ установил ${nf(e.decision)}%, а ставка по правилу — ${nf(e.rule)}%. Если бы ЦБ менял ставку сразу, правило дало бы ${nf(e.notional)}%`);
   }
@@ -324,38 +325,40 @@
   function renderOurs(D) {
     const o = D.ours, kr = D.key_rate;
     const krx = kr.x.filter(d => d >= "2025-01-01"), kry = kr.y.slice(kr.x.length - krx.length);
-    const x = o.x.map(monthStart);
     // отрезки прогноза ЦБ — только в пределах нашего горизонта
-    const end = o.x.at(-1) + "-31";
+    const end = o.our_kr_daily.x.at(-1);
     const avgs = o.cbr_avgs.filter(s => s.from <= end).map(s => ({ ...s, to: s.to > end ? end : s.to }));
     const tr = [
       line(krx, kry, "Ключевая ставка", "#fff", { shape: 'hv' }),
       line(o.our_kr_daily.x, o.our_kr_daily.y, "Прогноз СКБ", "#fff", { dash: 'dash', shape: 'hv' }),
-      line(x, o.rule, "Правило при нашем прогнозе", C_RULE),
-      line(o.cbr_rule_x.map(monthStart), o.cbr_rule, `Правило при прогнозе ЦБ ${o.cbr_date}`, C_BLUE, { dash: 'dash' }),
+      line(o.rule_steps.x, o.rule_steps.y, "Ставка по правилу при прогнозе СКБ", C_RULE, { shape: 'hv', extra: { hoverinfo: 'skip' } }),
+      line(o.rule_pts.x, o.rule_pts.y, "Правило при прогнозе СКБ, заседание", C_RULE, { extra: { mode: 'markers', marker: { size: 7 } } }),
+      line(o.cbr_rule_steps.x, o.cbr_rule_steps.y, `Ставка по правилу при прогнозе ЦБ ${o.cbr_date}`, C_BLUE, { dash: 'dash', shape: 'hv', extra: { hoverinfo: 'skip' } }),
+      line(o.cbr_rule_pts.x, o.cbr_rule_pts.y, `Правило при прогнозе ЦБ, заседание`, C_BLUE, { extra: { mode: 'markers', marker: { size: 6, symbol: 'diamond' } } }),
       ...avgs.map(s => band(s.from, s.to, s.lo, s.hi, 'rgba(47,128,237,.35)', `Прогноз ЦБ ${o.cbr_date}, средняя ставка`)),
     ];
     Plotly.react('chartOurs', tr, layout({ yaxis: { gridcolor: grid, tickfont: { color: text80 }, ticksuffix: '%' } }), cfg);
     const y = D.ours_y[0];
     $("cbmOursNote").innerHTML = y ? `<b>Как читать.</b> Обе линии — одно и то же правило ЦБ (инфляция 0,75·БИПЦ + 0,25·ИПЦ, надбавка ЦБ
-      из прогноза от ${o.cbr_date}); различаются только входы. <b>Оранжевая</b> — наш прогноз инфляции и ВВП, <b>синяя</b> — прогноз ЦБ
-      (ЦБ публикует только ИПЦ, БИПЦ получен через сходящийся к нулю спред). В ${y.y} г. средняя ставка: наш прогноз <b>${nf(y.our)}%</b>,
-      по правилу при нашем прогнозе <b>${nf(y.rule)}%</b>, по правилу при прогнозе ЦБ <b>${nf(y.cbr_rule)}%</b>, прогноз ставки ЦБ <b>${nf(y.cbr, 1)}%</b>.
+      из прогноза от ${o.cbr_date}); различаются только входы. <b>Оранжевая</b> — прогноз СКБ по инфляции и ВВП, <b>синяя</b> — прогноз ЦБ
+      (ЦБ публикует только ИПЦ, БИПЦ получен через сходящийся к нулю спред). Правило считается на каждом заседании ЦБ по календарю: точки — решения по правилу, новая ставка действует со следующего
+      рабочего дня. В ${y.y} г. средняя ставка (по дням): прогноз СКБ <b>${nf(y.our)}%</b>, по правилу при прогнозе СКБ <b>${nf(y.rule)}%</b>,
+      по правилу при прогнозе ЦБ <b>${nf(y.cbr_rule)}%</b>, прогноз ставки ЦБ <b>${rng(y.cbr_lo, y.cbr_hi)}%</b>.
       Разница между оранжевой и синей — следствие разных прогнозов инфляции и ВВП, а не разной реакции на них.
       <b>Прогноз СКБ по ставке</b> задан значениями на конец месяца; изменения привязаны к заседаниям ЦБ по календарю и вступают в силу
       на следующий рабочий день (${o.our_kr_changes.map(c => `${c.date} — ${nf(c.v)}%`).join(", ")}); средние за квартал и год — по дням.` : "";
 
-    let th = `<thead><tr><th>Квартал</th><th>Наш прогноз КС</th><th>По правилу при нашем прогнозе</th><th>Наш − правило</th>
-      <th>По правилу при прогнозе ЦБ</th><th>πᵉ (наш)</th><th>ŷ</th><th>r̄</th><th>Если менять сразу</th></tr></thead><tbody>`;
-    D.ours_q.forEach(r => {
+    let th = `<thead><tr><th>Заседание ЦБ</th><th>Прогноз СКБ</th><th>Ставка по правилу при прогнозе СКБ</th><th>СКБ − правило</th>
+      <th>Ставка по правилу при прогнозе ЦБ</th><th>πᵉ через 3 кв. (СКБ)</th><th>ŷ</th><th>r̄</th><th>Если менять сразу</th></tr></thead><tbody>`;
+    D.ours_meet.forEach(r => {
       const d = r.our - r.rule;
-      th += `<tr><td>${r.q}</td><td>${nf(r.our)}</td><td>${nf(r.rule)}</td><td class="${cls(d)}">${sg(d)}</td><td>${nf(r.cbr_rule)}</td>
+      th += `<tr><td>${r.date}</td><td>${nf(r.our)}</td><td>${nf(r.rule)}</td><td class="${cls(d)}">${sg(d)}</td><td>${nf(r.cbr_rule)}</td>
         <td>${nf(r.pi_e)}</td><td>${nf(r.gap)}</td><td>${nf(r.rbar)}</td><td>${nf(r.notional)}</td></tr>`;
     });
     D.ours_y.forEach(r => {
       const d = r.our - r.rule;
       th += `<tr class="tot"><td>${r.y}, среднее</td><td>${nf(r.our)}</td><td>${nf(r.rule)}</td><td class="${cls(d)}">${sg(d)}</td>
-        <td>${nf(r.cbr_rule)}</td><td colspan="4" style="text-align:left">прогноз ставки ЦБ: ${nf(r.cbr, 1)}%</td></tr>`;
+        <td>${nf(r.cbr_rule)}</td><td colspan="4" style="text-align:left">средние по дням; прогноз ставки ЦБ: ${rng(r.cbr_lo, r.cbr_hi)}%</td></tr>`;
     });
     $("cbmOursTable").innerHTML = th + "</tbody>";
   }
@@ -376,7 +379,7 @@
     Plotly.react('chartDecomp', tr, layout({ barmode: 'relative', xaxis: { type: 'category', gridcolor: grid, tickfont: { color: text80 } },
       yaxis: { gridcolor: grid, tickfont: { color: text80 }, zerolinecolor: '#fff', ticksuffix: ' п.п.',
                title: { text: `к нейтральной ставке ${nf(N, 0)}%`, font: { color: text80, size: 11 } } } }), cfg);
-    let t = `<thead><tr><th>Период</th><th>Нейтральная ставка</th><th>Инерция</th><th>Инфляция</th><th>Надбавка ЦБ</th>
+    let t = `<thead><tr><th>Заседание ЦБ</th><th>Нейтральная ставка</th><th>Инерция</th><th>Инфляция</th><th>Надбавка ЦБ</th>
       <th>Разрыв выпуска</th><th>Ставка по правилу</th><th>Прогноз СКБ</th></tr></thead><tbody>`;
     C.rows.forEach(r => t += `<tr class="${r.is_year ? "tot" : ""}"><td>${r.label}</td><td>${nf(N)}</td><td>${sg(r.inertia)}</td>
       <td>${sg(r.inflation)}</td><td>${sg(r.premium)}</td><td>${sg(r.gap)}</td><td>${nf(r.rule)}</td><td>${nf(r.our)}</td></tr>`);
