@@ -416,9 +416,15 @@ def current_quarter_label(today: Optional[date] = None) -> str:
 def quarter_series(indicator: str, quarter_label: str) -> Dict:
     records = _load_records()
     quarter_label = quarter_label.strip()
+    q_end = quarter_end_date(quarter_label)
     by_who: Dict[str, List[Tuple[date, float]]] = {}
     for snapshot, ind, who, q, value in records:
         if ind != indicator or q != quarter_label:
+            continue
+        # Снимки после окончания квартала по-прежнему содержат его колонку
+        # (прошедшие кварталы не удаляют) — но это уже не прогноз, а
+        # перенесённое значение; все линии обрываем на конце квартала.
+        if snapshot > q_end:
             continue
         by_who.setdefault(who, []).append((snapshot, value))
     for who in by_who:
@@ -446,7 +452,7 @@ def quarter_series(indicator: str, quarter_label: str) -> Dict:
     return {
         "indicator": indicator,
         "quarter": quarter_label,
-        "quarter_end": quarter_end_date(quarter_label).isoformat(),
+        "quarter_end": q_end.isoformat(),
         "analysts": analysts,
         "series": series,
         "consensus_name": consensus_name,
