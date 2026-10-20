@@ -277,6 +277,13 @@ def main() -> None:
                "infl_term": num(cal.PHI_PI * (ex["pi_e"] - TARGET)), "gap_term": num(cal.PHI_Y * ex["gap"])}
 
     nxt = ours_meet[0]
+    # ближайшее заседание при макропрогнозе ЦБ — от фактической ставки сегодня (как и для СКБ)
+    cal_days = sorted(pd.to_datetime(pd.read_csv(cal.RAW / "cbr_meeting_calendar.csv")["date"]))
+    today_kr = R["kr"].index.max()
+    cbr_now, _ = cal.meeting_rule_path(
+        float(R["kr"].iloc[-1]), max(d for d in cal_days if d <= today_kr), [d for d in cal_days if d > today_kr][:1],
+        last_inp["pi"], last_inp["gap"].groupby(last_inp["gap"].index.asfreq("Q")).mean(), last_inp["rbar_lr"],
+        last_cal["r0"], last_cal["lam"], last_inp["rest_from"], today_kr + pd.Timedelta(days=1), end_day)
     y27 = next((r for r in ours_y if r["y"] == 2027), ours_y[0] if ours_y else {})
     out = {
         "generated": dt.datetime.now().strftime("%d.%m.%Y %H:%M"),
@@ -285,7 +292,8 @@ def main() -> None:
                    "neutral_history": [{"from": a, "v": v} for a, v in NEUTRAL_NOMINAL]},
         "kpi": {"key_rate": num(kr.iloc[-1]), "key_rate_date": kr.index[-1].strftime("%d.%m.%Y"),
                 "next_date": nxt["date"], "next_rule": nxt["rule"], "next_cbr_rule": nxt["cbr_rule"],
-                "next_our": nxt["our"], "next_no_prem": sens[1]["next"], "year_notional": y27.get("notional"), "year": y27.get("y"), "year_our": y27.get("our"),
+                "next_our": nxt["our"], "next_cbr_now": num(cbr_now["rule"].iloc[0]), "next_cbr_pi": num(cbr_now["pi_e"].iloc[0]),
+                "next_pi": nxt["pi_e"], "next_no_prem": sens[1]["next"], "year_notional": y27.get("notional"), "year": y27.get("y"), "year_our": y27.get("our"),
                 "year_rule": y27.get("rule"), "year_cbr_rule": y27.get("cbr_rule"), "year_cbr": y27.get("cbr"),
                 "year_cbr_lo": y27.get("cbr_lo"), "year_cbr_hi": y27.get("cbr_hi"),
                 "cbr_date": ours["cbr_date"], "stance": num(ex["decision"] - ex["rule"]), "stance_date": ex["date"]},
