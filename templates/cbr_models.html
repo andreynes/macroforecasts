@@ -340,9 +340,9 @@
     const e = D.example;
     $("cbmKpis").innerHTML =
       kpi(`Заседание ${k.next_date} · правило при макропрогнозе ЦБ`, nf(k.next_cbr_now) + "%",
-          `инфляция через 3 кв. ${nf(k.next_cbr_pi, 1)}% — прогноз ЦБ от ${k.cbr_date}<br>от текущей ставки ${nf(k.key_rate)}% (${k.key_rate_date})`) +
+          `через 3 кв.: ИПЦ ${nf(k.next_cbr_cpi, 1)}%, БИПЦ ${nf(k.next_cbr_core, 1)}%* — прогноз ЦБ от ${k.cbr_date}<br>от текущей ставки ${nf(k.key_rate)}% (${k.key_rate_date})<br>* ЦБ не публикует БИПЦ — наша оценка через спред`) +
       kpi(`Заседание ${k.next_date} · правило при макропрогнозе СКБ`, nf(k.next_rule) + "%",
-          `инфляция через 3 кв. ${nf(k.next_pi, 1)}%; без надбавки ЦБ — ${nf(k.next_no_prem)}%<br>прогноз СКБ по ставке: ${nf(k.next_our)}%`, "rule") +
+          `через 3 кв.: ИПЦ ${nf(k.next_cpi, 1)}%, БИПЦ ${nf(k.next_core, 1)}%<br>без надбавки ЦБ — ${nf(k.next_no_prem)}% · прогноз СКБ по ставке: ${nf(k.next_our)}%`, "rule") +
       kpi(`Средняя ставка в ${k.year} г. · прогноз СКБ`, nf(k.year_our) + "%",
           `по правилу при прогнозе СКБ: ${nf(k.year_rule)}% (оценка по инфляции и разрыву ВВП: ${nf(k.year_notional)}%)<br>при прогнозе ЦБ: ${nf(k.year_cbr_rule)}% · прогноз ЦБ: ${rng(k.year_cbr_lo, k.year_cbr_hi)}%`, "fc") +
       kpi(`Насколько ЦБ жёстче правила`, sg(k.stance, 1) + " п.п.",

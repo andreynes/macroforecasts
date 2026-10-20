@@ -277,6 +277,9 @@ def main() -> None:
                "infl_term": num(cal.PHI_PI * (ex["pi_e"] - TARGET)), "gap_term": num(cal.PHI_Y * ex["gap"])}
 
     nxt = ours_meet[0]
+    # ИПЦ и БИПЦ г/г, средние за квартал через 3 кв. от квартала ближайшего заседания (входят в правило 0,25 / 0,75)
+    q_next = pd.Period(om["date"].iloc[0], "Q") + 3
+    q3 = lambda x: num(x[x.index.asfreq("Q") == q_next].mean())
     # ближайшее заседание при макропрогнозе ЦБ — от фактической ставки сегодня (как и для СКБ)
     cal_days = sorted(pd.to_datetime(pd.read_csv(cal.RAW / "cbr_meeting_calendar.csv")["date"]))
     today_kr = R["kr"].index.max()
@@ -292,8 +295,9 @@ def main() -> None:
                    "neutral_history": [{"from": a, "v": v} for a, v in NEUTRAL_NOMINAL]},
         "kpi": {"key_rate": num(kr.iloc[-1]), "key_rate_date": kr.index[-1].strftime("%d.%m.%Y"),
                 "next_date": nxt["date"], "next_rule": nxt["rule"], "next_cbr_rule": nxt["cbr_rule"],
-                "next_our": nxt["our"], "next_cbr_now": num(cbr_now["rule"].iloc[0]), "next_cbr_pi": num(cbr_now["pi_e"].iloc[0]),
-                "next_pi": nxt["pi_e"], "next_no_prem": sens[1]["next"], "year_notional": y27.get("notional"), "year": y27.get("y"), "year_our": y27.get("our"),
+                "next_our": nxt["our"], "next_cbr_now": num(cbr_now["rule"].iloc[0]),
+                "next_cbr_cpi": q3(last_inp["cpi"]), "next_cbr_core": q3((last_inp["pi"] - (1 - W_CORE) * last_inp["cpi"]) / W_CORE),
+                "next_cpi": q3(infl["cpi"]), "next_core": q3(infl["core"]), "next_no_prem": sens[1]["next"], "year_notional": y27.get("notional"), "year": y27.get("y"), "year_our": y27.get("our"),
                 "year_rule": y27.get("rule"), "year_cbr_rule": y27.get("cbr_rule"), "year_cbr": y27.get("cbr"),
                 "year_cbr_lo": y27.get("cbr_lo"), "year_cbr_hi": y27.get("cbr_hi"),
                 "cbr_date": ours["cbr_date"], "stance": num(ex["decision"] - ex["rule"]), "stance_date": ex["date"]},

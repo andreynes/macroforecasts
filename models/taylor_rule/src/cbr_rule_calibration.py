@@ -98,7 +98,7 @@ def vintage_inputs(v: pd.Series, cpi: pd.Series, core: pd.Series, gdp: pd.Series
     # диапазон прогноза ЦБ (для графиков; калибруем по середине)
     rng = {k: (v.get(f"{c}_lo", np.nan), v.get(f"{c}_hi", np.nan))
            for k, c in [("rest", "kr_rest"), (y + 1, "kr_y1"), (y + 2, "kr_y2"), (y + 3, "kr_y3")] if k in targets}
-    return dict(d=d, y=y, until=until, pi=pi, gap=gap, gap0=gap0, q_gap=q_gap, g_pot=g_pot, i_new=i_new,
+    return dict(d=d, y=y, until=until, pi=pi, cpi=head, gap=gap, gap0=gap0, q_gap=q_gap, g_pot=g_pot, i_new=i_new,
                 rest_from=rest_from, targets=targets, ranges=rng, m_last=m_last,
                 rbar_lr=neutral_nominal(pd.PeriodIndex([pd.Period(d, "Q")])).iloc[0] - TARGET)
 
