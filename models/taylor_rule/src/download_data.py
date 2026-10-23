@@ -97,7 +97,7 @@ def download_cbr_forecasts(folder: Path) -> pd.DataFrame:
                "kr_y1": kr["vals"][2], "kr_y2": kr["vals"][3], "kr_y3": kr["vals"][4], "kr_raw": kr["raw"],
                **{f"kr_y{k}_{b}": kr[b][k + 1] for k in (1, 2, 3) for b in ("lo", "hi")}}
         # сноска 1: средняя ключевая ставка с даты заседания до конца текущего года
-        m = re.search(r"с (\d{1,2}) (\w+) до конца (\d{4}) года средняя ключевая\s+ставка\s+прогнозируется в\s+"
+        m = re.search(r"с (\d{1,2}) (\w+) до конца (\d{4}) года средняя ключевая\s+ставка\s+(?:прогнозируется в|составит)\s+"
                       r"(?:диапазоне\s+)?(\d+,\d)(?:\s*[–-]\s*(\d+,\d))?", text.replace("\n", " "))
         if m:
             nums = [float(x.replace(",", ".")) for x in m.group(4, 5) if x]

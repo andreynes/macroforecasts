@@ -138,12 +138,11 @@ def run() -> tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
         pi_last, core_last = cpi[m_last], core[m_last]
         pi_e, pi_e_cpi, target = expected_inflation(d, pi_last, core_last, m_last, fc)
         # разрыв выпуска — в квартале заседания (как Y_GAP в правиле КПМ: текущий квартал, наукаст ЦБ);
-        # берётся из ретроспективной оценки ЦБ, для ещё не опубликованного квартала — последний известный
+        # берётся из ретроспективной оценки ЦБ; если квартала заседания ещё нет — ближайший известный
+        # (включая предварительную оценку ВВП), как наукаст текущего квартала
         q_now = pd.Period(d, "Q")
-        if q_now in gap_all.index:
-            gap, gap_q = float(gap_all[q_now]), q_now
-        else:
-            gap, gap_q = realtime_gap(gdp, d)
+        gap_q = min(q_now, gap_all.index.max())
+        gap = float(gap_all[gap_q])
         n_nom = neutral_nominal(pd.PeriodIndex([pd.Period(d, "Q")])).iloc[0]
         rbar = n_nom - TARGET
         # ставка до решения — накануне заседания (внеочередные решения вступали в силу в тот же день)
