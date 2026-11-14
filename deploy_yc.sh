@@ -49,6 +49,38 @@ yc container registry add-access-binding --id "${REGISTRY_ID}" \
   --role container-registry.images.puller \
   --subject serviceAccount:"${SA_ID}" >/dev/null || true
 
+echo "=== Пароль сайта ==="
+# Логин и пароль закрытых разделов лежат ВНЕ папки проекта, в файле
+#   ~/.config/macro/site_auth.env   (две строки: BASIC_AUTH_USER=...  и  BASIC_AUTH_PASS=...)
+# «Макропрогнозы» открыты всем, остальные вкладки — по этому паролю.
+# Выложить совсем без пароля (как раньше): ./deploy_yc.sh --no-auth
+AUTH_FILE="${SITE_AUTH_FILE:-$HOME/.config/macro/site_auth.env}"
+AUTH_ARGS=(--environment REQUIRE_BASIC_AUTH=0)
+if [[ "${1:-}" == "--no-auth" ]]; then
+  echo "ВНИМАНИЕ: выкладка без пароля (--no-auth) — все разделы открыты по ссылке."
+elif [[ -f "${AUTH_FILE}" ]]; then
+  BASIC_AUTH_USER=""; BASIC_AUTH_PASS=""
+  # shellcheck disable=SC1090
+  source "${AUTH_FILE}"
+  if [[ -z "${BASIC_AUTH_USER}" || -z "${BASIC_AUTH_PASS}" || "${BASIC_AUTH_PASS}" == "pass" ]]; then
+    echo "В ${AUTH_FILE} должны быть заданы BASIC_AUTH_USER и BASIC_AUTH_PASS (пароль не «pass»)."; exit 1
+  fi
+  if [[ "${BASIC_AUTH_USER}${BASIC_AUTH_PASS}" == *","* ]]; then
+    echo "В логине и пароле нельзя использовать запятую (ограничение yc --environment)."; exit 1
+  fi
+  AUTH_ARGS=(--environment REQUIRE_BASIC_AUTH=1
+             --environment "BASIC_AUTH_USER=${BASIC_AUTH_USER}"
+             --environment "BASIC_AUTH_PASS=${BASIC_AUTH_PASS}")
+  echo "Пароль включён (логин: ${BASIC_AUTH_USER})."
+else
+  echo "Не найден ${AUTH_FILE}."
+  echo "Создайте его (один раз):"
+  echo "  mkdir -p ~/.config/macro && nano ~/.config/macro/site_auth.env"
+  echo "  и впишите две строки:  BASIC_AUTH_USER=логин   BASIC_AUTH_PASS=пароль"
+  echo "Либо выложите без пароля: ./deploy_yc.sh --no-auth"
+  exit 1
+fi
+
 echo "=== Логин Docker в реестр Яндекса ==="
 yc container registry configure-docker >/dev/null
 
@@ -76,7 +108,7 @@ yc serverless container revision deploy \
   --execution-timeout 30s \
   --concurrency 1 \
   --environment DATA_FILE=/app/macro_main_linked.xlsx \
-  --environment REQUIRE_BASIC_AUTH=0
+  "${AUTH_ARGS[@]}"
 
 echo "=== Делаю доступ по ссылке (allUsers -> invoker) ==="
 yc serverless container add-access-binding \

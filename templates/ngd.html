@@ -18,7 +18,16 @@
   .ngd-note { font-size: .82rem; color: var(--text-80); margin-top: .45rem; }
   .ngd-kpi-v { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
   #ngdTable th, #ngdTable td { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; font-size: .84rem; padding: .35rem .55rem; }
-  #ngdTable th:first-child, #ngdTable td:first-child { text-align: left; position: sticky; left: 0; background: #151a28; z-index: 1; }
+  /* закреплённая колонка названий: непрозрачный фон (общий стиль .table делает ячейки прозрачными через !important) */
+  #ngdTable th:first-child, #ngdTable td:first-child { text-align: left; position: sticky; left: 0; z-index: 1;
+      background: #151a28 !important; box-shadow: inset -1px 0 0 rgba(255,255,255,.12), 6px 0 8px -6px rgba(0,0,0,.6); }
+  #ngdTable thead th { background: #121623 !important; }
+  #ngdTable thead th:first-child { z-index: 3; background: #121623 !important; }
+  #ngdTable tbody tr:nth-child(even) td:first-child { background: linear-gradient(rgba(255,255,255,.015), rgba(255,255,255,.015)), #151a28 !important; }
+  #ngdTable tbody tr:hover td:first-child { background: linear-gradient(rgba(99,102,241,.07), rgba(99,102,241,.07)), #151a28 !important; }
+  /* строки-разделы: ячейка на всю ширину не «прилипает», поэтому закрепляем сам текст */
+  #ngdTable tr.sec td:first-child { position: static; box-shadow: none; background: transparent !important; }
+  #ngdTable tr.sec .sec-t { position: sticky; left: .55rem; }
   #ngdTable thead th { color: var(--text-80); font-weight: 600; vertical-align: bottom; }
   #ngdTable thead th .tax { display: block; font-weight: 400; font-size: .72rem; opacity: .8; }
   #ngdTable .fc { background: rgba(255, 114, 192, .08) !important; }
@@ -222,7 +231,7 @@
     let th = `<thead><tr><th>Месяц поступления</th>` + cols.map((c, i) =>
       `<th class="${c.fc ? "fc" : ""}${first(c, i) ? " first" : ""}">${c.label}${c.fc ? " · прогноз" : ""}<span class="tax">налоги за ${c.tax}</span></th>`).join("") + `</tr></thead>`;
     const n = cols.length + 1;
-    let tb = `<tbody><tr class="sec"><td colspan="${n}">Нефтегазовые доходы</td></tr>`;
+    let tb = `<tbody><tr class="sec"><td colspan="${n}"><span class="sec-t">Нефтегазовые доходы</span></td></tr>`;
     D.rows.forEach(r => {
       tb += `<tr class="l${r.lvl}"><td>${r.label}</td>` + cols.map((c, i) => cell(c, i, nf(c.v[r.k]) +
         ((r.k === "base" || r.k === "add") && c.base_est ? `<span class="est">*</span>` : ""))).join("") + `</tr>`;
@@ -232,19 +241,19 @@
       }
     });
     const fxRow = (label, fn, cls) => `<tr class="${cls}"><td>${label}</td>` + cols.map((c, i) => cell(c, i, c.fx ? fn(c.fx) : "")).join("") + `</tr>`;
-    tb += `<tr class="sec"><td colspan="${n}">Валютные операции Минфина (месяц объявления)</td></tr>`;
+    tb += `<tr class="sec"><td colspan="${n}"><span class="sec-t">Валютные операции Минфина (месяц объявления)</span></td></tr>`;
     tb += fxRow("Объём операций", x => sg(x.total), "l0");
     tb += fxRow("В день", x => sg(x.day, 2), "l1");
     tb += fxRow("Ожидаемые доп. НГД (стр. 24)", x => sg(x.exp), "l1");
     tb += fxRow("Корректировка (стр. 25)", x => sg(x.corr), "l1");
     tb += fxRow("Модель на тот момент", x => x.fc ? "" : (x.model == null ? "—" : sg(x.model)), "sub");
     const cbRow = (label, fn, cls) => `<tr class="${cls}"><td>${label}</td>` + cols.map((c, i) => cell(c, i, c.cbr ? fn(c.cbr, c) : "")).join("") + `</tr>`;
-    tb += `<tr class="sec"><td colspan="${n}">Банк России, млрд ₽ в день (период операций того же месяца)</td></tr>`;
+    tb += `<tr class="sec"><td colspan="${n}"><span class="sec-t">Банк России, млрд ₽ в день (период операций того же месяца)</span></td></tr>`;
     tb += cbRow("Совокупные операции на рынке", x => sg(x.net, 2), "l0");
     tb += cbRow("Минфин", (x, c) => c.fx ? sg(c.fx.day, 2) : "не проводил", "l1");
     tb += cbRow("ЦБ: регулярные (зеркалирование ФНБ)", x => sg(x.reg, 2), "l1");
     tb += cbRow("ЦБ: нерегулярные", x => sg(x.irr, 2), "l1");
-    tb += `<tr class="sec"><td colspan="${n}">Вводные налогового месяца</td></tr>`;
+    tb += `<tr class="sec"><td colspan="${n}"><span class="sec-t">Вводные налогового месяца</span></td></tr>`;
     tb += `<tr class="l1"><td>Urals для налогообложения, $/барр</td>` + cols.map((c, i) => cell(c, i, nf(c.U, 2) + (c.U_est ? `<span class="est">*</span>` : ""))).join("") + `</tr>`;
     tb += `<tr class="l1"><td>Курс ЦБ, ₽/$</td>` + cols.map((c, i) => cell(c, i, nf(c.P, 2))).join("") + `</tr></tbody>`;
     $("ngdTable").innerHTML = th + tb;

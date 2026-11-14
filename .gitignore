@@ -28,3 +28,7 @@ data/*.zip
 # Модель «Правило Тейлора»: PDF ЦБ скачиваются заново (download_data.py), графики пересоздаются
 models/taylor_rule/outputs/
 models/taylor_rule/data/raw/**/*.pdf
+
+# Резервные копии и кеши скриптов данных
+*.bak
+data/cache/

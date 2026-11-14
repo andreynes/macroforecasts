@@ -28,6 +28,13 @@
     --bucket-target:  #7fae6a;
     --bucket-elevated:#d0384a;
     --bucket-high:    #2a78d6;
+    /* Распределение по SAAR: ниже цели — синие, выше — красные (как на недельном) */
+    --dist-low:       #184f95;
+    --dist-target:    #86b6ef;
+    --dist-elevated:  #f09594;
+    --dist-high:      #a3262a;
+    /* Коридор устойчивых компонентов — как на недельном дашборде */
+    --cband-fill: #86b6ef; --cband-edge: #5598e7; --cband-line: #184f95;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) .viz-root {
@@ -39,6 +46,7 @@
       --band-bg: rgba(122, 92, 255, 0.18); --band-text: #e7e0ff;
       --wf-pos: #e66767; --wf-neg: #3987e5;
       --wf-marker: #dba24f; --wf-total: #e0554f; --wf-separate: #b98a52;
+      --cband-fill: #1c5cab; --cband-edge: #3987e5; --cband-line: #cde2fb;
     }
   }
   :root[data-theme="dark"] .viz-root {
@@ -50,6 +58,7 @@
     --band-bg: rgba(122, 92, 255, 0.18); --band-text: #e7e0ff;
     --wf-pos: #e66767; --wf-neg: #3987e5;
     --wf-marker: #dba24f; --wf-total: #e0554f; --wf-separate: #b98a52;
+    --cband-fill: #1c5cab; --cband-edge: #3987e5; --cband-line: #cde2fb;
   }
 
   * { box-sizing: border-box; }
@@ -72,6 +81,9 @@
   .gridline { stroke: var(--gridline); stroke-width: 1; }
   .ref-line { stroke: var(--bucket-target); stroke-width: 1.4; stroke-dasharray: 5 3; opacity: 0.85; }
   .ref-label { fill: var(--bucket-target); font-size: 11px; font-weight: 700; }
+  .ref-line-muted { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 4 3; }
+  .ref-label-muted { fill: var(--text-muted); font-size: 9px; }
+  .end-label { fill: var(--text-primary); font-size: 12px; font-weight: 600; }
 
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin: 0 0 8px; }
   .legend .item { display: flex; align-items: center; gap: 6px; }
@@ -455,7 +467,7 @@ const DIFFUSION = [{"date": "2024-10-01", "low": 9.1, "target": 7.5, "elevated":
   function BandChart(containerEl, legendEl, opts) {
     // opts: { data, xKey, lowKey, highKey, meanKey, height, valueFmt, color, bandLabel, meanLabel }
     const W = 1000, H = opts.height || 300;
-    const M = { top: 14, right: 14, bottom: 26, left: 42 };
+    const M = { top: 14, right: 52, bottom: 26, left: 42 };  // справа — место под подпись последнего значения
     const innerW = W - M.left - M.right, innerH = H - M.top - M.bottom;
     const valueFmt = opts.valueFmt || ((v) => v === null || v === undefined ? '—' : v.toFixed(1));
     const color = opts.color;
@@ -469,9 +481,13 @@ const DIFFUSION = [{"date": "2024-10-01", "low": 9.1, "target": 7.5, "elevated":
     containerEl.appendChild(tooltip);
 
     legendEl.innerHTML = '';
+    // Оформление как у недельного графика устойчивых компонентов: коридор и
+    // линия в одной синей гамме, свои оттенки для тёмной темы (--cband-*).
+    const fillColor = opts.fillColor || color, edgeColor = opts.edgeColor || color, lineColor = opts.lineColor || color;
+    const fillOpacity = opts.fillOpacity ?? 0.22;
     legendEl.innerHTML =
-      `<span class="item"><span class="key rect" style="background:${color};opacity:0.35"></span>${opts.bandLabel || '20–80% перцентиль'}</span>` +
-      `<span class="item"><span class="key" style="background:${color}"></span>${opts.meanLabel || 'Среднее'}</span>`;
+      `<span class="item"><span class="key rect" style="background:${fillColor};opacity:${Math.min(1, fillOpacity + 0.15)}"></span>${opts.bandLabel || '20–80% перцентиль'}</span>` +
+      `<span class="item"><span class="key" style="background:${lineColor}"></span>${opts.meanLabel || 'Среднее'}</span>`;
 
     const data = opts.data;
     const dates = data.map(d => parseDate(d[opts.xKey]));
@@ -484,9 +500,10 @@ const DIFFUSION = [{"date": "2024-10-01", "low": 9.1, "target": 7.5, "elevated":
     });
     (opts.refLines || []).forEach(rl => allVals.push(rl.value));
     if (allVals.length === 0) allVals = [0, 1];
-    let min = Math.min(...allVals, 0), max = Math.max(...allVals, 0);
-    const pad = (max - min) * 0.12 || 1;
-    const ticks = niceTicks(min - pad, max + pad, 5);
+    // ось по данным (без обязательного нуля) с небольшим запасом
+    let min = Math.min(...allVals), max = Math.max(...allVals);
+    const pad = (max - min) * 0.06 || 1;
+    const ticks = niceTicks(min - pad, max + pad, 6);
     const yMin = ticks[0], yMax = ticks[ticks.length - 1];
     const yScale = (v) => M.top + innerH - ((v - yMin) / (yMax - yMin || 1)) * innerH;
 
@@ -494,13 +511,14 @@ const DIFFUSION = [{"date": "2024-10-01", "low": 9.1, "target": 7.5, "elevated":
       const y = yScale(t);
       svg.appendChild(el('line', { x1: M.left, x2: W - M.right, y1: y, y2: y, class: t === 0 ? 'baseline' : 'gridline' }));
       const lbl = el('text', { x: M.left - 8, y: y + 3, class: 'axis-label', 'text-anchor': 'end' });
-      lbl.textContent = t.toFixed(0);
+      const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1;
+      lbl.textContent = t.toFixed(Number.isInteger(step) ? 0 : 1);
       svg.appendChild(lbl);
     });
     (opts.refLines || []).forEach(rl => {
       const y = yScale(rl.value);
-      svg.appendChild(el('line', { x1: M.left, x2: W - M.right, y1: y, y2: y, class: 'ref-line' }));
-      const lbl = el('text', { x: M.left + 4, y: y + 14, class: 'ref-label', 'text-anchor': 'start' });
+      svg.appendChild(el('line', { x1: M.left, x2: W - M.right, y1: y, y2: y, class: 'ref-line-muted' }));
+      const lbl = el('text', { x: M.left + 4, y: y + 12, class: 'ref-label-muted', 'text-anchor': 'start' });
       lbl.textContent = rl.label;
       svg.appendChild(lbl);
     });
@@ -527,7 +545,15 @@ const DIFFUSION = [{"date": "2024-10-01", "low": 9.1, "target": 7.5, "elevated":
       bandD += 'L' + x.toFixed(2) + ',' + y.toFixed(2);
     }
     bandD += 'Z';
-    svg.appendChild(el('path', { d: bandD, fill: color, opacity: 0.22, stroke: 'none' }));
+    svg.appendChild(el('path', { d: bandD, fill: fillColor, 'fill-opacity': fillOpacity, stroke: 'none' }));
+    [opts.highKey, opts.lowKey].forEach(k => {
+      let d = '';
+      data.forEach((row, i) => {
+        if (row[k] === null || row[k] === undefined) return;
+        d += (d === '' ? 'M' : 'L') + xScale(dates[i]).toFixed(2) + ',' + yScale(row[k]).toFixed(2);
+      });
+      svg.appendChild(el('path', { d, fill: 'none', stroke: edgeColor, 'stroke-width': 1, 'stroke-linejoin': 'round' }));
+    });
 
     let meanD = '';
     data.forEach((row, i) => {
@@ -536,7 +562,17 @@ const DIFFUSION = [{"date": "2024-10-01", "low": 9.1, "target": 7.5, "elevated":
       const x = xScale(dates[i]), y = yScale(v);
       meanD += (meanD === '' ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2);
     });
-    svg.appendChild(el('path', { d: meanD, fill: 'none', stroke: color, 'stroke-width': 2.4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    svg.appendChild(el('path', { d: meanD, fill: 'none', stroke: lineColor, 'stroke-width': 2.4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    for (let i = data.length - 1; i >= 0; i--) {
+      const v = data[i][opts.meanKey];
+      if (v === null || v === undefined) continue;
+      const x = xScale(dates[i]), y = yScale(v);
+      svg.appendChild(el('circle', { cx: x, cy: y, r: 4, fill: lineColor, stroke: cvar('--surface-1'), 'stroke-width': 2 }));
+      const lbl = el('text', { x: x + 8, y: y + 4, class: 'end-label', 'text-anchor': 'start' });
+      lbl.textContent = valueFmt(v);
+      svg.appendChild(lbl);
+      break;
+    }
 
     const crosshair = el('line', { class: 'baseline', y1: M.top, y2: M.top + innerH, x1: -100, x2: -100 });
     svg.appendChild(crosshair);
@@ -958,6 +994,7 @@ const DIFFUSION = [{"date": "2024-10-01", "low": 9.1, "target": 7.5, "elevated":
       data: CORE_SAAR_BAND, xKey: 'date', height: 360,
       lowKey: 'p20', highKey: 'p80', meanKey: 'mean',
       color: cvar('--series-1'), valueFmt: fmtLevel,
+      fillColor: cvar('--cband-fill'), edgeColor: cvar('--cband-edge'), lineColor: cvar('--cband-line'), fillOpacity: 0.45,
       bandLabel: '20–80% перцентиль', meanLabel: 'Среднее по метрикам',
       refLines: [{ value: 4, label: 'цель ЦБ 4%' }],
     });
@@ -966,10 +1003,10 @@ const DIFFUSION = [{"date": "2024-10-01", "low": 9.1, "target": 7.5, "elevated":
     StackedBarChart(document.getElementById('chartDiffusion'), document.getElementById('legendDiffusion'), {
       data: DIFFUSION, xKey: 'date', height: 300,
       series: [
-        { key: 'high', label: 'Очень высокий рост (более 10%)', color: cvar('--bucket-high') },
-        { key: 'elevated', label: 'Повышенный рост (5–10%)', color: cvar('--bucket-elevated') },
-        { key: 'target', label: 'Рост около таргета (3–5%)', color: cvar('--bucket-target') },
-        { key: 'low', label: 'Снижение / медленный рост (менее 3%)', color: cvar('--bucket-low') },
+        { key: 'low', label: 'Снижение / медленный рост (менее 3%)', color: cvar('--dist-low') },
+        { key: 'target', label: 'Рост около таргета (3–5%)', color: cvar('--dist-target') },
+        { key: 'elevated', label: 'Повышенный рост (5–10%)', color: cvar('--dist-elevated') },
+        { key: 'high', label: 'Очень высокий рост (более 10%)', color: cvar('--dist-high') },
       ],
       valueFmt: fmtPct0,
     });

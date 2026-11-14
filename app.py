@@ -1,4 +1,5 @@
 # app.py
+import hmac
 import json
 import os
 import time
@@ -66,12 +67,27 @@ def add_noindex_header(resp):
     resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     return resp
 
+# Без пароля открыта только вкладка «Макропрогнозы» и то, что ей нужно для работы;
+# все остальные страницы и API — по паролю (если REQUIRE_BASIC_AUTH=1).
+PUBLIC_PATHS = {
+    "/", "/table_data", "/api/indicators", "/api/series_multi",
+    "/api/analyst_forecasts", "/export", "/health", "/robots.txt",
+}
+
+def _is_public_path(path: str) -> bool:
+    return path in PUBLIC_PATHS or path.startswith("/static/")
+
 def _check_auth(u, p):
-    return u == BASIC_AUTH_USER and p == BASIC_AUTH_PASS
+    # Значение по умолчанию «pass» паролем не считается: без заданного
+    # BASIC_AUTH_PASS закрытые страницы не открываются никому.
+    if not BASIC_AUTH_PASS or BASIC_AUTH_PASS == "pass":
+        return False
+    return (hmac.compare_digest(str(u or ""), BASIC_AUTH_USER)
+            and hmac.compare_digest(str(p or ""), BASIC_AUTH_PASS))
 
 @app.before_request
 def _maybe_basic_auth():
-    if not REQUIRE_BASIC_AUTH:
+    if not REQUIRE_BASIC_AUTH or _is_public_path(request.path):
         return None
     auth = request.authorization
     if not auth or not _check_auth(auth.username, auth.password):
@@ -956,21 +972,77 @@ def api_cbr_models():
     except FileNotFoundError:
         return jsonify({"error": "Нет данных: запустите src/export_site.py в проекте «Правило Тейлора»"}), 404
 
+FUTOI_DATA_FILE = os.path.join(BASE_DIR, "data", "futoi_households.json")
+
+
+@app.route("/api/ruble/futoi")
+def api_ruble_futoi():
+    # Файл пишет data_scripts/update_futoi.py (данные Мосбиржи FUTOI + курсы ЦБ)
+    try:
+        with open(FUTOI_DATA_FILE, encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных по фьючерсам: запустите data_scripts/update_futoi.py"}), 404
+
+EXPORTERS_NEED_FILE = os.path.join(BASE_DIR, "data", "exporters_need.json")
+
+
+@app.route("/api/ruble/exporters_need")
+def api_ruble_exporters_need():
+    # Файл пишет «Рубль/Модель экспортеров/fx_compare.py» (потребность экспортеров в продаже валюты vs курс)
+    try:
+        with open(EXPORTERS_NEED_FILE, encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных: запустите fx_compare.py в папке «Модель экспортеров»"}), 404
+
+OIL_EXPORTS_FILE = os.path.join(BASE_DIR, "data", "oil_exports.json")
+
+
+@app.route("/api/ruble/oil_exports")
+def api_ruble_oil_exports():
+    # Файл пишет «Рубль/Модель экспортеров/oil_exports.py» (Urals с лагом 1,5 мес. и экспорт товаров)
+    try:
+        with open(OIL_EXPORTS_FILE, encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных: запустите oil_exports.py в папке «Модель экспортеров»"}), 404
+
+CNY_VOLUMES_FILE = os.path.join(BASE_DIR, "data", "cny_volumes.json")
+
+
+@app.route("/api/ruble/cny_volumes")
+def api_ruble_cny_volumes():
+    # Файл пишет data_scripts/update_cny_volumes.py (ALGOPACK: объём торгов CNY TOD и TOM по дням)
+    try:
+        with open(CNY_VOLUMES_FILE, encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных: запустите data_scripts/update_cny_volumes.py"}), 404
+
+CBR_FX_OPS_FILE = os.path.join(BASE_DIR, "data", "cbr_fx_ops.json")
+
+
+@app.route("/api/ruble/cbr_fx_ops")
+def api_ruble_cbr_fx_ops():
+    # Файл пишет data_scripts/update_cbr_fx_ops.py (факторы ликвидности ЦБ + Минфин + объявленные операции ЦБ)
+    try:
+        with open(CBR_FX_OPS_FILE, encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных: запустите data_scripts/update_cbr_fx_ops.py"}), 404
+
+RUBLE_FX_FILE = os.path.join(BASE_DIR, "data", "ruble_fx.json")
+
+
 @app.route("/api/ruble/fx")
 def api_ruble_fx():
+    """Курсы для вкладки «Рубль»: факт ЦБ + прогноз RMM (data_scripts/update_fx.py),
+    отдельно от прогноза курса на вкладке «Макропрогнозы»."""
     try:
-        df = cache.get_df()
-        as_of = date.today()
-        aliases = {"usd": "USD/RUB", "eur": "EUR/RUB", "cny": "CNY/RUB"}
-        series = {}
-        dates = None
-        for key, alias in aliases.items():
-            sub = df[df["Alias"] == alias].sort_values("Date")
-            d = [row.date().isoformat() for row in sub["Date"]]
-            if dates is None:
-                dates = d
-            series[key] = [round(float(v), 4) for v in sub["Value"]]
-        return jsonify({"dates": dates, "as_of": as_of.isoformat(), **series})
+        with open(RUBLE_FX_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        return jsonify({**data, "as_of": date.today().isoformat()})
     except Exception as e:
         return jsonify({"error": f"Не удалось построить курс валют: {e}"}), 500
 
