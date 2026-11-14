@@ -9,6 +9,6 @@
 # Всё описано в data_scripts/publish.py; пути и ключи — из переменных окружения (SITE_DIR, PUBLISHER_KEY,
 # YC_PUBLISHER_HOME, SITE_AUTH_FILE или SITE_USER/SITE_PASS, PY), по умолчанию — как на рабочем компьютере.
 set -euo pipefail
-SITE_DIR="${SITE_DIR:-$(cd "$(dirname "$0")" && pwd)}"
-export SITE_DIR
-exec "${PY:-python3}" "$SITE_DIR/data_scripts/publish.py" "$@"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+export SITE_DIR="${SITE_DIR:-$HERE}"   # откуда брать файлы данных (по умолчанию — эта папка)
+exec "${PY:-python3}" "$HERE/data_scripts/publish.py" "$@"

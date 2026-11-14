@@ -26,7 +26,7 @@
   SITE_USER, SITE_PASS  логин и пароль сайта; если не заданы — читаются из SITE_AUTH_FILE
   SITE_AUTH_FILE    файл с BASIC_AUTH_USER=… и BASIC_AUTH_PASS=… (~/.config/macro/site_auth.env)
   YC                команда yc (yc)
-  PUBLISH_WAIT      сколько секунд ждать новые данные на сайте (300)
+  PUBLISH_WAIT      сколько секунд ждать новые данные на сайте (420)
 Ключ и пароль скрипт не печатает.
 """
 import argparse
@@ -50,7 +50,7 @@ PUBLISHER_KEY = os.path.expanduser(os.environ.get("PUBLISHER_KEY", "~/.config/ma
 YC_HOME = os.path.expanduser(os.environ.get("YC_PUBLISHER_HOME", "~/.config/macro/yc-publisher"))
 AUTH_FILE = os.path.expanduser(os.environ.get("SITE_AUTH_FILE", "~/.config/macro/site_auth.env"))
 YC = os.environ.get("YC", "yc")
-WAIT = int(os.environ.get("PUBLISH_WAIT", "300"))
+WAIT = int(os.environ.get("PUBLISH_WAIT", "420"))
 MANIFEST_KEY = "data/manifest.json"
 HISTORY_LEN = 10
 STABLE_POLLS = 3  # сколько ответов подряд должны совпасть: у сайта несколько экземпляров контейнера
@@ -264,10 +264,11 @@ def _snapshot(m, section):
 
 
 def _baseline(m, section, tmpdir):
-    """Первая публикация раздела: запомнить, что уже лежит в бакете, — чтобы было куда откатиться."""
+    """Первая публикация раздела: запомнить, что уже лежит в бакете, — чтобы было куда откатиться.
+    Возвращает True, если манифест изменился."""
     sec = m["sections"].setdefault(section, {"history": []})
     if sec["history"]:
-        return
+        return False
     for key in SECTIONS[section]["files"]:
         if key in m["files"]:
             continue
@@ -287,6 +288,8 @@ def _baseline(m, section, tmpdir):
         snap = _snapshot(m, section)
         snap["baseline"] = True
         sec["history"].append(snap)
+        return True
+    return False
 
 
 # ---------------- проверка сайта ----------------
@@ -397,7 +400,7 @@ def publish(section, as_of_override=None):
     ensure_yc()
     with tempfile.TemporaryDirectory() as tmp:
         m = load_manifest(tmp)
-        _baseline(m, section, tmp)
+        dirty = _baseline(m, section, tmp)
         log("=== Загрузка в бакет")
         changed = {}
         for key, (path, as_of) in checked.items():
@@ -415,10 +418,11 @@ def publish(section, as_of_override=None):
             hist = m["sections"].setdefault(section, {"history": []})["history"]
             hist.append(_snapshot(m, section))
             del hist[:-HISTORY_LEN]
-            save_manifest(m, tmp)
-            log("  manifest.json обновлён")
         else:
             log("Все файлы раздела уже опубликованы — загружать нечего.")
+        if changed or dirty:
+            save_manifest(m, tmp)
+            log("  manifest.json обновлён")
     verify_site(section, changed)
     log(f"Готово: раздел «{section}» опубликован.")
 

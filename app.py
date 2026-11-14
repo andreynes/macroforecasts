@@ -930,16 +930,6 @@ def ruble():
         page_subtitle=""
     )
 
-# Временный адрес новой версии страницы (данные из /api/ruble/page) — для сверки со старой перед заменой
-@app.route("/ruble/new")
-def ruble_new():
-    return render_template(
-        "ruble_new.html",
-        active_page="ruble",
-        page_title="Рубль",
-        page_subtitle=""
-    )
-
 NGD_DATA_FILE = "ngd_dashboard.json"  # читается через _data_file()
 
 
