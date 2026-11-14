@@ -52,7 +52,7 @@ yc container registry add-access-binding --id "${REGISTRY_ID}" \
 echo "=== Пароль сайта ==="
 # Логин и пароль закрытых разделов лежат ВНЕ папки проекта, в файле
 #   ~/.config/macro/site_auth.env   (две строки: BASIC_AUTH_USER=...  и  BASIC_AUTH_PASS=...)
-# «Макропрогнозы» открыты всем, остальные вкладки — по этому паролю.
+# «Макропрогнозы» открыты всем, остальные вкладки — после входа через форму /login.
 # Выложить совсем без пароля (как раньше): ./deploy_yc.sh --no-auth
 AUTH_FILE="${SITE_AUTH_FILE:-$HOME/.config/macro/site_auth.env}"
 AUTH_ARGS=(--environment REQUIRE_BASIC_AUTH=0)
@@ -108,7 +108,8 @@ yc serverless container revision deploy \
   --execution-timeout 30s \
   --concurrency 1 \
   --environment DATA_FILE=/app/macro_main_linked.xlsx \
-  "${AUTH_ARGS[@]}"
+  "${AUTH_ARGS[@]}" >/dev/null   # вывод скрыт: в нём печатается пароль
+echo "Ревизия выложена."
 
 echo "=== Делаю доступ по ссылке (allUsers -> invoker) ==="
 yc serverless container add-access-binding \

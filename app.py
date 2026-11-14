@@ -1,5 +1,4 @@
 # app.py
-import hmac
 import json
 import os
 import time
@@ -14,6 +13,7 @@ from flask import (
     Response, abort
 )
 
+from site_auth import init_auth
 from utils import yield_forecast as yf
 from utils import analyst_forecasts as af
 
@@ -68,31 +68,12 @@ def add_noindex_header(resp):
     return resp
 
 # Без пароля открыта только вкладка «Макропрогнозы» и то, что ей нужно для работы;
-# все остальные страницы и API — по паролю (если REQUIRE_BASIC_AUTH=1).
+# все остальные страницы и API — после входа (форма /login, см. site_auth.py).
 PUBLIC_PATHS = {
     "/", "/table_data", "/api/indicators", "/api/series_multi",
     "/api/analyst_forecasts", "/export", "/health", "/robots.txt",
 }
-
-def _is_public_path(path: str) -> bool:
-    return path in PUBLIC_PATHS or path.startswith("/static/")
-
-def _check_auth(u, p):
-    # Значение по умолчанию «pass» паролем не считается: без заданного
-    # BASIC_AUTH_PASS закрытые страницы не открываются никому.
-    if not BASIC_AUTH_PASS or BASIC_AUTH_PASS == "pass":
-        return False
-    return (hmac.compare_digest(str(u or ""), BASIC_AUTH_USER)
-            and hmac.compare_digest(str(p or ""), BASIC_AUTH_PASS))
-
-@app.before_request
-def _maybe_basic_auth():
-    if not REQUIRE_BASIC_AUTH or _is_public_path(request.path):
-        return None
-    auth = request.authorization
-    if not auth or not _check_auth(auth.username, auth.password):
-        return Response("Нужна авторизация", 401, {"WWW-Authenticate": 'Basic realm="Login Required"'})
-    return None
+init_auth(app, REQUIRE_BASIC_AUTH, BASIC_AUTH_USER, BASIC_AUTH_PASS, PUBLIC_PATHS)
 
 class DataCache:
     def __init__(self, path: str, sheet: str):

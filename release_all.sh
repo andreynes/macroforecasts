@@ -59,9 +59,12 @@ FAIL=0
 check() {  # check "описание" ожидаемый_код фактический_код
   if [ "$2" = "$3" ]; then echo "  ок      $1 -> $3"; else echo "  ОШИБКА  $1 -> $3 (ожидалось $2)"; FAIL=1; fi
 }
-check "Макропрогнозы без пароля" 200 "$(code "$URL/")"
+JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT
+check "Макропрогнозы без входа" 200 "$(code "$URL/")"
+check "вход с логином и паролем" 302 "$(code -c "$JAR" --data-urlencode "username=$BASIC_AUTH_USER" \
+      --data-urlencode "password=$BASIC_AUTH_PASS" --data-urlencode "next=/" "$URL/login")"
 for p in /ruble /ngd /ofz /yield-forecast /cbr-models /inflation/weekly /inflation/monthly; do
-  check "$p без пароля" 401 "$(code "$URL$p")"
-  check "$p с паролем"  200 "$(code -u "$BASIC_AUTH_USER:$BASIC_AUTH_PASS" "$URL$p")"
+  check "$p без входа (уводит на форму)" 302 "$(code "$URL$p")"
+  check "$p после входа" 200 "$(code -b "$JAR" "$URL$p")"
 done
-[ "$FAIL" = "0" ] && echo "Готово: сайт выложен, пароль работает." || { echo "Есть ошибки — пришлите этот вывод Claude."; exit 1; }
+[ "$FAIL" = "0" ] && echo "Готово: сайт выложен, вход работает." || { echo "Есть ошибки — пришлите этот вывод Claude."; exit 1; }
