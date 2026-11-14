@@ -33,6 +33,12 @@ import openpyxl
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ANALYST_FILE = os.getenv("ANALYST_FORECASTS_FILE", os.path.join(BASE_DIR, "analyst_forecasts.xlsx"))
+_ANALYST_FILE_LOCAL = os.path.join(BASE_DIR, "analyst_forecasts.xlsx")
+
+
+def _analyst_file() -> str:
+    """Книга из бакета (путь из ANALYST_FORECASTS_FILE); если её там нет — копия из образа."""
+    return ANALYST_FILE if os.path.isfile(ANALYST_FILE) else _ANALYST_FILE_LOCAL
 
 _DATE_RE = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$")
 _Q_RE = re.compile(r"^(\d)к(\d{2})$")
@@ -246,11 +252,12 @@ _TOP_CACHE: Dict[str, object] = {"mtime": None, "facts": None}
 
 
 def _top_block_facts() -> Dict[str, Dict[str, float]]:
-    mtime = os.path.getmtime(ANALYST_FILE)
+    path = _analyst_file()
+    mtime = os.path.getmtime(path)
     if _TOP_CACHE["mtime"] == mtime and _TOP_CACHE["facts"] is not None:
         return _TOP_CACHE["facts"]
 
-    wb = openpyxl.load_workbook(ANALYST_FILE, data_only=True)
+    wb = openpyxl.load_workbook(path, data_only=True)
     latest_name, latest_date = None, None
     for sheet_name in wb.sheetnames:
         d = _parse_snapshot_date(sheet_name)
@@ -314,11 +321,12 @@ def _recent_months_actuals() -> Dict[str, Dict[Tuple[int, int], float]]:
     месяца (обновляется вручную, с нерегулярной задержкой — иногда текущий
     месяц уже проставлен, иногда ещё нет). Берём её из САМОГО СВЕЖЕГО снимка
     — это единственный источник хоть какого-то факта по Brent на сайте."""
-    mtime = os.path.getmtime(ANALYST_FILE)
+    path = _analyst_file()
+    mtime = os.path.getmtime(path)
     if _RECENT_CACHE["mtime"] == mtime and _RECENT_CACHE["data"] is not None:
         return _RECENT_CACHE["data"]
 
-    wb = openpyxl.load_workbook(ANALYST_FILE, data_only=True)
+    wb = openpyxl.load_workbook(path, data_only=True)
     latest_name, latest_date = None, None
     for sheet_name in wb.sheetnames:
         d = _parse_snapshot_date(sheet_name)
@@ -381,11 +389,12 @@ def recent_actual_quarter_avg(indicator: str, quarter_label: str) -> Optional[fl
 
 
 def _load_records() -> List[_Record]:
-    mtime = os.path.getmtime(ANALYST_FILE)
+    path = _analyst_file()
+    mtime = os.path.getmtime(path)
     if _CACHE["mtime"] == mtime and _CACHE["records"] is not None:
         return _CACHE["records"]
 
-    wb = openpyxl.load_workbook(ANALYST_FILE, data_only=True)
+    wb = openpyxl.load_workbook(path, data_only=True)
     records: List[_Record] = []
     for sheet_name in wb.sheetnames:
         snapshot = _parse_snapshot_date(sheet_name)

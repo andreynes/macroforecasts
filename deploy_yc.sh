@@ -82,7 +82,7 @@ else
 fi
 
 echo "=== Бакет с данными ==="
-# Данные вкладок (JSON) лежат в приватном бакете Object Storage и монтируются в контейнер только на чтение
+# Данные вкладок (JSON в data/, Excel-книги в excel/) лежат в приватном бакете Object Storage и монтируются в контейнер только на чтение
 # (роль storage.viewer у macro-sa). Обновление цифр — запись файла в бакет, без пересборки сайта.
 # Точка монтирования — пустая папка вне /app (в /app/data лежит запасная копия из образа).
 DATA_BUCKET="macro-site-data"
@@ -116,9 +116,13 @@ yc serverless container revision deploy \
   --memory 512M \
   --execution-timeout 30s \
   --concurrency 1 \
-  --environment DATA_FILE=/app/macro_main_linked.xlsx \
   --mount "type=object-storage,mount-point=${DATA_MOUNT},bucket=${DATA_BUCKET},mode=ro" \
   --environment "DATA_DIR=${DATA_MOUNT}/data" \
+  --environment "DATA_FILE=${DATA_MOUNT}/excel/macro_main_linked.xlsx" \
+  --environment "ANALYST_FORECASTS_FILE=${DATA_MOUNT}/excel/analyst_forecasts.xlsx" \
+  --environment "YIELD_FILE=${DATA_MOUNT}/excel/yield_forecast_data.xlsx" \
+  --environment "IRS_FILE=${DATA_MOUNT}/excel/Денежный рынок – Ставки_исправлено_v2.xlsx" \
+  --environment "CC_FILE=${DATA_MOUNT}/excel/Условия кредитования ЦБ.xlsx" \
   "${AUTH_ARGS[@]}" >/dev/null   # вывод скрыт: в нём печатается пароль
 echo "Ревизия выложена."
 

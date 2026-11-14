@@ -33,8 +33,18 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 - `app.py`: `DATA_DIR=/mnt/site-data/data` → `_data_file(name)` берёт файл из бакета, если его нет — `data/` из образа.
   Так читаются 8 JSON: ruble_fx, cbr_fx_ops, cny_volumes, exporters_need, futoi_households, oil_exports,
   ngd_dashboard, cbr_models. Кеша у них нет — файл читается при каждом запросе.
-- Ручная загрузка: `yc storage s3 cp data/X.json s3://macro-site-data/data/X.json`. Скрипты пока пишут в `data/`
-  (команда публикации — этап C). Дальше: Excel (B), publish.sh + manifest (C), инфляция (D).
+- Этап B: 5 Excel-книг в `excel/` бакета, пути — переменные `DATA_FILE`, `ANALYST_FORECASTS_FILE`, `YIELD_FILE`,
+  `IRS_FILE`, `CC_FILE` в `deploy_yc.sh`. Нет файла по пути — копия из образа с тем же именем
+  (`_main_book()` в app.py, `_analyst_file()`, `_cached_read_excel()`). Кеш по mtime на монтировании работает.
+- `/export` (открыт всем) отдаёт новую книгу только с листом `main` (значения, без других листов/связей/путей),
+  имя прежнее, кеш по (путь, mtime) исходной книги — `_export_main_only()`.
+- ВНИМАНИЕ: выкладка образа больше НЕ обновляет данные (сайт читает бакет). До publish.sh (этап C) — ручная загрузка:
+  `yc storage s3 cp data/X.json s3://macro-site-data/data/X.json`, книги — в `s3://macro-site-data/excel/<имя>`.
+  `update_ruble_tab.sh --deploy` сейчас данные на сайт не доносит. Дальше: publish.sh + manifest (C), инфляция (D).
+- Проверено на живом сайте: запись в бакет видна без выкладки, но с задержкой до ~2 мин (кеш монтирования).
+- Задачи этапа C: (а) publish.sh не пропускает в бакет повреждённый JSON (разбор + NaN) и ждёт появления
+  новой версии на сайте до ~3 мин; (б) в `/diag` или на странице статуса показывать, откуда читается каждый файл —
+  из бакета или из образа; (в) когда появится второй бакет — сузить роль `macro-sa` до одного бакета.
 
 ## Прочее
 - `models/taylor_rule` — модель «Модели ЦБ» → `data/cbr_models.json` (см. README_RU.md).

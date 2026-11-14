@@ -36,6 +36,10 @@ def _cached_read_excel(path: str, **kwargs) -> pd.DataFrame:
     def _hashable(v):
         return tuple(v) if isinstance(v, list) else v
 
+    # Пути книг задаются переменными окружения (в облаке — смонтированный бакет); если файла
+    # там нет — читаем копию из образа (то же имя файла в корне сайта).
+    if not os.path.isfile(path):
+        path = os.path.join(BASE_DIR, os.path.basename(path))
     key = (path, tuple(sorted((k, _hashable(v)) for k, v in kwargs.items())))
     mtime = os.path.getmtime(path)
     cached = _excel_cache.get(key)

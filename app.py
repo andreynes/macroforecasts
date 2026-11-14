@@ -41,6 +41,10 @@ if not DATA_FILE:
 MAIN_SHEET = os.getenv("MAIN_SHEET", "main")
 EXPORT_FILE = os.getenv("EXPORT_FILE", DATA_FILE)
 
+def _main_book() -> str:
+    """Книга из бакета (DATA_FILE); если её там нет — первая найденная копия из образа."""
+    return DATA_FILE if os.path.isfile(DATA_FILE) else (_pick_first_existing(_data_candidates) or DATA_FILE)
+
 # JSON-данные вкладок: в облаке — смонтированный бакет Object Storage (DATA_DIR задаёт deploy_yc.sh),
 # новая цифра попадает на сайт записью файла в бакет, без пересборки. Если DATA_DIR не задан
 # или файла там нет — копия в образе (папка data/), она же используется при локальном запуске.
@@ -146,8 +150,10 @@ class DataCache:
         return df
 
     def get_df(self) -> pd.DataFrame:
-        mtime = os.path.getmtime(self.path)
-        if self.df is None or mtime != self.mtime:
+        path = _main_book()
+        mtime = os.path.getmtime(path)
+        if self.df is None or mtime != self.mtime or path != self.path:
+            self.path = path
             self.df = self._read_excel()
             self.mtime = mtime
         return self.df.copy()
@@ -1173,13 +1179,52 @@ def api_series_multi():
     except Exception as e:
         return jsonify({"error": f"Не удалось построить серию: {e}"}), 500
 
+_EXPORT_CACHE: Dict[str, object] = {"key": None, "data": None}
+
+def _export_main_only(src: str) -> bytes:
+    """Новая книга только с листом main: значения без формул, без других листов, внешних связей
+    и сведений об исходном файле. Пересобирается, только когда изменилась исходная книга."""
+    import io
+    import openpyxl
+
+    key = (src, os.path.getmtime(src))
+    if _EXPORT_CACHE["key"] == key:
+        return _EXPORT_CACHE["data"]
+
+    wb_src = openpyxl.load_workbook(src, data_only=True, read_only=True)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = MAIN_SHEET
+    try:
+        for row in wb_src[MAIN_SHEET].iter_rows():
+            for c in row:
+                if c.value is None:
+                    continue
+                cell = ws.cell(row=c.row, column=c.column, value=c.value)
+                cell.number_format = c.number_format
+    finally:
+        wb_src.close()
+    wb.properties.creator = "Макропрогнозы"
+    buf = io.BytesIO()
+    wb.save(buf)
+    _EXPORT_CACHE["key"], _EXPORT_CACHE["data"] = key, buf.getvalue()
+    return _EXPORT_CACHE["data"]
+
 @app.route("/export")
 def export_excel():
-    directory = os.path.dirname(EXPORT_FILE)
-    fname = os.path.basename(EXPORT_FILE)
-    if not os.path.exists(EXPORT_FILE):
+    # Открыт без входа, поэтому отдаёт не исходную книгу, а только лист main (данные главной).
+    src = EXPORT_FILE if os.path.isfile(EXPORT_FILE) else _main_book()
+    if not os.path.isfile(src):
         abort(404, "Файл не найден")
-    return send_from_directory(directory=directory, path=fname, as_attachment=True)
+    try:
+        data = _export_main_only(src)
+    except Exception as e:
+        return jsonify({"error": f"Не удалось подготовить файл: {e}"}), 500
+    return Response(
+        data,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={os.path.basename(src)}"},
+    )
 
 @app.route("/robots.txt")
 def robots_txt():
