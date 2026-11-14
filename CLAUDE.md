@@ -26,6 +26,16 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 - План дальнейших работ (вынос данных в Object Storage, автовыкладка из GitHub) — документ «План: порядок в проекте
   и вынос данных из сайта» в Claude.
 
+## Данные в Object Storage (шаг 2 «данные отдельно от сайта», этап A — 14.11.2026)
+- Приватный бакет `macro-site-data` (версионирование включено), смонтирован в контейнер только на чтение:
+  `--mount type=object-storage,mount-point=/mnt/site-data,bucket=macro-site-data,mode=ro` в `deploy_yc.sh`;
+  у `macro-sa` роль `storage.viewer` на каталог.
+- `app.py`: `DATA_DIR=/mnt/site-data/data` → `_data_file(name)` берёт файл из бакета, если его нет — `data/` из образа.
+  Так читаются 8 JSON: ruble_fx, cbr_fx_ops, cny_volumes, exporters_need, futoi_households, oil_exports,
+  ngd_dashboard, cbr_models. Кеша у них нет — файл читается при каждом запросе.
+- Ручная загрузка: `yc storage s3 cp data/X.json s3://macro-site-data/data/X.json`. Скрипты пока пишут в `data/`
+  (команда публикации — этап C). Дальше: Excel (B), publish.sh + manifest (C), инфляция (D).
+
 ## Прочее
 - `models/taylor_rule` — модель «Модели ЦБ» → `data/cbr_models.json` (см. README_RU.md).
 - `data_scripts/`, `data/*.json` (рубль, НГД и т.п.) — другие разделы; обновляются `data_scripts/update_ruble_tab.sh`.

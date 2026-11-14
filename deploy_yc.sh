@@ -81,6 +81,15 @@ else
   exit 1
 fi
 
+echo "=== Бакет с данными ==="
+# Данные вкладок (JSON) лежат в приватном бакете Object Storage и монтируются в контейнер только на чтение
+# (роль storage.viewer у macro-sa). Обновление цифр — запись файла в бакет, без пересборки сайта.
+# Точка монтирования — пустая папка вне /app (в /app/data лежит запасная копия из образа).
+DATA_BUCKET="macro-site-data"
+DATA_MOUNT="/mnt/site-data"
+yc storage bucket get --name "${DATA_BUCKET}" >/dev/null || { echo "Нет бакета ${DATA_BUCKET} в облаке."; exit 1; }
+echo "Бакет ${DATA_BUCKET} -> ${DATA_MOUNT}"
+
 echo "=== Логин Docker в реестр Яндекса ==="
 yc container registry configure-docker >/dev/null
 
@@ -108,6 +117,8 @@ yc serverless container revision deploy \
   --execution-timeout 30s \
   --concurrency 1 \
   --environment DATA_FILE=/app/macro_main_linked.xlsx \
+  --mount "type=object-storage,mount-point=${DATA_MOUNT},bucket=${DATA_BUCKET},mode=ro" \
+  --environment "DATA_DIR=${DATA_MOUNT}/data" \
   "${AUTH_ARGS[@]}" >/dev/null   # вывод скрыт: в нём печатается пароль
 echo "Ревизия выложена."
 

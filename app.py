@@ -41,6 +41,19 @@ if not DATA_FILE:
 MAIN_SHEET = os.getenv("MAIN_SHEET", "main")
 EXPORT_FILE = os.getenv("EXPORT_FILE", DATA_FILE)
 
+# JSON-данные вкладок: в облаке — смонтированный бакет Object Storage (DATA_DIR задаёт deploy_yc.sh),
+# новая цифра попадает на сайт записью файла в бакет, без пересборки. Если DATA_DIR не задан
+# или файла там нет — копия в образе (папка data/), она же используется при локальном запуске.
+DATA_DIR = os.getenv("DATA_DIR", "").strip()
+LOCAL_DATA_DIR = os.path.join(BASE_DIR, "data")
+
+def _data_file(name: str) -> str:
+    if DATA_DIR:
+        p = os.path.join(DATA_DIR, name)
+        if os.path.isfile(p):
+            return p
+    return os.path.join(LOCAL_DATA_DIR, name)
+
 REQUIRE_BASIC_AUTH = os.getenv("REQUIRE_BASIC_AUTH", "0") == "1"
 BASIC_AUTH_USER = os.getenv("BASIC_AUTH_USER", "user")
 BASIC_AUTH_PASS = os.getenv("BASIC_AUTH_PASS", "pass")
@@ -911,7 +924,7 @@ def ruble():
         page_subtitle=""
     )
 
-NGD_DATA_FILE = os.path.join(BASE_DIR, "data", "ngd_dashboard.json")
+NGD_DATA_FILE = "ngd_dashboard.json"  # читается через _data_file()
 
 
 @app.route("/ngd")
@@ -927,12 +940,12 @@ def ngd():
 def api_ngd():
     # Файл пишет модель НГД (ngd_model.py) при каждом запуске
     try:
-        with open(NGD_DATA_FILE, encoding="utf-8") as f:
+        with open(_data_file(NGD_DATA_FILE), encoding="utf-8") as f:
             return app.response_class(f.read(), mimetype="application/json")
     except FileNotFoundError:
         return jsonify({"error": "Нет данных НГД: запустите модель ngd_model.py"}), 404
 
-CBR_MODELS_FILE = os.path.join(BASE_DIR, "data", "cbr_models.json")
+CBR_MODELS_FILE = "cbr_models.json"  # читается через _data_file()
 
 
 @app.route("/cbr-models")
@@ -948,72 +961,72 @@ def cbr_models():
 def api_cbr_models():
     # Файл пишет проект «Правило Тейлора» (src/export_site.py) при каждом запуске
     try:
-        with open(CBR_MODELS_FILE, encoding="utf-8") as f:
+        with open(_data_file(CBR_MODELS_FILE), encoding="utf-8") as f:
             return app.response_class(f.read(), mimetype="application/json")
     except FileNotFoundError:
         return jsonify({"error": "Нет данных: запустите src/export_site.py в проекте «Правило Тейлора»"}), 404
 
-FUTOI_DATA_FILE = os.path.join(BASE_DIR, "data", "futoi_households.json")
+FUTOI_DATA_FILE = "futoi_households.json"  # читается через _data_file()
 
 
 @app.route("/api/ruble/futoi")
 def api_ruble_futoi():
     # Файл пишет data_scripts/update_futoi.py (данные Мосбиржи FUTOI + курсы ЦБ)
     try:
-        with open(FUTOI_DATA_FILE, encoding="utf-8") as f:
+        with open(_data_file(FUTOI_DATA_FILE), encoding="utf-8") as f:
             return app.response_class(f.read(), mimetype="application/json")
     except FileNotFoundError:
         return jsonify({"error": "Нет данных по фьючерсам: запустите data_scripts/update_futoi.py"}), 404
 
-EXPORTERS_NEED_FILE = os.path.join(BASE_DIR, "data", "exporters_need.json")
+EXPORTERS_NEED_FILE = "exporters_need.json"  # читается через _data_file()
 
 
 @app.route("/api/ruble/exporters_need")
 def api_ruble_exporters_need():
     # Файл пишет «Рубль/Модель экспортеров/fx_compare.py» (потребность экспортеров в продаже валюты vs курс)
     try:
-        with open(EXPORTERS_NEED_FILE, encoding="utf-8") as f:
+        with open(_data_file(EXPORTERS_NEED_FILE), encoding="utf-8") as f:
             return app.response_class(f.read(), mimetype="application/json")
     except FileNotFoundError:
         return jsonify({"error": "Нет данных: запустите fx_compare.py в папке «Модель экспортеров»"}), 404
 
-OIL_EXPORTS_FILE = os.path.join(BASE_DIR, "data", "oil_exports.json")
+OIL_EXPORTS_FILE = "oil_exports.json"  # читается через _data_file()
 
 
 @app.route("/api/ruble/oil_exports")
 def api_ruble_oil_exports():
     # Файл пишет «Рубль/Модель экспортеров/oil_exports.py» (Urals с лагом 1,5 мес. и экспорт товаров)
     try:
-        with open(OIL_EXPORTS_FILE, encoding="utf-8") as f:
+        with open(_data_file(OIL_EXPORTS_FILE), encoding="utf-8") as f:
             return app.response_class(f.read(), mimetype="application/json")
     except FileNotFoundError:
         return jsonify({"error": "Нет данных: запустите oil_exports.py в папке «Модель экспортеров»"}), 404
 
-CNY_VOLUMES_FILE = os.path.join(BASE_DIR, "data", "cny_volumes.json")
+CNY_VOLUMES_FILE = "cny_volumes.json"  # читается через _data_file()
 
 
 @app.route("/api/ruble/cny_volumes")
 def api_ruble_cny_volumes():
     # Файл пишет data_scripts/update_cny_volumes.py (ALGOPACK: объём торгов CNY TOD и TOM по дням)
     try:
-        with open(CNY_VOLUMES_FILE, encoding="utf-8") as f:
+        with open(_data_file(CNY_VOLUMES_FILE), encoding="utf-8") as f:
             return app.response_class(f.read(), mimetype="application/json")
     except FileNotFoundError:
         return jsonify({"error": "Нет данных: запустите data_scripts/update_cny_volumes.py"}), 404
 
-CBR_FX_OPS_FILE = os.path.join(BASE_DIR, "data", "cbr_fx_ops.json")
+CBR_FX_OPS_FILE = "cbr_fx_ops.json"  # читается через _data_file()
 
 
 @app.route("/api/ruble/cbr_fx_ops")
 def api_ruble_cbr_fx_ops():
     # Файл пишет data_scripts/update_cbr_fx_ops.py (факторы ликвидности ЦБ + Минфин + объявленные операции ЦБ)
     try:
-        with open(CBR_FX_OPS_FILE, encoding="utf-8") as f:
+        with open(_data_file(CBR_FX_OPS_FILE), encoding="utf-8") as f:
             return app.response_class(f.read(), mimetype="application/json")
     except FileNotFoundError:
         return jsonify({"error": "Нет данных: запустите data_scripts/update_cbr_fx_ops.py"}), 404
 
-RUBLE_FX_FILE = os.path.join(BASE_DIR, "data", "ruble_fx.json")
+RUBLE_FX_FILE = "ruble_fx.json"  # читается через _data_file()
 
 
 @app.route("/api/ruble/fx")
@@ -1021,7 +1034,7 @@ def api_ruble_fx():
     """Курсы для вкладки «Рубль»: факт ЦБ + прогноз RMM (data_scripts/update_fx.py),
     отдельно от прогноза курса на вкладке «Макропрогнозы»."""
     try:
-        with open(RUBLE_FX_FILE, encoding="utf-8") as f:
+        with open(_data_file(RUBLE_FX_FILE), encoding="utf-8") as f:
             data = json.load(f)
         return jsonify({**data, "as_of": date.today().isoformat()})
     except Exception as e:
