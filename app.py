@@ -3,7 +3,7 @@ import json
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -430,7 +430,7 @@ def index():
         if af_default_quarter not in af_quarters and af_quarters:
             af_default_quarter = af_quarters[-1]
 
-        last_updated = f"Обновлено: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+        last_updated = _published_label("excel/macro_main_linked.xlsx")
         source = "Источник: собранные данные из пользовательского файла"
 
         return render_template(
@@ -930,6 +930,16 @@ def ruble():
         page_subtitle=""
     )
 
+# Временный адрес новой версии страницы (данные из /api/ruble/page) — для сверки со старой перед заменой
+@app.route("/ruble/new")
+def ruble_new():
+    return render_template(
+        "ruble_new.html",
+        active_page="ruble",
+        page_title="Рубль",
+        page_subtitle=""
+    )
+
 NGD_DATA_FILE = "ngd_dashboard.json"  # читается через _data_file()
 
 
@@ -1045,6 +1055,18 @@ def api_ruble_fx():
         return jsonify({**data, "as_of": date.today().isoformat()})
     except Exception as e:
         return jsonify({"error": f"Не удалось построить курс валют: {e}"}), 500
+
+RUBLE_PAGE_FILE = "ruble_page.json"  # читается через _data_file()
+
+
+@app.route("/api/ruble/page")
+def api_ruble_page():
+    # Файл пишет data_scripts/update_ruble_data.py: декомпозиция, баланс потоков, пересмотр к снимку, снимок
+    try:
+        with open(_data_file(RUBLE_PAGE_FILE), encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных: запустите data_scripts/update_ruble_data.py"}), 404
 
 def _af_fact_value(df: pd.DataFrame, indicator: str, quarter_label: str) -> Optional[Dict]:
     """Факт для серой линии на графике прогнозов аналитиков.
@@ -1252,6 +1274,94 @@ def diag():
         return jsonify(info)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# Файлы данных сайта: ключ в бакете -> (путь в бакете, копия в образе). По ним /diag/data показывает,
+# откуда сейчас читается каждый файл, а publish.sh сверяет контрольные суммы после публикации.
+DATA_JSON_FILES = [
+    RUBLE_FX_FILE, CBR_FX_OPS_FILE, CNY_VOLUMES_FILE, EXPORTERS_NEED_FILE, FUTOI_DATA_FILE,
+    OIL_EXPORTS_FILE, RUBLE_PAGE_FILE, NGD_DATA_FILE, CBR_MODELS_FILE,
+]
+DATA_EXCEL_ENV = {
+    "macro_main_linked.xlsx": "DATA_FILE",
+    "analyst_forecasts.xlsx": "ANALYST_FORECASTS_FILE",
+    "yield_forecast_data.xlsx": "YIELD_FILE",
+    "Денежный рынок – Ставки_исправлено_v2.xlsx": "IRS_FILE",
+    "Условия кредитования ЦБ.xlsx": "CC_FILE",
+}
+
+def _data_locations() -> Dict[str, Tuple[Optional[str], str]]:
+    out: Dict[str, Tuple[Optional[str], str]] = {}
+    for name in DATA_JSON_FILES:
+        out[f"data/{name}"] = (os.path.join(DATA_DIR, name) if DATA_DIR else None, os.path.join(LOCAL_DATA_DIR, name))
+    for name, env in DATA_EXCEL_ENV.items():
+        local = os.path.join(BASE_DIR, name)
+        out[f"excel/{name}"] = (os.getenv(env) or None, local)
+    return out
+
+_SHA_CACHE: Dict[str, Tuple[float, int, str]] = {}
+
+def _sha256(path: str) -> str:
+    import hashlib
+    st = os.stat(path)
+    cached = _SHA_CACHE.get(path)
+    if cached and cached[0] == st.st_mtime and cached[1] == st.st_size:
+        return cached[2]
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    _SHA_CACHE[path] = (st.st_mtime, st.st_size, h.hexdigest())
+    return _SHA_CACHE[path][2]
+
+def _load_manifest() -> Optional[Dict]:
+    """manifest.json в бакете (пишет publish.sh): когда опубликован каждый файл и за какую дату в нём данные."""
+    path = _data_file("manifest.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+def _published_label(key: str) -> str:
+    """«Обновлено: …» по времени публикации файла из manifest.json (МСК); пусто, если манифеста нет."""
+    entry = ((_load_manifest() or {}).get("files") or {}).get(key) or {}
+    try:
+        ts = datetime.fromisoformat(entry["published_at"].replace("Z", "+00:00"))
+    except (KeyError, ValueError, AttributeError):
+        return ""
+    msk = ts.astimezone(timezone(timedelta(hours=3)))
+    label = f"Обновлено: {msk.strftime('%d.%m.%Y %H:%M')} МСК"
+    if entry.get("as_of"):
+        label += f" (данные по {date.fromisoformat(entry['as_of']).strftime('%d.%m.%Y')})"
+    return label
+
+@app.route("/diag/data")
+def diag_data():
+    # Под входом (не в PUBLIC_PATHS): откуда читается каждый файл данных — из бакета или из образа
+    files = {}
+    for key, (bucket_path, local_path) in _data_locations().items():
+        if bucket_path and os.path.isfile(bucket_path):
+            path, source = bucket_path, "бакет"
+        elif os.path.isfile(local_path):
+            path, source = local_path, "образ"
+        else:
+            files[key] = {"source": "нет файла"}
+            continue
+        try:
+            st = os.stat(path)
+            files[key] = {
+                "source": source, "size": st.st_size,
+                "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(timespec="seconds"),
+                "sha256": _sha256(path),
+            }
+        except OSError as e:
+            files[key] = {"source": source, "error": str(e)}
+    manifest = _load_manifest()
+    return jsonify({
+        "data_dir": DATA_DIR or None,
+        "files": files,
+        "manifest": {"found": manifest is not None, "updated_at": (manifest or {}).get("updated_at")},
+    })
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5050"))

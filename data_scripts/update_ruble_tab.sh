@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Обновляет все данные вкладки «Рубль» по порядку и (с флагом --deploy) выкладывает сайт.
+# Обновляет все данные вкладки «Рубль» по порядку и (с флагом --publish) публикует их на сайт.
 #
-#   bash data_scripts/update_ruble_tab.sh            # только пересчитать (сайт на компьютере)
-#   bash data_scripts/update_ruble_tab.sh --deploy   # пересчитать и выложить в Яндекс Облако
+#   bash data_scripts/update_ruble_tab.sh             # только пересчитать (сайт на компьютере)
+#   bash data_scripts/update_ruble_tab.sh --publish   # пересчитать и опубликовать (./publish.sh ruble):
+#                                                     # файлы уходят в бакет, Docker и выкладка не нужны
+#   --deploy — прежнее название того же флага
 #
 # Шаги: курс (RMM) → декомпозиция и баланс потоков (RMM + ОРФР) → фьючерсы физлиц (ALGOPACK) →
-# объёмы юаня (ALGOPACK) → потребность экспортеров → нефть и экспорт → операции ЦБ → проверка NaN → деплой.
+# объёмы юаня (ALGOPACK) → потребность экспортеров → нефть и экспорт → операции ЦБ → проверка NaN → публикация.
 # Ошибка одного шага не останавливает остальные; в конце печатается сводка.
 
 PY="${PY:-/Users/andrejkrylov/anaconda3/bin/python3}"
@@ -15,8 +17,8 @@ EXP="$RUB/Модель экспортеров"
 RMM="$RUB/Russia Mega Model.xlsx"
 ORFR="$RUB/Операции на валютном рынке (ОРФР, сводно).xlsx"
 
-DEPLOY=0
-[ "${1:-}" = "--deploy" ] && DEPLOY=1
+PUBLISH=0
+case "${1:-}" in --publish|--deploy) PUBLISH=1 ;; esac
 
 OK=()
 FAIL=()
@@ -52,12 +54,12 @@ else
   OK+=("8. Проверка NaN")
 fi
 
-if [ "$DEPLOY" = "1" ]; then
+if [ "$PUBLISH" = "1" ]; then
   if [ ${#FAIL[@]} -gt 0 ]; then
     echo
-    echo "!!! Были ошибки — деплой пропущен. Исправьте и запустите снова с --deploy."
+    echo "!!! Были ошибки — публикация пропущена. Исправьте и запустите снова с --publish."
   else
-    step "9. Деплой в Яндекс Облако" "$SITE" ./deploy_yc.sh
+    step "9. Публикация на сайт (бакет)" "$SITE" env PY="$PY" ./publish.sh ruble
   fi
 fi
 

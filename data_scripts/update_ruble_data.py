@@ -1,4 +1,5 @@
-"""Пересчитывает данные вкладки «Рубль» и вшивает их в templates/ruble.html.
+"""Пересчитывает данные вкладки «Рубль» и пишет их в data/ruble_page.json (страница загружает его через
+/api/ruble/page; на сайт файл попадает командой publish.sh ruble).
 
 Источники:
   - Russia Mega Model.xlsx, лист RUB — «Модель 2»: факторы (стр. 210–223), коэффициенты (стр. 226–265),
@@ -15,7 +16,6 @@ import argparse
 import json
 import math
 import os
-import re
 from datetime import date
 
 import numpy as np
@@ -23,7 +23,7 @@ import openpyxl
 import pandas as pd
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TEMPLATE = os.path.join(BASE_DIR, "templates", "ruble.html")
+OUT_FILE = os.path.join(BASE_DIR, "data", "ruble_page.json")
 
 # Ключ на сайте -> (строка фактора, строка коэффициента) на листе RUB
 FLOWS = {
@@ -128,7 +128,7 @@ def build(model_path, orfr_path, today, new_snapshot=False):
     }
 
     # Снимок — прогноз факторов на момент обновления прогнозов; перезаписывается только по --new-snapshot,
-    # иначе берётся уже зафиксированный в шаблоне
+    # иначе берётся уже зафиксированный в data/ruble_page.json
     if new_snapshot:
         cur_month = pd.Timestamp(today.year, today.month, 1)
         snapshot = {"snapshot_date": today.isoformat(), "rows": records(x.loc[cur_month:END, flow_keys + ["dxy"]])}
@@ -148,25 +148,26 @@ def build(model_path, orfr_path, today, new_snapshot=False):
     return consts
 
 
+def read_page():
+    with open(OUT_FILE, encoding="utf-8") as f:
+        return json.load(f)
+
+
 def read_const(name):
-    with open(TEMPLATE, encoding="utf-8") as f:
-        m = re.search(r"  const " + name + r" = (.*?);\n", f.read())
-    if not m:
-        raise SystemExit(f"В шаблоне не найдена константа {name}")
-    return json.loads(m.group(1))
+    page = read_page()
+    if name not in page:
+        raise SystemExit(f"В {OUT_FILE} нет блока {name}")
+    return page[name]
 
 
-def write_template(consts):
-    with open(TEMPLATE, encoding="utf-8") as f:
-        html = f.read()
-    for name, value in consts.items():
-        pattern = re.compile(r"(  const " + name + r" = ).*?;\n")
-        if not pattern.search(html):
-            raise SystemExit(f"В шаблоне не найдена константа {name}")
-        payload = json.dumps(value, ensure_ascii=False)
-        html = pattern.sub(lambda m: m.group(1) + payload + ";\n", html, count=1)
-    with open(TEMPLATE, "w", encoding="utf-8") as f:
-        f.write(html)
+def write_page(consts):
+    # Блоки, которые не пересчитывались (снимок без --new-snapshot), остаются прежними
+    page = {**read_page(), **consts}
+    payload = json.dumps(page, ensure_ascii=False, allow_nan=False)
+    tmp = OUT_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(payload)
+    os.replace(tmp, OUT_FILE)
 
 
 if __name__ == "__main__":
@@ -178,7 +179,7 @@ if __name__ == "__main__":
     p.add_argument("--today", default=date.today().isoformat(), help="дата нового снимка, YYYY-MM-DD")
     a = p.parse_args()
     consts = build(a.model, a.orfr, date.fromisoformat(a.today), a.new_snapshot)
-    write_template(consts)
+    write_page(consts)
     last_fact = [r["date"] for r in consts["RUB_DECOMP"] if r["fact"] is not None][-1]
-    print(f"ruble.html обновлён: последний факт {last_fact}, баланс потоков по {consts['RUB_BALANCE'][-1]['date']}, "
+    print(f"ruble_page.json обновлён: последний факт {last_fact}, баланс потоков по {consts['RUB_BALANCE'][-1]['date']}, "
           f"снимок {'новый' if a.new_snapshot else 'прежний'} на {consts['RUB_REVISION']['snapshot_date']}")

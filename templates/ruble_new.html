@@ -1,0 +1,1101 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Динамика курса + прогноз</h5>
+            <div class="small text-muted">Среднемесячный курс ЦБ; текущий месяц после 10-го числа — среднее с начала месяца<span id="fxMtdNote"></span>. Пунктир — прогноз RMM до конца 2027 г.</div>
+          </div>
+          <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+              <label for="fxStartDate" class="small text-muted mb-0">Начало периода:</label>
+              <input type="date" id="fxStartDate" class="form-control form-control-sm" style="width:auto">
+            </div>
+            <div class="btn-group btn-group-sm" role="group" id="fxPairSwitch">
+              <button type="button" class="btn btn-light" data-pair="usd">USD/RUB</button>
+              <button type="button" class="btn btn-outline-light" data-pair="cny">CNY/RUB</button>
+              <button type="button" class="btn btn-outline-light" data-pair="eur">EUR/RUB</button>
+            </div>
+          </div>
+        </div>
+        <div id="chartFx" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Динамика USD/RUB по месяцам</h5>
+        <div class="small text-muted mb-2">Изменение среднемесячного курса ЦБ к среднемесячному за прошлый месяц (не на конец месяца), % м/м. Текущий месяц после 10-го числа — по среднему с начала месяца (отмечен *). Прогнозные месяцы — серым.</div>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped align-middle mb-0 text-center" id="usdTable">
+            <thead>
+              <tr>
+                <th class="text-start">Год</th>
+                <th>Янв</th><th>Фев</th><th>Мар</th><th>Апр</th><th>Май</th><th>Июн</th>
+                <th>Июл</th><th>Авг</th><th>Сен</th><th>Окт</th><th>Ноя</th><th>Дек</th>
+              </tr>
+            </thead>
+            <tbody id="usdTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Баланс потоков ($ млрд) и курс (% м/м)</h5>
+        <div class="small text-muted mb-2">
+          Те же факторы, что в декомпозиции, но в млрд $ без коэффициентов регрессии — нетто-баланс потоков, а не прогноз
+          курса. «+» — давление к ослаблению рубля, «−» — к укреплению. Экспорт и импорт заменены продажами и покупками
+          валюты нефинансовыми компаниями (форма 0409701 ЦБ, есть за последний год; покупки — из ₽ по среднему курсу).
+          Линия (правая ось) — фактическое изменение курса, % м/м.
+        </div>
+        <div id="chartRubBalance" class="chart"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Сколько валюты экспортерам нужно продавать, млрд $ в месяц</h5>
+            <div class="small text-muted">
+          Расчётная потребность экспортеров в рублях: «+» — налоги (НГД, налог на прибыль и НДПИ экспортных отраслей),
+              дивиденды, погашение долга; «−» — новые кредиты и облигации, валюта под валютные погашения. Без зарплат,
+              закупок и капвложений — важна динамика. Линии — продажи валюты 29 крупнейшими экспортерами (ЦБ) и
+              нефинансовыми компаниями (ОРФР). Прогноз: НГД — модель НГД (Brent — консенсус <span id="expConsDate"></span>,
+              Urals на ноябрь–декабрь — ручной), налог на прибыль — год назад, дивиденды — объявленные и оценки сайтов.
+        </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label for="expStartDate" class="small text-muted mb-0">Начало периода:</label>
+            <input type="date" id="expStartDate" class="form-control form-control-sm" style="width:auto" value="2024-01-01">
+          </div>
+        </div>
+        <div id="chartRubExporters" class="chart"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Экспорт товаров и цена российской нефти — оба со сдвигом на 1,5 месяца</h5>
+            <div class="small text-muted">
+          Обе величины сдвинуты на 1,5 месяца — на момент поступления выручки. Столбцы — экспорт товаров (ПБ ЦБ), на месяц t —
+              среднее за t−2 и t−1. Линия — Urals по дням со сдвигом +45 дней (с <span id="oilNgdFrom"></span> — оценки модели НГД,
+              раньше — Brent минус дисконт месяца к официальной Urals); пунктир — прогноз Urals (консенсус Brent
+              <span id="oilConsDate"></span>, ноябрь–декабрь — ручной). <span id="oilCorr"></span>
+        </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label for="oilStartDate" class="small text-muted mb-0">Начало периода:</label>
+            <input type="date" id="oilStartDate" class="form-control form-control-sm" style="width:auto" value="2023-01-01">
+          </div>
+        </div>
+        <div id="chartRubOilExports" class="chart"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Объём торгов юанем на Мосбирже (TOD + TOM), млрд $ в день</h5>
+            <div class="small text-muted">
+          Биржевой объём торгов юанем за рубли: CNY000000TOD и CNYRUB_TOM, в млрд $ по курсу ЦБ на дату; линия — среднее
+              TOD + TOM за 30 торговых дней. Ось ограничена 4 млрд $ (всплески выше видны при наведении). Источник — ALGOPACK
+              Мосбиржи; свопы и внебиржевой рынок не входят. <span id="cnyVolAsOf"></span>
+        </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label for="cnyVolStart" class="small text-muted mb-0">Начало периода:</label>
+            <input type="date" id="cnyVolStart" class="form-control form-control-sm" style="width:auto">
+          </div>
+        </div>
+        <div id="chartRubCnyVolumes" class="chart"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Население: позиции по валютным фьючерсам, млрд $</h5>
+            <div class="small text-muted">
+          Сверху — нетто-позиция физлиц (лонг − шорт) по валютным фьючерсам Мосбиржи (Si, Eu, CR и вечные), снизу — её
+              изменение за 4 недели; «+» — население докупает валюту на срок. Встречную сторону берут банки и хеджируются на
+              споте, поэтому рост позиции близок к спросу на валюту. Евро и юани — в $ по кросс-курсу ЦБ. FUTOI (ALGOPACK),
+              без задержки. <span id="futoiAsOf"></span>
+        </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label for="futoiStartDate" class="small text-muted mb-0">Начало периода:</label>
+            <input type="date" id="futoiStartDate" class="form-control form-control-sm" style="width:auto">
+          </div>
+        </div>
+        <div id="chartRubFutoi" class="chart" style="height:520px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Операции Банка России на валютном рынке за месяц</h5>
+            <div class="small text-muted">
+          «+» — покупка валюты, «−» — продажа. Линия — факт ЦБ (бюджетное правило с учётом собственных операций ЦБ).
+              Столбцы: бюджетное правило (объём Минфина), ЦБ регулярные (зеркалирование ФНБ) и нерегулярные; до
+              <span id="cbrOpsSchedFrom"></span> операции ЦБ — одним столбцом. Прогноз: модель НГД (курс — «Макропрогнозы»,
+              отсечка $50 с 2027 г.), ЦБ в I пол. 2027 г. — зеркалирование ФНБ за июль–октябрь (<span id="cbrOpsFnb"></span> млрд ₽).
+              <span id="cbrOpsAsOf"></span>
+        </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="btn-group btn-group-sm" role="group" id="cbrOpsUnit">
+              <button type="button" class="btn btn-light" data-unit="rub">млрд ₽</button>
+              <button type="button" class="btn btn-outline-light" data-unit="usd">млрд $</button>
+            </div>
+          </div>
+        </div>
+        <div id="chartRubCbrOps" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Изменение факторов модели г/г, млрд $</h5>
+            <div class="small text-muted">
+              Год к году, в млрд $. Знак столбца — не знак самого потока, а направление его влияния на курс: сверху —
+              факторы, чьё движение толкает рубль к ослаблению (например, вырос импорт), снизу — к укреплению (например,
+              выросла экспортная выручка). DXY и разовые факторы не в млрд $ — не показаны. Источник: Russia Mega Model,
+              лист RUB.
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label for="rubYoyStartDate" class="small text-muted mb-0">Начало периода:</label>
+            <input type="date" id="rubYoyStartDate" class="form-control form-control-sm" style="width:auto">
+          </div>
+        </div>
+        <div id="chartRubYoy" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Декомпозиция изменения USD/RUB, % м/м</h5>
+            <div class="small text-muted">
+          Вклад факторов в изменение курса (регрессия на потоки платёжного баланса, DXY и разовые факторы); «Прочее» —
+              остаток модели, чтобы сумма совпадала с фактом. Прогноз факторов — до конца 2027 г., модельное изменение курса —
+              пунктир. Источник: Russia Mega Model, лист RUB.
+        </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label for="rubDecompStartDate" class="small text-muted mb-0">Начало периода:</label>
+            <input type="date" id="rubDecompStartDate" class="form-control form-control-sm" style="width:auto">
+          </div>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-1 mb-2" id="rubDecompToggles"></div>
+        <div id="chartRubDecomp" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1">Декомпозиция USD/RUB: превышение/снижение факторов над нормой, % м/м</h5>
+            <div class="small text-muted">
+          Вклад отклонения каждого фактора от нормы (среднее за предыдущие 12 месяцев) × коэффициент регрессии: показывает,
+              когда фактор был необычно высоким или низким, а не его постоянный вклад. Разовые факторы — без изменений. Сумма
+              столбцов не обязана совпадать с изменением курса.
+        </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label for="rubDecompDevStartDate" class="small text-muted mb-0">Начало периода:</label>
+            <input type="date" id="rubDecompDevStartDate" class="form-control form-control-sm" style="width:auto">
+          </div>
+        </div>
+        <div id="chartRubDecompDev" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h5 class="card-title mb-1" id="rubRevisionTitle">Пересмотр факторов модели к снимку</h5>
+            <div class="small text-muted">
+          Отличие текущих факторов модели от зафиксированного снимка прогноза (таблица ниже), по месяцам. «+» — пересмотр к
+              ослаблению рубля, «−» — к укреплению. млрд $ — пересмотр фактора, п.п. — он же × коэффициент регрессии (вклад в
+              прогноз курса). Линия — сумма. Источник: Russia Mega Model, лист RUB.
+        </div>
+          </div>
+          <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-light" id="rubRevisionBn">млрд $</button>
+            <button type="button" class="btn btn-outline-light" id="rubRevisionPp">п.п. к курсу</button>
+          </div>
+        </div>
+        <div id="chartRubRevision" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
+        <h5 class="card-title mb-1">Снимок факторов модели по месяцам</h5>
+        <div class="small text-muted mb-2" id="rubSnapshotNote"></div>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped align-middle mb-0 text-center" id="rubSnapshotTable">
+            <thead>
+              <tr id="rubSnapshotHead"></tr>
+            </thead>
+            <tbody id="rubSnapshotBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const URL_FX = "{{ url_for('api_ruble_fx') }}";
+
+  const styles = getComputedStyle(document.documentElement);
+  const grid   = styles.getPropertyValue('--grid').trim();
+  const text80 = styles.getPropertyValue('--text-80').trim();
+  const bgCard = styles.getPropertyValue('--card').trim();
+
+  const colors = { usd: '#7A5CFF', eur: '#2f80ed', cny: '#ff72c0' };
+  const labels = { usd: 'USD/RUB', eur: 'EUR/RUB', cny: 'CNY/RUB' };
+
+  const RUB_DECOMP_LABELS = {
+    export: 'Экспортная выручка',
+    imports: 'Импорт',
+    cbr_ops: 'Операции Банка России',
+    debt_conv: 'Конвертация валютного долга в рубли',
+    debt_repay: 'Погашение внешних кредитов и инвестиций',
+    households: 'Операции физлиц',
+    other_flows: 'Прочие потоки (до 2022)',
+    dxy: 'Индекс доллара (DXY)',
+    one_off: 'Разовые факторы (санкции, COVID и др.)',
+  };
+  const RUB_DECOMP_COLORS = {
+    export: '#4caf50', imports: '#e05353', cbr_ops: '#7A5CFF', debt_conv: '#2f80ed',
+    debt_repay: '#ff9f40', households: '#00bcd4', other_flows: '#a0a0a0',
+    dxy: '#ff72c0', one_off: '#ffd54f',
+  };
+
+  // Данные декомпозиции, баланса потоков, пересмотра и снимка — data/ruble_page.json
+  // (пишет data_scripts/update_ruble_data.py, на сайт попадает командой publish.sh ruble)
+  const URL_PAGE = "{{ url_for('api_ruble_page') }}";
+  let RUB_DECOMP, RUB_DECOMP_DEV, RUB_YOY, RUB_BALANCE, RUB_REVISION, RUB_SNAPSHOT;
+
+  async function fetchJSON(url){
+    const r = await fetch(url, {headers:{"Accept":"application/json"}});
+    if(!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
+
+  let fullData = null;
+  const startInput = document.getElementById('fxStartDate');
+  let fxPair = 'usd';
+  const fxPairButtons = [...document.querySelectorAll('#fxPairSwitch button')];
+  const rubDecompStartInput = document.getElementById('rubDecompStartDate');
+  const rubDecompDevStartInput = document.getElementById('rubDecompDevStartDate');
+  const rubYoyStartInput = document.getElementById('rubYoyStartDate');
+
+  function currencyTraces(key, dates, values, splitIdx, onSecondAxis){
+    const color = colors[key];
+    const histY = values.map((v, i) => i <= splitIdx ? v : null);
+    const fcstY = values.map((v, i) => i >= splitIdx ? v : null);
+    const axis = onSecondAxis ? {yaxis:'y2'} : {};
+    return [
+      {
+        x: dates, y: histY, type:'scatter', mode:'lines', name: labels[key],
+        line:{width:2.4, shape:'spline', smoothing:0.3, color}, connectgaps:false, ...axis,
+      },
+      {
+        x: dates, y: fcstY, type:'scatter', mode:'lines', name: labels[key] + ' — прогноз',
+        line:{width:2.4, shape:'spline', smoothing:0.3, color, dash:'dot'}, connectgaps:false, ...axis,
+        showlegend:false, hovertemplate:'%{x}<br>%{y:.2f}<extra>' + labels[key] + ' — прогноз</extra>',
+      },
+    ];
+  }
+
+  function render(){
+    if (!fullData) return;
+    const startDate = startInput.value || fullData.dates[0];
+    const startIdx = fullData.dates.findIndex(d => d >= startDate);
+    const from = startIdx === -1 ? fullData.dates.length : startIdx;
+    const dates = fullData.dates.slice(from);
+    const splitIdx = Math.max(fullData.dates.filter(d => d <= fullData.last_fact).length - 1 - from, -1);
+
+    // На графике одна пара — ось подстраивается под её масштаб
+    const traces = currencyTraces(fxPair, dates, fullData[fxPair].slice(from), splitIdx, false);
+
+    const layout = {
+      margin:{l:48,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{hoverformat:'.2f', gridcolor:grid, tickfont:{color:text80}, title:'₽'},
+      legend:{orientation:'h', x:0.02, y:1.1, xanchor:'left', yanchor:'bottom'}
+    };
+    Plotly.react('chartFx', traces, layout, {displayModeBar:false, responsive:true});
+    fxPairButtons.forEach(b => { b.className = 'btn ' + (b.dataset.pair === fxPair ? 'btn-light' : 'btn-outline-light'); });
+  }
+
+  // Полупрозрачная заливка + подпись «Прогноз» справа от последней точки
+  // факта — общая для всех графиков с прогнозным хвостом на этой странице.
+  function forecastShading(dates, lastFactIdx){
+    if (lastFactIdx < 0 || lastFactIdx >= dates.length - 1) return {shapes: [], annotations: []};
+    const forecastStart = dates[lastFactIdx + 1];
+    const lastDate = dates[dates.length - 1];
+    return {
+      shapes: [{
+        type:'rect', xref:'x', yref:'paper', x0:forecastStart, x1:lastDate, y0:0, y1:1,
+        fillcolor:'rgba(255,255,255,0.05)', line:{width:0}, layer:'below',
+      }],
+      annotations: [{
+        x: forecastStart, y: 1, xref:'x', yref:'paper', yanchor:'bottom', xanchor:'left',
+        text:'Прогноз', showarrow:false, font:{size:10, color:text80},
+      }],
+    };
+  }
+
+  function renderDecompChart(fullSeries, elId, startInput, opts){
+    opts = opts || {};
+    const startDate = startInput.value || fullSeries[0].date;
+    const rows = fullSeries.filter(d => d.date >= startDate);
+    const dates = rows.map(d => d.date);
+    const lastFactIdx = rows.reduce((acc, d, i) => d.fact !== null ? i : acc, -1);
+    const factorKeys = Object.keys(RUB_DECOMP_LABELS);
+    const traces = factorKeys.map(k => ({
+      x: dates, y: rows.map(d => d[k]), type:'bar', name: RUB_DECOMP_LABELS[k],
+      marker:{color: RUB_DECOMP_COLORS[k]}, meta: k,
+    }));
+    const hasModel = rows.some(d => 'model' in d);
+    if (hasModel) {
+      // «Прочее» — остаток регрессии (факт минус сумма модельных факторов),
+      // добавлен в стек серым, чтобы сумма столбцов била ровно в «Факт» там,
+      // где он есть. Для будущих месяцев остатка не существует (факта ещё
+      // нет) — там столбец просто отсутствует, сумма стека = модель.
+      traces.push({
+        x: dates, y: rows.map(d => (d.fact !== null && d.model !== null) ? Math.round((d.fact - d.model)*10000)/10000 : null),
+        type:'bar', name:'Прочее (остаток модели)', marker:{color:'#8a8a8a'}, meta: 'other',
+      });
+    }
+    const factAxis = opts.factOnSecondAxis ? {yaxis:'y2'} : {};
+    traces.push({
+      x: dates, y: rows.map(d => d.fact), type:'scatter', mode:'lines+markers', name: opts.factOnSecondAxis ? 'Факт, % м/м' : 'Факт',
+      line:{width:2.6, color:'#ffffff'}, marker:{size:4, color:'#ffffff'}, connectgaps:false, ...factAxis, meta: 'fact',
+    });
+    if (hasModel) {
+      // Прогнозное (модельное) изменение — отдельной пунктирной линией,
+      // СТРОГО после последнего месяца с фактом (за него уже есть факт,
+      // прогноз там не нужен и не рисуется).
+      traces.push({
+        x: dates, y: rows.map((d, i) => i > lastFactIdx ? d.model : null), type:'scatter', mode:'lines',
+        name:'Прогноз (модель)', line:{width:2.2, color:'#bdbdbd', dash:'dot'}, connectgaps:false, ...factAxis, meta: 'model',
+      });
+    }
+    // Скрытые пользователем ряды остаются в легенде (legendonly) — их можно вернуть кликом
+    if (opts.hidden) traces.forEach(t => { if (opts.hidden.has(t.meta)) t.visible = 'legendonly'; });
+    const { shapes, annotations } = forecastShading(dates, lastFactIdx);
+    const layout = {
+      margin:{l:48,r: opts.factOnSecondAxis ? 48 : 16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      barmode:'relative',
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{hoverformat:'.2f', gridcolor:grid, tickfont:{color:text80}, title:'% м/м', zerolinecolor:grid},
+      legend:{orientation:'h', x:0.02, y:1.22, xanchor:'left', yanchor:'bottom'},
+      shapes, annotations,
+    };
+    if (opts.factOnSecondAxis) {
+      layout.yaxis2 = {hoverformat:'.2f', overlaying:'y', side:'right', gridcolor:grid, tickfont:{color:text80}, title:'курс, % м/м', zeroline:false};
+    }
+    Plotly.react(elId, traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  // Переключатели рядов декомпозиции: по умолчанию видно всё, выбор сохраняется при смене периода
+  const rubDecompHidden = new Set();
+  const RUB_DECOMP_SERIES = [
+    ...Object.keys(RUB_DECOMP_LABELS).map(k => ({key: k, label: RUB_DECOMP_LABELS[k], color: RUB_DECOMP_COLORS[k]})),
+    {key: 'other', label: 'Прочее (остаток модели)', color: '#8a8a8a'},
+    {key: 'fact', label: 'Факт', color: '#ffffff'},
+    {key: 'model', label: 'Прогноз (модель)', color: '#bdbdbd'},
+  ];
+  function renderRubDecompToggles(){
+    const box = document.getElementById('rubDecompToggles');
+    box.innerHTML = '';
+    const btn = (label, cls, onClick) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn btn-sm ' + cls; b.textContent = label;
+      b.style.fontSize = '12px'; b.addEventListener('click', onClick); box.appendChild(b); return b;
+    };
+    btn('Все', 'btn-light', () => { rubDecompHidden.clear(); renderRubDecomp(); });
+    btn('Сбросить', 'btn-outline-light', () => { RUB_DECOMP_SERIES.forEach(s => rubDecompHidden.add(s.key)); renderRubDecomp(); });
+    RUB_DECOMP_SERIES.forEach(s => {
+      const on = !rubDecompHidden.has(s.key);
+      const b = btn('', on ? 'btn-outline-light' : 'btn-outline-secondary', () => {
+        on ? rubDecompHidden.add(s.key) : rubDecompHidden.delete(s.key);
+        renderRubDecomp();
+      });
+      b.innerHTML = `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;background:${s.color};opacity:${on ? 1 : 0.3}"></span>${s.label}`;
+      if (!on) b.style.opacity = '0.55';
+    });
+  }
+
+  function renderRubDecomp(){
+    renderDecompChart(RUB_DECOMP, 'chartRubDecomp', rubDecompStartInput, {hidden: rubDecompHidden});
+    renderRubDecompToggles();
+  }
+
+  function renderRubDecompDev(){
+    // Отклонения от нормы намного меньше по модулю, чем полные вклады факторов
+    // в основной декомпозиции — если делить ось с «Фактом» (который колеблется
+    // в разы сильнее), столбцы визуально сплющиваются. Уводим факт на вторую
+    // ось, чтобы столбцы автоматически масштабировались под свой диапазон.
+    renderDecompChart(RUB_DECOMP_DEV, 'chartRubDecompDev', rubDecompDevStartInput, {factOnSecondAxis: true});
+  }
+
+  function renderRubYoy(){
+    const startDate = rubYoyStartInput.value || RUB_YOY[0].date;
+    const rows = RUB_YOY.filter(d => d.date >= startDate);
+    const dates = rows.map(d => d.date);
+    const yoyKeys = ['export','imports','cbr_ops','debt_conv','debt_repay','households','other_flows'];
+    const traces = yoyKeys.map(k => ({
+      x: dates, y: rows.map(d => d[k]), type:'bar', name: RUB_DECOMP_LABELS[k],
+      marker:{color: RUB_DECOMP_COLORS[k]},
+    }));
+    // Результирующая — сумма всех факторов, тот же знак (+ к ослаблению,
+    // − к укреплению): совокупное давление на курс со стороны потоков.
+    traces.push({
+      x: dates, y: rows.map(d => yoyKeys.some(k => d[k] === null) ? null : yoyKeys.reduce((s,k) => s + d[k], 0)),
+      type:'scatter', mode:'lines+markers', name:'Результирующая',
+      line:{width:2.6, color:'#ffffff'}, marker:{size:4, color:'#ffffff'}, connectgaps:false,
+    });
+    // РЯД Y/Y не содержит собственного признака факт/прогноз — берём ту же
+    // границу, что и в декомпозиции (последний месяц с фактом изменения курса).
+    const lastFactDateGlobal = [...RUB_DECOMP].reverse().find(d => d.fact !== null).date;
+    const lastFactIdx = rows.reduce((acc, d, i) => d.date <= lastFactDateGlobal ? i : acc, -1);
+    const { shapes, annotations } = forecastShading(dates, lastFactIdx);
+    const layout = {
+      margin:{l:56,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      barmode:'relative',
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{hoverformat:'.2f', gridcolor:grid, tickfont:{color:text80}, title:'млрд $ (+ к ослаблению / − к укреплению)', zerolinecolor:grid},
+      legend:{orientation:'h', x:0.02, y:1.22, xanchor:'left', yanchor:'bottom'},
+      shapes, annotations,
+    };
+    Plotly.react('chartRubYoy', traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  function renderRubBalance(){
+    const dates = RUB_BALANCE.map(d => d.date);
+    const balanceKeys = ['fx_sales','fx_purchases','cbr_ops','households'];
+    const balanceLabels = {
+      fx_sales: 'Продажи валюты нефинансовыми компаниями',
+      fx_purchases: 'Покупки валюты нефинансовыми компаниями',
+    };
+    const balanceColors = { fx_sales: RUB_DECOMP_COLORS.export, fx_purchases: RUB_DECOMP_COLORS.imports };
+    // Знак развёрнут: + = давление к ослаблению рубля, − = к укреплению —
+    // тот же знак, что и у линии факта, чтобы столбцы и линия совпадали по
+    // направлению (в исходном балансе потоков было наоборот: + = приток $).
+    const traces = balanceKeys.map(k => ({
+      x: dates, y: RUB_BALANCE.map(d => d[k] === null ? null : -d[k]), type:'bar',
+      name: balanceLabels[k] || RUB_DECOMP_LABELS[k],
+      marker:{color: balanceColors[k] || RUB_DECOMP_COLORS[k]},
+    }));
+    traces.push({
+      x: dates, y: RUB_BALANCE.map(d => d.fact), type:'scatter', mode:'lines+markers', name:'Факт, % м/м',
+      yaxis:'y2', line:{width:2.6, color:'#ffffff'}, marker:{size:4, color:'#ffffff'}, connectgaps:false,
+    });
+    // Ноль обеих осей на одной высоте: у столбцов берём размах положительного и отрицательного стека,
+    // у линии — её максимум и минимум; доля оси над нулём выбирается общей для обеих осей
+    const barTraces = traces.filter(t => t.type === 'bar');
+    const stackUp = dates.map((_, i) => barTraces.reduce((s, t) => s + Math.max(t.y[i] || 0, 0), 0));
+    const stackDown = dates.map((_, i) => barTraces.reduce((s, t) => s + Math.min(t.y[i] || 0, 0), 0));
+    const facts = RUB_BALANCE.map(d => d.fact).filter(v => v !== null);
+    const ext = [
+      {up: Math.max(0, ...stackUp), down: -Math.min(0, ...stackDown)},
+      {up: Math.max(0, ...facts), down: -Math.min(0, ...facts)},
+    ];
+    const shareUp = ext.reduce((s, e) => s + e.up / (e.up + e.down || 1), 0) / ext.length;
+    const [range1, range2] = ext.map(e => {
+      const span = Math.max(e.up / shareUp, e.down / (1 - shareUp)) * 1.08;
+      return [-(1 - shareUp) * span, shareUp * span];
+    });
+    const layout = {
+      margin:{l:56,r:56,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      barmode:'relative',
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{hoverformat:'.2f', gridcolor:grid, tickfont:{color:text80}, title:'млрд $ (+ к ослаблению / − к укреплению)', zerolinecolor:grid, range: range1},
+      yaxis2:{hoverformat:'.2f', overlaying:'y', side:'right', showgrid:false, tickfont:{color:text80}, title:'% м/м', zeroline:false, range: range2},
+      legend:{orientation:'h', x:0.02, y:1.24, xanchor:'left', yanchor:'bottom'}
+    };
+    Plotly.react('chartRubBalance', traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  // Сколько валюты нужно продавать экспортерам (данные — data/exporters_need.json, пишет need_model.py)
+  let expData = null;
+  const expStartInput = document.getElementById('expStartDate');
+  const EXP_ITEMS = [
+    ['ngd', 'НГД (нефтегазовые налоги)', '#3f6db3'],
+    ['profit', 'Налог на прибыль и НДПИ экспортных отраслей', '#8fb4e8'],
+    ['dividends', 'Дивиденды', '#e0a458'],
+    ['debt', 'Долг (кредиты и облигации), нетто', '#9aa5b1'],
+  ];
+  function renderRubExporters(){
+    if (!expData) return;
+    const d = expData;
+    const from = Math.max(d.dates.findIndex(x => x >= (expStartInput.value || d.dates[0])), 0);
+    const pick = a => a.slice(from);
+    const dates = pick(d.dates), fc = pick(d.forecast);
+    const traces = EXP_ITEMS.map(([k, name, color]) => ({
+      x: dates, y: pick(d[k]), type:'bar', name,
+      marker:{color, opacity: fc.map(f => f ? 0.5 : 1)},
+      hovertemplate:'%{y:.2f}<extra>' + name + '</extra>',
+    }));
+    const net = pick(d.net);
+    const lastFact = fc.indexOf(true) - 1;
+    traces.push({x: dates.map((x, i) => i <= lastFact || lastFact < 0 ? x : null), y: net.map((v, i) => i <= lastFact || lastFact < 0 ? v : null),
+                 type:'scatter', mode:'lines+markers', name:'Расчётная потребность (итог)',
+                 line:{width:2.6, color:'#ffffff'}, marker:{size:4, color:'#ffffff'}, hovertemplate:'%{y:.2f}<extra>Потребность</extra>'});
+    if (lastFact >= 0) traces.push({x: dates.slice(lastFact), y: net.slice(lastFact), type:'scatter', mode:'lines+markers+text',
+                 name:'Потребность — прогноз', line:{width:2.6, color:'#ffffff', dash:'dot'},
+                 marker:{size:7, color:bgCard, line:{color:'#ffffff', width:2}},
+                 text: net.slice(lastFact).map((v, i) => i === 0 ? '' : v.toFixed(1)), textposition:'top center',
+                 textfont:{color:'#ffffff', size:11}, hovertemplate:'%{y:.2f}<extra>Потребность (прогноз)</extra>'});
+    traces.push({x: dates, y: pick(d.sales29), type:'scatter', mode:'lines', name:'Продажи 29 крупнейших экспортеров (ЦБ)',
+                 line:{width:2.6, color:'#ff5a5a'}, connectgaps:false, hovertemplate:'%{y:.2f}<extra>Продажи 29 экспортеров</extra>'});
+    traces.push({x: dates, y: pick(d.nonfin), type:'scatter', mode:'lines', name:'Продажи нефинансовых компаний (ОРФР)',
+                 line:{width:2.6, color:'#2ec4b6'}, connectgaps:false, hovertemplate:'%{y:.2f}<extra>Продажи нефин. компаний</extra>'});
+    const firstFc = dates[fc.indexOf(true)];
+    const shapes = firstFc ? [{type:'rect', xref:'x', yref:'paper', x0: firstFc, x1: dates[dates.length - 1], y0:0, y1:1,
+                              fillcolor:'rgba(255,255,255,0.06)', line:{width:0}, layer:'below', xshift:-15}] : [];
+    const annotations = firstFc ? [{x: firstFc, y:1, xref:'x', yref:'paper', text:'прогноз', showarrow:false,
+                                    xanchor:'left', yanchor:'top', font:{color:text80, size:12}}] : [];
+    if (firstFc) {  // сдвиг тени на полмесяца влево, чтобы накрыть первый прогнозный столбец
+      const x0 = new Date(firstFc + 'T00:00:00'); x0.setDate(x0.getDate() - 15);
+      const x1 = new Date(dates[dates.length - 1] + 'T00:00:00'); x1.setDate(x1.getDate() + 15);
+      shapes[0].x0 = x0.toISOString().slice(0, 10); shapes[0].x1 = x1.toISOString().slice(0, 10);
+      delete shapes[0].xshift;
+    }
+    const layout = {
+      margin:{l:56,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      barmode:'relative',
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{hoverformat:'.2f', gridcolor:grid, tickfont:{color:text80}, title:'млрд $ в месяц', zerolinecolor:'#9a9a9a'},
+      legend:{orientation:'h', x:0.02, y:1.14, xanchor:'left', yanchor:'bottom'},
+      hovermode:'x unified', shapes, annotations,
+    };
+    Plotly.react('chartRubExporters', traces, layout, {displayModeBar:false, responsive:true});
+  }
+  async function drawRubExporters(){
+    expData = await fetchJSON("{{ url_for('api_ruble_exporters_need') }}");
+    const c = new Date(expData.consensus_date + 'T00:00:00');
+    document.getElementById('expConsDate').textContent = `на ${c.toLocaleDateString('ru-RU')}`;
+    expStartInput.min = expData.dates[0];
+    expStartInput.max = expData.dates[expData.dates.length - 1];
+    expStartInput.addEventListener('change', renderRubExporters);
+    renderRubExporters();
+  }
+
+  // Urals с лагом 1,5 мес. и экспорт товаров (данные — data/oil_exports.json, пишет oil_exports.py)
+  let oilData = null;
+  const oilStartInput = document.getElementById('oilStartDate');
+  function renderRubOilExports(){
+    if (!oilData) return;
+    const d = oilData;
+    const start = oilStartInput.value || d.months[0];
+    const mi = Math.max(d.months.findIndex(x => x >= start), 0);
+    const oi = Math.max(d.oil_dates.findIndex(x => x >= start), 0);
+    const mid = x => { const t = new Date(x + 'T00:00:00'); t.setDate(15); return t.toISOString().slice(0, 10); };
+    const oilX = d.oil_dates.slice(oi), oilY = d.oil.slice(oi);
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const traces = [
+      {x: d.months.slice(mi).map(mid), y: d.exports.slice(mi), type:'bar', name:'Экспорт товаров (среднее за t−2, t−1), млрд $',
+       marker:{color:'#3f6db3'}, xperiod:'M1', xperiodalignment:'middle',
+       hovertemplate:'%{x|%m.%Y}: %{y:.1f} млрд $<extra>Экспорт, сдвиг 1,5 мес.</extra>'},
+      {x: oilX, y: oilY, type:'scatter', mode:'lines', name:'Urals по дням, сдвиг +45 дней', yaxis:'y2',
+       line:{width:1.8, color:'#ffb347'}, customdata: d.oil_orig_dates.slice(oi).map((o, i) => [o, d.oil_src[oi + i]]),
+       hovertemplate:'%{y:.1f} $/барр (цена на %{customdata[0]}; %{customdata[1]})<extra>Urals +45 дн.</extra>'},
+    ];
+    if (d.fc_dates.length) {
+      traces.push({x: [oilX[oilX.length - 1], ...d.fc_dates], y: [oilY[oilY.length - 1], ...d.fc_oil], type:'scatter',
+                   mode:'lines+markers', name:'Urals — прогноз (по месяцам, +45 дней)', yaxis:'y2',
+                   line:{width:2.4, color:'#ffb347', dash:'dot'},
+                   marker:{size:[0, ...d.fc_oil.map(() => 7)], color:bgCard, line:{color:'#ffb347', width:2}},
+                   customdata:['', ...d.fc_orig],
+                   hovertemplate:'%{y:.1f} $/барр (прогноз на %{customdata})<extra>Urals +45 дн.</extra>'});
+    }
+    const exMax = Math.max(...d.exports.slice(mi).filter(v => v !== null));
+    const uMax = Math.max(...oilY.concat(d.fc_oil).filter(v => v !== null));
+    const layout = {
+      margin:{l:56,r:56,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{hoverformat:'.1f', gridcolor:grid, tickfont:{color:text80}, title:'экспорт, млрд $', range:[0, exMax * 1.15], zerolinecolor:grid},
+      yaxis2:{hoverformat:'.1f', overlaying:'y', side:'right', showgrid:false, tickfont:{color:text80}, title:'Urals, $/барр',
+              range:[0, uMax * 1.12], zeroline:false},
+      legend:{orientation:'h', x:0.02, y:1.12, xanchor:'left', yanchor:'bottom'},
+      hovermode:'closest',
+      shapes:[{type:'line', xref:'x', yref:'paper', x0: today, x1: today, y0:0, y1:1,
+               line:{color:'rgba(255,255,255,0.75)', width:1.5, dash:'dash'}}],
+      annotations:[{x: today, y:1, xref:'x', yref:'paper', text:'сегодня', showarrow:false,
+                    xanchor:'left', yanchor:'top', xshift:4, font:{color:text80, size:11}}],
+    };
+    Plotly.react('chartRubOilExports', traces, layout, {displayModeBar:false, responsive:true});
+  }
+  async function drawRubOilExports(){
+    oilData = await fetchJSON("{{ url_for('api_ruble_oil_exports') }}");
+    const c = new Date(oilData.consensus_date + 'T00:00:00');
+    document.getElementById('oilConsDate').textContent = `на ${c.toLocaleDateString('ru-RU')}`;
+    const f = oilData.corr_from.split('-'), t = oilData.corr_to.split('-');
+    document.getElementById('oilCorr').textContent =
+      `Корреляция сдвинутого экспорта со средней за месяц сдвинутой Urals за ${f[1]}.${f[0]}–${t[1]}.${t[0]}: ${oilData.corr.toFixed(2).replace('.', ',')}.`;
+    document.getElementById('oilNgdFrom').textContent = oilData.ngd_daily_from;
+    oilStartInput.min = oilData.months[0];
+    oilStartInput.addEventListener('change', renderRubOilExports);
+    renderRubOilExports();
+  }
+
+  // Объём торгов юанем TOD + TOM (данные — data/cny_volumes.json, пишет update_cny_volumes.py)
+  let cnyVolData = null;
+  const cnyVolStart = document.getElementById('cnyVolStart');
+  function renderRubCnyVolumes(){
+    if (!cnyVolData) return;
+    const d = cnyVolData;
+    const from = Math.max(d.dates.findIndex(x => x >= (cnyVolStart.value || d.dates[0])), 0);
+    const total = d.dates.map((_, i) => (d.tod[i] || 0) + (d.tom[i] || 0));
+    const ma = total.map((_, i) => i < 29 ? null : total.slice(i - 29, i + 1).reduce((a, b) => a + b, 0) / 30);
+    const x = d.dates.slice(from);
+    const traces = [
+      {x, y: d.tom.slice(from), type:'bar', name:'CNYRUB_TOM', marker:{color:'#3f6db3'},
+       hovertemplate:'%{y:.2f} млрд $<extra>TOM</extra>'},
+      {x, y: d.tod.slice(from), type:'bar', name:'CNY000000TOD', marker:{color:'#e0a458'},
+       hovertemplate:'%{y:.2f} млрд $<extra>TOD</extra>'},
+      {x, y: ma.slice(from), type:'scatter', mode:'lines', name:'TOD + TOM, среднее за 30 дней',
+       line:{width:2.4, color:'#ffffff'}, hovertemplate:'%{y:.2f} млрд $<extra>среднее 30 дн.</extra>'},
+    ];
+    const layout = {
+      margin:{l:56,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      barmode:'stack', bargap:0.15,
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}},
+      yaxis:{hoverformat:'.2f', gridcolor:grid, tickfont:{color:text80}, title:'млрд $ в день', zerolinecolor:grid, range:[0, 4]},
+      legend:{orientation:'h', x:0.02, y:1.12, xanchor:'left', yanchor:'bottom'},
+      hovermode:'x unified',
+    };
+    Plotly.react('chartRubCnyVolumes', traces, layout, {displayModeBar:false, responsive:true});
+  }
+  async function drawRubCnyVolumes(){
+    cnyVolData = await fetchJSON("{{ url_for('api_ruble_cny_volumes') }}");
+    const last = new Date(cnyVolData.dates[cnyVolData.dates.length - 1] + 'T00:00:00');
+    document.getElementById('cnyVolAsOf').textContent = `Данные по ${last.toLocaleDateString('ru-RU')} (сегодня — неполный день).`;
+    cnyVolStart.min = cnyVolData.dates[0];
+    cnyVolStart.value = cnyVolData.dates[0];  // ряд — с января 2023 г.
+    cnyVolStart.addEventListener('change', renderRubCnyVolumes);
+    renderRubCnyVolumes();
+  }
+
+  // Операции ЦБ на валютном рынке по месяцам (данные — data/cbr_fx_ops.json, пишет update_cbr_fx_ops.py)
+  let cbrOpsData = null, cbrOpsUnit = 'rub';
+  const cbrOpsButtons = [...document.querySelectorAll('#cbrOpsUnit button')];
+  function renderRubCbrOps(){
+    if (!cbrOpsData) return;
+    const d = cbrOpsData, sfx = cbrOpsUnit === 'usd' ? '_usd' : '', unit = cbrOpsUnit === 'usd' ? 'млрд $' : 'млрд ₽';
+    const fmt = cbrOpsUnit === 'usd' ? '.2f' : '.0f';
+    const items = [
+      ['bp', 'Бюджетное правило (Минфин)', '#3f6db3'],
+      ['reg', 'ЦБ: регулярные (зеркалирование ФНБ)', '#8fb4e8'],
+      ['irr', 'ЦБ: нерегулярные (ФНБ на дефицит, отложенные)', '#e05353'],
+      ['own', 'ЦБ: собственные, без разбивки (до 2025)', '#e0a458'],
+      ['other', 'Прочее / расхождение', '#9aa5b1'],
+    ];
+    const fc = d.forecast || d.months.map(() => false);
+    const lastFact = fc.indexOf(true) - 1;
+    const traces = items.map(([k, name, color]) => ({
+      x: d.months, y: d[k + sfx], type:'bar', name, marker:{color, opacity: fc.map(f => f ? 0.5 : 1)},
+      hovertemplate:`%{y:${fmt}} ${unit}<extra>${name}</extra>`,
+    }));
+    const tot = d['fact' + sfx];
+    const histEnd = lastFact >= 0 ? lastFact + 1 : tot.length;
+    traces.push({x: d.months.slice(0, histEnd), y: tot.slice(0, histEnd), type:'scatter', mode:'lines+markers', name:'Итого (факт ЦБ)',
+                 line:{width:2.6, color:'#ffffff'}, marker:{size:5, color:'#ffffff'},
+                 hovertemplate:`%{y:${fmt}} ${unit}<extra>Итого</extra>`});
+    if (lastFact >= 0) {
+      traces.push({x: d.months.slice(lastFact), y: tot.slice(lastFact), type:'scatter', mode:'lines+markers+text', name:'Итого — прогноз',
+                   line:{width:2.6, color:'#ffffff', dash:'dot'}, marker:{size:7, color:bgCard, line:{color:'#ffffff', width:2}},
+                   text: tot.slice(lastFact).map((v, i) => i === 0 ? '' : (cbrOpsUnit === 'usd' ? v.toFixed(1) : Math.round(v))),
+                   textposition:'top center', textfont:{color:'#ffffff', size:11},
+                   hovertemplate:`%{y:${fmt}} ${unit}<extra>Итого (прогноз)</extra>`});
+    }
+    const shapes = [], annotations = [];
+    if (lastFact >= 0) {
+      const x0 = new Date(d.months[lastFact + 1] + 'T00:00:00'); x0.setDate(x0.getDate() - 15);
+      const x1 = new Date(d.months[d.months.length - 1] + 'T00:00:00'); x1.setDate(x1.getDate() + 20);
+      shapes.push({type:'rect', xref:'x', yref:'paper', x0: x0.toISOString().slice(0, 10), x1: x1.toISOString().slice(0, 10),
+                   y0:0, y1:1, fillcolor:'rgba(255,255,255,0.06)', line:{width:0}, layer:'below'});
+      annotations.push({x: x0.toISOString().slice(0, 10), y:1, xref:'x', yref:'paper', text:'прогноз', showarrow:false,
+                        xanchor:'left', yanchor:'top', font:{color:text80, size:12}});
+    }
+    const layout = {
+      margin:{l:60,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      barmode:'relative',
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}, dtick:'M3', tickformat:'%m.%y'},
+      yaxis:{hoverformat:fmt, gridcolor:grid, tickfont:{color:text80}, title:unit + ' за месяц', zerolinecolor:'#9a9a9a'},
+      legend:{orientation:'h', x:0.02, y:1.12, xanchor:'left', yanchor:'bottom'},
+      hovermode:'x unified', shapes, annotations,
+    };
+    Plotly.react('chartRubCbrOps', traces, layout, {displayModeBar:false, responsive:true});
+    cbrOpsButtons.forEach(b => { b.className = 'btn ' + (b.dataset.unit === cbrOpsUnit ? 'btn-light' : 'btn-outline-light'); });
+  }
+  async function drawRubCbrOps(){
+    cbrOpsData = await fetchJSON("{{ url_for('api_ruble_cbr_fx_ops') }}");
+    const [y, m] = cbrOpsData.sched_from.split('-');
+    document.getElementById('cbrOpsSchedFrom').textContent = `${m}.${y}`;
+    const last = new Date(cbrOpsData.last_day + 'T00:00:00');
+    document.getElementById('cbrOpsAsOf').textContent = `Факт по ${last.toLocaleDateString('ru-RU')}.`;
+    document.getElementById('cbrOpsFnb').textContent = (cbrOpsData.fnb_invest || []).map(x => String(x[2]).replace('.', ',')).join(', ');
+    cbrOpsButtons.forEach(b => b.addEventListener('click', () => { cbrOpsUnit = b.dataset.unit; renderRubCbrOps(); }));
+    renderRubCbrOps();
+  }
+
+  // Кнопка «PNG» у каждого графика: сохраняет график с заголовком карточки (как «Скачать PNG» на вкладке «Макропрогнозы»)
+  function addPngButtons(){
+    document.querySelectorAll('div.chart').forEach(el => {
+      const body = el.closest('.card-body');
+      if (!body || body.querySelector('.png-btn')) return;
+      const titleEl = body.querySelector('.card-title');
+      const title = titleEl ? titleEl.textContent.trim() : el.id;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-outline-light btn-sm png-btn';
+      btn.textContent = 'Скачать PNG';
+      btn.title = 'Скачать график в PNG';
+      btn.style.cssText = 'padding:1px 10px; font-size:12px;';
+      const row = document.createElement('div');  // отдельная строка над графиком — не перекрывает переключатели и даты
+      row.className = 'd-flex justify-content-end mb-1';
+      row.appendChild(btn);
+      el.parentNode.insertBefore(row, el);
+      btn.addEventListener('click', async () => {
+        if (!el.layout) return;
+        const m = el.layout.margin || {};
+        const old = {title: el.layout.title || {text:''}, 'margin.t': m.t ?? 8};
+        const legendTop = el.layout.legend && el.layout.legend.y > 1 ? 70 : 0;
+        try {
+          await Plotly.relayout(el, {title:{text:title, x:0.01, xanchor:'left', y:0.99, yanchor:'top', font:{size:16, color:'white'}},
+                                     'margin.t': (m.t ?? 8) + 44 + legendTop});
+          const name = title.replace(/[^0-9A-Za-zА-Яа-яЁё]+/g, '_').replace(/^_|_$/g, '').slice(0, 80);
+          await Plotly.downloadImage(el, {format:'png', filename:name || 'ruble_chart', scale:2,
+                                          width: el.clientWidth, height: el.clientHeight + 44 + legendTop});
+        } finally {
+          await Plotly.relayout(el, old);
+        }
+      });
+    });
+  }
+
+  // Две панели с общей осью дат: уровень нетто-позиции и её изменение за 4 недели
+  let futoiData = null;
+  const futoiStartInput = document.getElementById('futoiStartDate');
+  function renderRubFutoi(){
+    if (!futoiData) return;
+    const startDate = futoiStartInput.value || futoiData.dates[0];
+    const from = Math.max(futoiData.dates.findIndex(d => d >= startDate), 0);
+    const dates = futoiData.dates.slice(from);
+    const net = futoiData.net.slice(from);
+    const flow = futoiData.flow_4w.slice(from);
+    const traces = [
+      {
+        x: dates, y: net, type:'scatter', mode:'lines', name:'Нетто-позиция',
+        line:{width:2.4, color:'#7A5CFF'}, hovertemplate:'%{x}<br>%{y:.2f} млрд $<extra>Нетто-позиция</extra>',
+      },
+      {
+        x: dates, y: flow, type:'bar', name:'Изменение за 4 недели', yaxis:'y2',
+        marker:{color: flow.map(v => v >= 0 ? '#4caf50' : '#e05353')},
+        hovertemplate:'%{x}<br>%{y:+.2f} млрд $<extra>Изменение за 4 недели</extra>',
+      },
+    ];
+    const layout = {
+      margin:{l:56,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      bargap:0,
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}, anchor:'y2'},
+      yaxis:{hoverformat:'.2f', domain:[0.48, 1], gridcolor:grid, tickfont:{color:text80}, title:'нетто, млрд $', zerolinecolor:grid},
+      yaxis2:{hoverformat:'.2f', domain:[0, 0.4], gridcolor:grid, tickfont:{color:text80}, title:'за 4 недели, млрд $', zerolinecolor:'#9a9a9a'},
+      showlegend:false,
+      hovermode:'x unified',
+    };
+    Plotly.react('chartRubFutoi', traces, layout, {displayModeBar:false, responsive:true});
+  }
+
+  async function drawFutoi(){
+    futoiData = await fetchJSON("{{ url_for('api_ruble_futoi') }}");
+    const last = new Date(futoiData.last_date + 'T00:00:00');
+    document.getElementById('futoiAsOf').textContent = `Данные по ${last.toLocaleDateString('ru-RU')}.`;
+    const start = new Date(last);
+    start.setFullYear(start.getFullYear() - 2);
+    futoiStartInput.min = futoiData.dates[0];
+    futoiStartInput.max = futoiData.last_date;
+    futoiStartInput.value = start.toISOString().slice(0,10);
+    renderRubFutoi();
+  }
+  futoiStartInput.addEventListener('change', renderRubFutoi);
+
+  let rubRevisionUnit = 'bn';
+  function renderRubRevision(){
+    const rows = RUB_REVISION[rubRevisionUnit] || [];
+    const snapDate = new Date(RUB_REVISION.snapshot_date + 'T00:00:00').toLocaleDateString('ru-RU');
+    document.getElementById('rubRevisionTitle').textContent = `Пересмотр факторов модели к снимку от ${snapDate}`;
+    const dates = rows.map(d => d.date);
+    const keys = ['export','imports','cbr_ops','debt_conv','debt_repay','households','other_flows'];
+    const traces = keys.map(k => ({
+      x: dates, y: rows.map(d => d[k]), type:'bar', name: RUB_DECOMP_LABELS[k], marker:{color: RUB_DECOMP_COLORS[k]},
+    }));
+    traces.push({
+      x: dates, y: rows.map(d => keys.some(k => d[k] === null) ? null : keys.reduce((s, k) => s + d[k], 0)),
+      type:'scatter', mode:'lines+markers', name:'Итого', line:{width:2.6, color:'#ffffff'}, marker:{size:5, color:'#ffffff'},
+    });
+    const unit = rubRevisionUnit === 'bn' ? 'млрд $' : 'п.п.';
+    const layout = {
+      margin:{l:56,r:16,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      barmode:'relative',
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}, dtick:'M1', tickformat:'%b %y'},
+      yaxis:{hoverformat:'.2f', gridcolor:grid, tickfont:{color:text80}, title:`${unit} (+ к ослаблению / − к укреплению)`, zerolinecolor:'#9a9a9a'},
+      legend:{orientation:'h', x:0.02, y:1.12, xanchor:'left', yanchor:'bottom'},
+      hovermode:'x unified',
+    };
+    Plotly.react('chartRubRevision', traces, layout, {displayModeBar:false, responsive:true});
+    document.getElementById('rubRevisionBn').className = 'btn ' + (rubRevisionUnit === 'bn' ? 'btn-light' : 'btn-outline-light');
+    document.getElementById('rubRevisionPp').className = 'btn ' + (rubRevisionUnit === 'pp' ? 'btn-light' : 'btn-outline-light');
+  }
+  document.getElementById('rubRevisionBn').addEventListener('click', () => { rubRevisionUnit = 'bn'; renderRubRevision(); });
+  document.getElementById('rubRevisionPp').addEventListener('click', () => { rubRevisionUnit = 'pp'; renderRubRevision(); });
+
+  function renderRubSnapshot(){
+    const keys = ['export','cbr_ops','debt_conv','imports','debt_repay','households','other_flows','dxy'];
+    const note = document.getElementById('rubSnapshotNote');
+    note.textContent = `Зафиксировано ${new Date(RUB_SNAPSHOT.snapshot_date + 'T00:00:00').toLocaleDateString('ru-RU')} — прогноз факторов на момент последнего обновления прогнозов (млрд $, DXY — в пунктах). При пересчёте данных таблица не меняется: новый снимок фиксируется только при обновлении прогнозов. Насколько текущая модель разошлась с этим снимком — на графике пересмотра выше.`;
+
+    const thead = document.getElementById('rubSnapshotHead');
+    thead.innerHTML = '';
+    const thMonth = document.createElement('th'); thMonth.className = 'text-start'; thMonth.textContent = 'Месяц';
+    thead.appendChild(thMonth);
+    keys.forEach(k => {
+      const th = document.createElement('th');
+      th.textContent = RUB_DECOMP_LABELS[k];
+      thead.appendChild(th);
+    });
+
+    const tbody = document.getElementById('rubSnapshotBody');
+    tbody.innerHTML = '';
+    RUB_SNAPSHOT.rows.forEach(row => {
+      const tr = document.createElement('tr');
+      const tdMonth = document.createElement('td');
+      tdMonth.className = 'text-start fw-semibold';
+      tdMonth.textContent = new Date(row.date + 'T00:00:00').toLocaleDateString('ru-RU', {month:'long', year:'numeric'});
+      tr.appendChild(tdMonth);
+      keys.forEach(k => {
+        const td = document.createElement('td');
+        const v = row[k];
+        td.textContent = v === null || v === undefined ? '—' : v.toFixed(k === 'dxy' ? 4 : 2);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderTable(){
+    if (!fullData) return;
+    const tbody = document.getElementById('usdTableBody');
+    tbody.innerHTML = '';
+
+    // (year, month) -> % м/м, из полного ряда USD/RUB (индекс month 1-12)
+    const pctByYm = {};
+    for (let i = 1; i < fullData.dates.length; i++) {
+      const d = fullData.dates[i];
+      const prev = fullData.usd[i-1];
+      const v = fullData.usd[i];
+      if (!prev) continue;
+      const [y, m] = d.split('-').map(Number);
+      pctByYm[y + '-' + m] = ((v/prev - 1) * 100);
+    }
+
+    const asOfYm = fullData.last_fact.slice(0,7); // последний фактический месяц 'YYYY-MM'
+    const mtdYm = fullData.mtd_to ? asOfYm : null; // неполный месяц — среднее с начала месяца
+
+    // Цвет ШРИФТА (не фона — фон в Bootstrap 5.3 перекрывается box-shadow
+    // таблицы, менять надёжно можно только текст) по модулю % м/м, с
+    // потолком CAP — иначе выбросы 2022 года (+34%/-25%) выжгут шкалу и
+    // обычные +/-2-5% станут неразличимы. Рост — зелёный, падение —
+    // фиолетовый, около нуля — почти белый; прогнозные месяцы остаются
+    // серыми, без раскраски, независимо от значения.
+    const CAP = 5;
+    const WHITE = [235, 235, 240];
+    const GREEN = [90, 220, 120];
+    const VIOLET = [190, 120, 255];
+    function mix(a, b, t){
+      return `rgb(${Math.round(a[0]+(b[0]-a[0])*t)},${Math.round(a[1]+(b[1]-a[1])*t)},${Math.round(a[2]+(b[2]-a[2])*t)})`;
+    }
+    function cellTextColor(pct){
+      const t = Math.min(Math.abs(pct) / CAP, 1);
+      return mix(WHITE, pct >= 0 ? GREEN : VIOLET, t);
+    }
+
+    for (let year = 2017; year <= 2026; year++) {
+      const tr = document.createElement('tr');
+      const tdYear = document.createElement('td');
+      tdYear.className = 'text-start fw-semibold';
+      tdYear.textContent = year;
+      tr.appendChild(tdYear);
+      for (let month = 1; month <= 12; month++) {
+        const td = document.createElement('td');
+        const pct = pctByYm[year + '-' + month];
+        const ym = year + '-' + String(month).padStart(2,'0');
+        const isForecast = ym > asOfYm;
+        if (pct === undefined) {
+          td.textContent = '';
+        } else {
+          td.textContent = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' + (ym === mtdYm ? '*' : '');
+          if (ym === mtdYm) td.title = 'Среднее с начала месяца по ' + fullData.mtd_to.split('-').reverse().join('.');
+          if (isForecast) {
+            td.className = 'text-muted';
+          } else {
+            td.style.color = cellTextColor(pct);
+            td.style.fontWeight = '600';
+          }
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function draw(){
+    fullData = await fetchJSON(URL_FX);
+    startInput.min = fullData.dates[0];
+    startInput.max = fullData.dates[fullData.dates.length - 1];
+    startInput.value = '2020-01-01';
+    const mtdEl = document.getElementById('fxMtdNote');
+    if (mtdEl && fullData.mtd_to) mtdEl.textContent = ' (сейчас — по ' + fullData.mtd_to.split('-').reverse().join('.') + ')';
+    render();
+    renderTable();
+  }
+
+  startInput.addEventListener('change', render);
+  fxPairButtons.forEach(b => b.addEventListener('click', () => { fxPair = b.dataset.pair; render(); }));
+
+  draw().catch(e => console.error(e));
+
+  function initRubPage(){
+    // По умолчанию — последние 2 года факта + весь доступный прогноз.
+    const lastFactRow = [...RUB_DECOMP].reverse().find(d => d.fact !== null);
+    const lastFactDate = new Date((lastFactRow || RUB_DECOMP[RUB_DECOMP.length-1]).date + 'T00:00:00');
+    const defaultStart = new Date(lastFactDate);
+    defaultStart.setFullYear(defaultStart.getFullYear() - 2);
+    rubDecompStartInput.min = RUB_DECOMP[0].date;
+    rubDecompStartInput.max = RUB_DECOMP[RUB_DECOMP.length-1].date;
+    rubDecompStartInput.value = defaultStart.toISOString().slice(0,10);
+    rubDecompStartInput.addEventListener('change', renderRubDecomp);
+    renderRubDecomp();
+    // Клики по легенде идут через тот же набор скрытых рядов, что и кнопки
+    const rubDecompEl = document.getElementById('chartRubDecomp');
+    rubDecompEl.on('plotly_legendclick', e => {
+      const k = e.data[e.curveNumber].meta;
+      rubDecompHidden.has(k) ? rubDecompHidden.delete(k) : rubDecompHidden.add(k);
+      renderRubDecomp();
+      return false;
+    });
+    rubDecompEl.on('plotly_legenddoubleclick', e => {
+      const k = e.data[e.curveNumber].meta;
+      const onlyThis = RUB_DECOMP_SERIES.every(s => s.key === k || rubDecompHidden.has(s.key));
+      rubDecompHidden.clear();
+      if (!onlyThis) RUB_DECOMP_SERIES.forEach(s => { if (s.key !== k) rubDecompHidden.add(s.key); });
+      renderRubDecomp();
+      return false;
+    });
+
+    rubDecompDevStartInput.min = RUB_DECOMP_DEV[0].date;
+    rubDecompDevStartInput.max = RUB_DECOMP_DEV[RUB_DECOMP_DEV.length-1].date;
+    rubDecompDevStartInput.value = defaultStart.toISOString().slice(0,10);
+    rubDecompDevStartInput.addEventListener('change', renderRubDecompDev);
+    renderRubDecompDev();
+
+    rubYoyStartInput.min = RUB_YOY[0].date;
+    rubYoyStartInput.max = RUB_YOY[RUB_YOY.length-1].date;
+    rubYoyStartInput.value = defaultStart.toISOString().slice(0,10);
+    rubYoyStartInput.addEventListener('change', renderRubYoy);
+    renderRubYoy();
+
+    renderRubBalance();
+
+    renderRubRevision();
+    renderRubSnapshot();
+  }
+
+  fetchJSON(URL_PAGE).then(page => {
+    ({RUB_DECOMP, RUB_DECOMP_DEV, RUB_YOY, RUB_BALANCE, RUB_REVISION, RUB_SNAPSHOT} = page);
+    initRubPage();
+  }).catch(e => console.error(e));
+
+  drawFutoi().catch(e => console.error(e));
+  addPngButtons();
+  drawRubExporters().catch(e => console.error(e));
+  drawRubOilExports().catch(e => console.error(e));
+  drawRubCnyVolumes().catch(e => console.error(e));
+  drawRubCbrOps().catch(e => console.error(e));
+
+})();
+</script>
+{% endblock %}
