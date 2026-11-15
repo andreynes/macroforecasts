@@ -26,7 +26,7 @@
                     создаётся сама из PUBLISHER_KEY, настройки yc пользователя не затрагиваются
   SITE_USER, SITE_PASS  логин и пароль сайта; если не заданы — читаются из SITE_AUTH_FILE
   SITE_AUTH_FILE    файл с BASIC_AUTH_USER=… и BASIC_AUTH_PASS=… (~/.config/macro/site_auth.env)
-  YC                команда yc (yc)
+  YC                команда yc (по умолчанию — из PATH или ~/yandex-cloud/bin/yc)
   PUBLISH_WAIT      сколько секунд ждать новые данные на сайте (420)
 Ключ и пароль скрипт не печатает.
 """
@@ -36,6 +36,7 @@ import hashlib
 import http.cookiejar
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -50,7 +51,9 @@ BUCKET = os.environ.get("DATA_BUCKET", "macro-site-data")
 PUBLISHER_KEY = os.path.expanduser(os.environ.get("PUBLISHER_KEY", "~/.config/macro/publisher-key.json"))
 YC_HOME = os.path.expanduser(os.environ.get("YC_PUBLISHER_HOME", "~/.config/macro/yc-publisher"))
 AUTH_FILE = os.path.expanduser(os.environ.get("SITE_AUTH_FILE", "~/.config/macro/site_auth.env"))
-YC = os.environ.get("YC", "yc")
+# yc: переменная YC, иначе из PATH, иначе стандартная папка установки (у launchd PATH урезан до /usr/bin:/bin:…)
+YC = (os.environ.get("YC") or shutil.which("yc")
+      or next((p for p in [os.path.expanduser("~/yandex-cloud/bin/yc")] if os.path.isfile(p)), "yc"))
 WAIT = int(os.environ.get("PUBLISH_WAIT", "420"))
 MANIFEST_KEY = "data/manifest.json"
 HISTORY_LEN = 10
@@ -206,6 +209,8 @@ def _yc_env():
 
 
 def ensure_yc():
+    if not (os.path.isfile(YC) or shutil.which(YC)):
+        raise PublishError("не найден yc (CLI Яндекс Облака): задайте путь переменной YC или добавьте yc в PATH")
     cfg = os.path.join(YC_HOME, ".config", "yandex-cloud", "config.yaml")
     if os.path.isfile(cfg):
         return
