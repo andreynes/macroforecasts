@@ -5,21 +5,27 @@ Docker-образ в Yandex Serverless Containers через `deploy_yc.sh`.
 URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий запуск/формат данных — `README_RU.md`;
 ручной гайд для пользователя — `ИНСТРУКЦИЯ.md` (обновлять вместе с этим файлом).
 
-## Страницы инфляции (`/inflation/weekly`, `/inflation/monthly`)
-- `templates/inflation_weekly.html`, `templates/inflation_monthly.html` — самодостаточные страницы с данными
-  в однострочных `const NAME = …;` внутри `{% extends "base.html" %}`.
-- Источник данных и скрипты — проект `~/Desktop/Совкомбанк/Инфляция` (см. его `CLAUDE.md`):
-  неделя — `update_site_weekly.sh` (переносит const из `inflation_dashboard.html`), месяц — точечные патчи
-  `update_table1_and_charts.py`, `update_demand_supply_cbr.py`, `update_fx_sensitivity*.py`.
-- Недельный шаблон — отдельная копия `dashboard_template.html`: правки разметки/JS делать в обоих.
+## Страницы инфляции (`/inflation/weekly`, `/inflation/monthly`) — с 15.11.2026 данные в JSON
+- Данные: `data/inflation_weekly.json` (20 блоков: ITOGO, MODEL_COMPARISON, … CATEGORY_WEEKLY) и
+  `data/inflation_monthly.json` (15 блоков: LATEST, TABLE1, … DIFFUSION) + поле `data_as_of`; отдаются
+  `/api/inflation/weekly|monthly` (под входом, не в PUBLIC_PATHS), на сайт — `publish.sh inflation_weekly|inflation_monthly`.
+- Шаблоны: блоки — `let NAME;`, основной код `(function(){…})()` обёрнут в `initInflationPage()` и запускается после
+  загрузки JSON; сбой (401/сеть) — `window.showDataLoadError()` из base.html (сообщение + «Войти заново»). Служебные
+  константы кода (MONTHS_SHORT, RANGES, W/M в функциях, METRICS…) остаются в шаблонах.
+- Скрипты — проект `~/Desktop/Совкомбанк/Инфляция` (см. его `CLAUDE.md`), общий модуль `site_data.py` (SITE_DIR):
+  неделя — `tools/sync_site_data.py` (блоки верхнего уровня из `inflation_dashboard.html` → JSON), месяц —
+  `update_table1_and_charts.py`, `update_demand_supply_cbr.py`, `update_fx_sensitivity*.py` (пишут блоки в JSON).
+  По средам `run_add_week.sh` сам публикует неделю, если `add_week.py` без «🚩 АНОМАЛИЯ» (иначе — причина в add_week.log).
+- Недельный шаблон сайта по разметке/JS — копия `dashboard_template.html` (кроме загрузки данных): правки делать в обоих.
   Месячный шаблон сайта содержит разделы, которых нет в локальном `dashboard_template_monthly.html` — не перегенерировать целиком.
+- Платформа сама сжимает ответы gzip (/api/inflation/weekly: 948 КБ → 200 КБ) — сжатие в app.py не нужно.
 
 ## Выкладка
 С 14.11.2026 все накопленные правки (рубль, НГД, Метрика, data_scripts, data/*.json) закоммичены в `main` —
 рабочая папка и коммит совпадают. Точка отката до этого коммита — ветка `before-2026-11-14`.
 - Код сайта: `./release_all.sh "сообщение"` (коммит, push, `deploy_yc.sh`, проверка вкладок) — по просьбе пользователя.
   Данные — не выкладкой, а `./publish.sh` (см. ниже).
-- Только страницы инфляции: по-прежнему `~/Desktop/Совкомбанк/Инфляция/deploy_inflation_site.sh`.
+- Только код страниц инфляции: `~/Desktop/Совкомбанк/Инфляция/deploy_inflation_site.sh` (данные — publish.sh).
 - Пароль: вкладка «Макропрогнозы» (`/` и её API, см. `PUBLIC_PATHS` в `app.py`) открыта всем, остальное — после входа через форму `/login`
   (`site_auth.py`, cookie на 30 дней; Basic Auth в Yandex Serverless Containers не работает — платформа забирает заголовок Authorization).
   Логин/пароль — в `~/.config/macro/site_auth.env` (вне репозитория, не читать и не печатать); `deploy_yc.sh` без этого
@@ -32,14 +38,16 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
   `--mount type=object-storage,mount-point=/mnt/site-data,bucket=macro-site-data,mode=ro` в `deploy_yc.sh`.
   Сервисные аккаунты: `macro-sa` (сайт) — `storage.viewer`, `macro-publisher` (запись) — `storage.uploader`, обе роли
   на каталог (yc 0.159 не умеет роли на бакет; в каталоге один бакет — при появлении второго сузить обе роли).
-- В бакете: `data/*.json` (9 файлов: ruble_fx, ruble_page, cbr_fx_ops, cny_volumes, exporters_need, futoi_households,
-  oil_exports, ngd_dashboard, cbr_models), `excel/*.xlsx` (5 книг), `data/manifest.json`.
+- В бакете: `data/*.json` (11 файлов: ruble_fx, ruble_page, cbr_fx_ops, cny_volumes, exporters_need, futoi_households,
+  oil_exports, ngd_dashboard, cbr_models, inflation_weekly, inflation_monthly), `excel/*.xlsx` (5 книг), `data/manifest.json`.
+- Дата данных в manifest — явное поле `data_as_of` в JSON (пишут ngd_model.py, oil_exports.py, скрипты инфляции);
+  нет поля — последняя дата в файле не позже сегодняшней.
 - `app.py`: JSON — `_data_file(name)` (DATA_DIR=/mnt/site-data/data, иначе `data/` из образа); книги — переменные
   `DATA_FILE`, `ANALYST_FORECASTS_FILE`, `YIELD_FILE`, `IRS_FILE`, `CC_FILE`, нет файла — копия из образа с тем же именем
   (`_main_book()`, `af._analyst_file()`, `yf._cached_read_excel()`). Кеш книг по mtime на монтировании работает.
 - Изменение в бакете доходит до сайта за 1–4 мин; пока расходится, экземпляры контейнера отвечают по-разному.
 - ВЫКЛАДКА ОБРАЗА ДАННЫЕ НЕ ОБНОВЛЯЕТ. Данные на сайт — только `./publish.sh <раздел>` (ruble, ngd, cbr_models, macro,
-  analysts, yield), откат — `./publish.sh --rollback <раздел>`. Логика — `data_scripts/publish.py`: проверка (JSON без
+  analysts, yield, inflation_weekly, inflation_monthly), откат — `./publish.sh --rollback <раздел>`. Логика — `data_scripts/publish.py`: проверка (JSON без
   NaN/Infinity, Excel с нужными листами; хоть один плох — ничего не грузится) → загрузка изменённых (SHA-256 против
   манифеста) под ключом macro-publisher → manifest.json (по файлу: published_at, as_of, sha256, version_id; по разделу —
   история 10 публикаций, первая — `baseline` того, что уже лежало) → вход /login и ожидание sha в `/diag/data`
@@ -52,7 +60,7 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 - «Обновлено» на главной — `published_at` книги macro_main_linked.xlsx из манифеста (МСК), нет манифеста — пусто.
 - `/export` (открыт всем) — новая книга только с листом `main` (значения, без других листов/связей/путей), имя прежнее,
   кеш по (путь, mtime) — `_export_main_only()`.
-- Дальше — этап D (инфляция: /api/inflation/*), этап E (GitHub Actions + Lockbox) — только после подтверждения.
+- Этап D (инфляция) — 15.11.2026. Дальше — этап E (GitHub Actions + Lockbox) — только после подтверждения.
 
 ## Прочее
 - `models/taylor_rule` — модель «Модели ЦБ» → `data/cbr_models.json` (см. README_RU.md).

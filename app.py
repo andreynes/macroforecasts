@@ -921,25 +921,6 @@ def inflation_monthly():
         page_subtitle=""
     )
 
-# Временные адреса новых версий страниц инфляции (данные из /api/inflation/*) — для сверки со старыми перед заменой
-@app.route("/inflation/weekly/new")
-def inflation_weekly_new():
-    return render_template(
-        "inflation_weekly_new.html",
-        active_page="inflation_weekly",
-        page_title="Недельная инфляция",
-        page_subtitle="SAAR-дашборд по данным Росстата и Банка России"
-    )
-
-@app.route("/inflation/monthly/new")
-def inflation_monthly_new():
-    return render_template(
-        "inflation_monthly_new.html",
-        active_page="inflation_monthly",
-        page_title="Месячная инфляция",
-        page_subtitle=""
-    )
-
 INFLATION_WEEKLY_FILE = "inflation_weekly.json"    # читается через _data_file()
 INFLATION_MONTHLY_FILE = "inflation_monthly.json"  # читается через _data_file()
 
