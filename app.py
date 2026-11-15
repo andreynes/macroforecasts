@@ -921,6 +921,47 @@ def inflation_monthly():
         page_subtitle=""
     )
 
+# Временные адреса новых версий страниц инфляции (данные из /api/inflation/*) — для сверки со старыми перед заменой
+@app.route("/inflation/weekly/new")
+def inflation_weekly_new():
+    return render_template(
+        "inflation_weekly_new.html",
+        active_page="inflation_weekly",
+        page_title="Недельная инфляция",
+        page_subtitle="SAAR-дашборд по данным Росстата и Банка России"
+    )
+
+@app.route("/inflation/monthly/new")
+def inflation_monthly_new():
+    return render_template(
+        "inflation_monthly_new.html",
+        active_page="inflation_monthly",
+        page_title="Месячная инфляция",
+        page_subtitle=""
+    )
+
+INFLATION_WEEKLY_FILE = "inflation_weekly.json"    # читается через _data_file()
+INFLATION_MONTHLY_FILE = "inflation_monthly.json"  # читается через _data_file()
+
+
+@app.route("/api/inflation/weekly")
+def api_inflation_weekly():
+    # Файл пишет ~/Desktop/Совкомбанк/Инфляция/tools/sync_site_data.py (update_site_weekly.sh)
+    try:
+        with open(_data_file(INFLATION_WEEKLY_FILE), encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных недельной инфляции: запустите update_site_weekly.sh"}), 404
+
+@app.route("/api/inflation/monthly")
+def api_inflation_monthly():
+    # Файл пишут скрипты месячной инфляции (update_table1_and_charts.py, update_monthly_charts.sh)
+    try:
+        with open(_data_file(INFLATION_MONTHLY_FILE), encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных месячной инфляции: запустите update_table1_and_charts.py"}), 404
+
 @app.route("/ruble")
 def ruble():
     return render_template(
@@ -1270,6 +1311,7 @@ def diag():
 DATA_JSON_FILES = [
     RUBLE_FX_FILE, CBR_FX_OPS_FILE, CNY_VOLUMES_FILE, EXPORTERS_NEED_FILE, FUTOI_DATA_FILE,
     OIL_EXPORTS_FILE, RUBLE_PAGE_FILE, NGD_DATA_FILE, CBR_MODELS_FILE,
+    INFLATION_WEEKLY_FILE, INFLATION_MONTHLY_FILE,
 ]
 DATA_EXCEL_ENV = {
     "macro_main_linked.xlsx": "DATA_FILE",

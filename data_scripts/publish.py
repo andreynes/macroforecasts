@@ -5,11 +5,12 @@
     publish.sh --rollback <раздел>             вернуть раздел к предыдущей публикации (из версий бакета)
     publish.sh --list                          разделы и их файлы
 
-Разделы: ruble, ngd, cbr_models, macro, analysts, yield (см. SECTIONS ниже).
+Разделы: ruble, ngd, cbr_models, macro, analysts, yield, inflation_weekly, inflation_monthly (см. SECTIONS ниже).
 
 Шаги публикации:
   1. Проверка файлов: JSON разбирается и не содержит NaN/Infinity, Excel открывается и в нём есть нужные листы.
-     Хоть один файл не прошёл — в бакет не загружается ничего.
+     Хоть один файл не прошёл — в бакет не загружается ничего. Дата данных — поле data_as_of, которое пишет
+     скрипт расчёта (НГД, нефть и экспорт, инфляция); у остальных — последняя дата в файле не позже сегодняшней.
   2. Загрузка в бакет только изменившихся файлов (сравнение по SHA-256 с manifest.json).
   3. manifest.json (в бакете: data/manifest.json): по каждому файлу — когда опубликован, за какую дату данные,
      контрольная сумма и номер версии в бакете; по каждому разделу — история публикаций (для отката).
@@ -71,6 +72,10 @@ SECTIONS = {
               "pages": ["/", "/api/indicators", "/export"]},
     "analysts": {"files": {"excel/analyst_forecasts.xlsx": "analyst_forecasts.xlsx"},
                  "pages": ["/api/analyst_forecasts"]},
+    "inflation_weekly": {"files": {"data/inflation_weekly.json": "data/inflation_weekly.json"},
+                         "pages": ["/inflation/weekly", "/api/inflation/weekly"]},
+    "inflation_monthly": {"files": {"data/inflation_monthly.json": "data/inflation_monthly.json"},
+                          "pages": ["/inflation/monthly", "/api/inflation/monthly"]},
     "yield": {
         "files": {f"excel/{n}": n for n in (
             "yield_forecast_data.xlsx", "Денежный рынок – Ставки_исправлено_v2.xlsx", "Условия кредитования ЦБ.xlsx")},
@@ -150,6 +155,12 @@ def check_file(path, required_sheets=()):
                 data = json.load(f, parse_constant=_reject_constant)
         except ValueError as e:
             raise PublishError(f"{name}: повреждённый JSON — {e}")
+        # Дату данных скрипт расчёта пишет сам (поле data_as_of); нет поля — последняя дата не позже сегодня
+        if isinstance(data, dict) and data.get("data_as_of"):
+            try:
+                return dt.date.fromisoformat(str(data["data_as_of"])[:10]).isoformat()
+            except ValueError:
+                raise PublishError(f"{name}: поле data_as_of не дата ГГГГ-ММ-ДД: {data['data_as_of']!r}")
         d = _max_past_date(_walk_json(data), today)
         return d.isoformat() if d else None
     if name.endswith(".xlsx"):

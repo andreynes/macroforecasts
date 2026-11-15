@@ -31,6 +31,24 @@
   </script>
   <noscript><div><img src="https://mc.yandex.ru/watch/113863623" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
   <!-- /Яндекс.Метрика -->
+
+  <script>
+    // Данные страницы не загрузились (вход истёк — 401, сбой сети, ошибка сервера): вместо пустых графиков —
+    // понятное сообщение над содержимым и ссылка на вход с возвратом на эту же страницу. Показывается один раз.
+    window.showDataLoadError = function (status) {
+      const box = document.getElementById('dataLoadError');
+      if (!box || box.dataset.shown) return;
+      box.dataset.shown = '1';
+      const next = encodeURIComponent(location.pathname + location.search);
+      const login = '/login?next=' + next;
+      box.innerHTML = (status === 401 || status === 403)
+        ? 'Вход на сайт истёк — данные страницы не загрузились. <a href="' + login + '" class="alert-link">Войти заново</a>'
+        : 'Не удалось загрузить данные страницы' + (status ? ' (ошибка ' + status + ')' : ' (нет связи с сайтом)') +
+          '. <a href="#" class="alert-link" onclick="location.reload();return false;">Обновить страницу</a>' +
+          ' или <a href="' + login + '" class="alert-link">войти заново</a>.';
+      box.classList.remove('d-none');
+    };
+  </script>
 </head>
 <body class="text-light">
   <div class="container-xxl py-4">
@@ -64,6 +82,8 @@
       <a href="{{ url_for('ngd') }}" class="page-tab {{ 'active' if active_page == 'ngd' else '' }}">НГД</a>
       <a href="{{ url_for('cbr_models') }}" class="page-tab {{ 'active' if active_page == 'cbr_models' else '' }}">Модели ЦБ</a>
     </nav>
+
+    <div id="dataLoadError" class="alert alert-warning d-none" role="alert"></div>
 
     {% block content %}{% endblock %}
 

@@ -324,8 +324,10 @@
   let RUB_DECOMP, RUB_DECOMP_DEV, RUB_YOY, RUB_BALANCE, RUB_REVISION, RUB_SNAPSHOT;
 
   async function fetchJSON(url){
-    const r = await fetch(url, {headers:{"Accept":"application/json"}});
-    if(!r.ok) throw new Error(await r.text());
+    let r;
+    try { r = await fetch(url, {headers:{"Accept":"application/json"}}); }
+    catch(e){ window.showDataLoadError(0); throw e; }  // нет сети
+    if(!r.ok){ window.showDataLoadError(r.status); throw new Error(await r.text()); }
     return r.json();
   }
 
