@@ -62,6 +62,11 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
   кеш по (путь, mtime) — `_export_main_only()`.
 - Этап D (инфляция) — 15.11.2026. Дальше — этап E (GitHub Actions + Lockbox) — только после подтверждения.
 
+## Облачная машина расчётов `macro-calc` (шаг 3 — перенос расчётов; с 15.11.2026, расчёты пока не запущены)
+`ssh macro-calc` (84.252.129.65, пользователь macro, ключ `~/.ssh/macro_calc_ed25519`). Переносятся инфляция, графики
+бюллетеней ЦБ, Мосбиржа (futoi, cny_volumes); остальное — на Mac. Секреты — Lockbox `macro-site-auth`, `algopack-token`
+(читать по id). Подробно — CLAUDE.md папки «Инфляция», раздел «Облачная машина расчётов». Публикует всегда одна сторона.
+
 ## Прочее
 - `models/taylor_rule` — модель «Модели ЦБ» → `data/cbr_models.json` (см. README_RU.md).
 - `data_scripts/`, `data/*.json` (рубль, НГД и т.п.) — другие разделы; обновляются `data_scripts/update_ruble_tab.sh`, на сайт — `publish.sh`.
