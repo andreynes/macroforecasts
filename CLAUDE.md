@@ -56,6 +56,8 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 - Пути publish.sh — из окружения: SITE_DIR, SITE_URL, DATA_BUCKET, PUBLISHER_KEY (`~/.config/macro/publisher-key.json`),
   YC_PUBLISHER_HOME (`~/.config/macro/yc-publisher` — отдельный HOME для yc, настройки пользователя не трогаются),
   SITE_USER/SITE_PASS или SITE_AUTH_FILE, PY, YC. Ключ не печатать.
+- На облачной машине: `PUBLISH_AUTH=instance` (доступ от сервисного аккаунта машины, без PUBLISHER_KEY),
+  `SITE_AUTH_LOCKBOX_ID=e6q09c2gll0osrvbi873` (пароль сайта из Lockbox); `--dry-run` — всё, кроме загрузки и manifest.
 - `/diag/data` (под входом): для каждого файла — источник (бакет/образ), размер, mtime, sha256.
 - «Обновлено» на главной — `published_at` книги macro_main_linked.xlsx из манифеста (МСК), нет манифеста — пусто.
 - `/export` (открыт всем) — новая книга только с листом `main` (значения, без других листов/связей/путей), имя прежнее,

@@ -4,6 +4,8 @@
                                                обновить manifest.json, дождаться их на сайте
     publish.sh --rollback <раздел>             вернуть раздел к предыдущей публикации (из версий бакета)
     publish.sh --list                          разделы и их файлы
+    publish.sh <раздел> --dry-run              вхолостую: проверка файлов, что изменилось бы, вход на сайт —
+                                               без загрузки в бакет и без записи manifest.json
 
 Разделы: ruble, ngd, cbr_models, macro, analysts, yield, inflation_weekly, inflation_monthly (см. SECTIONS ниже).
 
@@ -27,6 +29,9 @@
   SITE_USER, SITE_PASS  логин и пароль сайта; если не заданы — читаются из SITE_AUTH_FILE
   SITE_AUTH_FILE    файл с BASIC_AUTH_USER=… и BASIC_AUTH_PASS=… (~/.config/macro/site_auth.env)
   YC                команда yc (по умолчанию — из PATH или ~/yandex-cloud/bin/yc)
+  PUBLISH_AUTH      instance — на облачной машине: yc работает от сервисного аккаунта машины (профиль yc
+                    с instance-service-account), без PUBLISHER_KEY и отдельной папки настроек
+  SITE_AUTH_LOCKBOX_ID  id секрета Lockbox с BASIC_AUTH_USER/BASIC_AUTH_PASS — если SITE_USER/SITE_PASS не заданы
   PUBLISH_WAIT      сколько секунд ждать новые данные на сайте (420)
 Ключ и пароль скрипт не печатает.
 """
@@ -55,6 +60,8 @@ AUTH_FILE = os.path.expanduser(os.environ.get("SITE_AUTH_FILE", "~/.config/macro
 YC = (os.environ.get("YC") or shutil.which("yc")
       or next((p for p in [os.path.expanduser("~/yandex-cloud/bin/yc")] if os.path.isfile(p)), "yc"))
 WAIT = int(os.environ.get("PUBLISH_WAIT", "420"))
+INSTANCE_AUTH = os.environ.get("PUBLISH_AUTH", "") == "instance"
+SITE_AUTH_LOCKBOX_ID = os.environ.get("SITE_AUTH_LOCKBOX_ID", "")
 MANIFEST_KEY = "data/manifest.json"
 HISTORY_LEN = 10
 STABLE_POLLS = 3  # сколько ответов подряд должны совпасть: у сайта несколько экземпляров контейнера
@@ -204,13 +211,16 @@ def check_file(path, required_sheets=()):
 
 def _yc_env():
     env = dict(os.environ)
-    env["HOME"] = YC_HOME  # отдельная папка настроек yc: настройки пользователя не меняются
+    if not INSTANCE_AUTH:
+        env["HOME"] = YC_HOME  # отдельная папка настроек yc: настройки пользователя не меняются
     return env
 
 
 def ensure_yc():
     if not (os.path.isfile(YC) or shutil.which(YC)):
         raise PublishError("не найден yc (CLI Яндекс Облака): задайте путь переменной YC или добавьте yc в PATH")
+    if INSTANCE_AUTH:  # облачная машина: доступ от её сервисного аккаунта через метаданные, ключа нет
+        return
     cfg = os.path.join(YC_HOME, ".config", "yandex-cloud", "config.yaml")
     if os.path.isfile(cfg):
         return
@@ -314,6 +324,12 @@ def _site_credentials():
     user, pwd = os.environ.get("SITE_USER"), os.environ.get("SITE_PASS")
     if user and pwd:
         return user, pwd
+    if SITE_AUTH_LOCKBOX_ID:  # облачная машина: секрет Lockbox (значения не печатаются)
+        got = [yc("lockbox", "payload", "get", "--id", SITE_AUTH_LOCKBOX_ID, "--key", k, check=False)
+               for k in ("BASIC_AUTH_USER", "BASIC_AUTH_PASS")]
+        if all(r.returncode == 0 and r.stdout.strip() for r in got):
+            return got[0].stdout.strip(), got[1].stdout.strip()
+        raise PublishError(f"не удалось прочитать логин и пароль сайта из Lockbox (секрет {SITE_AUTH_LOCKBOX_ID})")
     vals = {}
     if os.path.isfile(AUTH_FILE):
         with open(AUTH_FILE, encoding="utf-8") as f:
@@ -396,7 +412,7 @@ def verify_site(section, expected):
 
 # ---------------- публикация и откат ----------------
 
-def publish(section, as_of_override=None):
+def publish(section, as_of_override=None, dry_run=False):
     spec = SECTIONS[section]
     log(f"=== Раздел «{section}»: проверка файлов")
     checked = {}
@@ -425,11 +441,23 @@ def publish(section, as_of_override=None):
             if cur and cur.get("sha256") == digest:
                 log(f"  без изменений  {key}")
                 continue
+            if dry_run:
+                changed[key] = digest
+                log(f"  загрузил бы    {key}  (вхолостую — не загружаю)")
+                continue
             version = bucket_put(path, key)
             m["files"][key] = {"section": section, "published_at": now_utc(), "as_of": as_of, "sha256": digest,
                                "size": os.path.getsize(path), "version_id": version}
             changed[key] = digest
             log(f"  загружен       {key}")
+        if dry_run:
+            log("Вхолостую: бакет и manifest.json не изменены.")
+            site = Site()
+            site.login()
+            d = site.diag() or {}
+            log(f"  вход на сайт: ок; /diag/data отвечает, файлов в нём: {len(d.get('files', {}))}")
+            log(f"Готово (вхолостую): раздел «{section}», изменились бы: {', '.join(changed) or 'ничего'}.")
+            return
         if changed:
             hist = m["sections"].setdefault(section, {"history": []})["history"]
             hist.append(_snapshot(m, section))
@@ -483,6 +511,7 @@ def main():
     p.add_argument("--rollback", action="store_true", help="вернуть раздел к предыдущей публикации")
     p.add_argument("--as-of", help="дата данных для manifest.json (ГГГГ-ММ-ДД), если не подходит определённая автоматически")
     p.add_argument("--list", action="store_true", help="показать разделы и их файлы")
+    p.add_argument("--dry-run", action="store_true", help="вхолостую: без загрузки в бакет и записи manifest.json")
     a = p.parse_args()
     if a.list or not a.section:
         for name, spec in SECTIONS.items():
@@ -491,7 +520,9 @@ def main():
     if a.as_of:
         dt.date.fromisoformat(a.as_of)
     try:
-        rollback(a.section) if a.rollback else publish(a.section, a.as_of)
+        if a.rollback and a.dry_run:
+            raise PublishError("--dry-run для отката не поддерживается")
+        rollback(a.section) if a.rollback else publish(a.section, a.as_of, a.dry_run)
     except PublishError as e:
         log(f"!!! ОШИБКА: {e}")
         return 1
