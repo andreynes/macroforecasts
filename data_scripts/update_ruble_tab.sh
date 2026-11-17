@@ -37,8 +37,10 @@ step() {  # step "название" папка команда...
 
 step "1. Курс + прогноз (RMM)"              "$SITE" "$PY" data_scripts/update_fx.py --model "$RMM"
 step "2. Декомпозиция и баланс потоков"     "$SITE" "$PY" data_scripts/update_ruble_data.py --model "$RMM" --orfr "$ORFR"
-step "3. Фьючерсы физлиц (ALGOPACK)"        "$SITE" "$PY" data_scripts/update_futoi.py
-step "4. Объём торгов юанем (ALGOPACK)"     "$SITE" "$PY" data_scripts/update_cny_volumes.py
+# Шаги 3–4 (Мосбиржа) — только для просмотра на Mac: на сайт эти данные с 17.11.2026 публикует облачная машина
+# (раздел moex). publish.sh ruble их не загружает, поэтому Mac и машина не пишут одни и те же файлы.
+step "3. Фьючерсы физлиц (ALGOPACK, только локально)"  "$SITE" "$PY" data_scripts/update_futoi.py
+step "4. Объём торгов юанем (ALGOPACK, только локально)" "$SITE" "$PY" data_scripts/update_cny_volumes.py
 step "5. Потребность экспортеров"           "$EXP"  "$PY" need_model.py
 step "6. Нефть и экспорт"                   "$EXP"  "$PY" oil_exports.py
 step "7. Операции ЦБ на валютном рынке"     "$SITE" "$PY" data_scripts/update_cbr_fx_ops.py

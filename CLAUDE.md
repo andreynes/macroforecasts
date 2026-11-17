@@ -46,7 +46,10 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
   `DATA_FILE`, `ANALYST_FORECASTS_FILE`, `YIELD_FILE`, `IRS_FILE`, `CC_FILE`, нет файла — копия из образа с тем же именем
   (`_main_book()`, `af._analyst_file()`, `yf._cached_read_excel()`). Кеш книг по mtime на монтировании работает.
 - Изменение в бакете доходит до сайта за 1–4 мин; пока расходится, экземпляры контейнера отвечают по-разному.
-- ВЫКЛАДКА ОБРАЗА ДАННЫЕ НЕ ОБНОВЛЯЕТ. Данные на сайт — только `./publish.sh <раздел>` (ruble, ngd, cbr_models, macro,
+- Раздел `moex` (futoi_households.json, cny_volumes.json) с 17.11.2026 публикует ОБЛАЧНАЯ МАШИНА (таймер moex,
+  пн–пт 19:30 МСК, inflation/tools/run_moex_vm.sh); раздел `ruble` их не содержит, update_ruble_tab.sh считает их
+  на Mac только локально. Откат раздела трогает только файлы, которые сейчас в нём.
+- ВЫКЛАДКА ОБРАЗА ДАННЫЕ НЕ ОБНОВЛЯЕТ. Данные на сайт — только `./publish.sh <раздел>` (ruble, moex, ngd, cbr_models, macro,
   analysts, yield, inflation_weekly, inflation_monthly), откат — `./publish.sh --rollback <раздел>`. Логика — `data_scripts/publish.py`: проверка (JSON без
   NaN/Infinity, Excel с нужными листами; хоть один плох — ничего не грузится) → загрузка изменённых (SHA-256 против
   манифеста) под ключом macro-publisher → manifest.json (по файлу: published_at, as_of, sha256, version_id; по разделу —

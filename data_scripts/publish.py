@@ -7,7 +7,7 @@
     publish.sh <раздел> --dry-run              вхолостую: проверка файлов, что изменилось бы, вход на сайт —
                                                без загрузки в бакет и без записи manifest.json
 
-Разделы: ruble, ngd, cbr_models, macro, analysts, yield, inflation_weekly, inflation_monthly (см. SECTIONS ниже).
+Разделы: ruble, moex, ngd, cbr_models, macro, analysts, yield, inflation_weekly, inflation_monthly (см. SECTIONS ниже).
 
 Шаги публикации:
   1. Проверка файлов: JSON разбирается и не содержит NaN/Infinity, Excel открывается и в нём есть нужные листы.
@@ -70,9 +70,14 @@ STABLE_POLLS = 3  # сколько ответов подряд должны со
 SECTIONS = {
     "ruble": {
         "files": {f"data/{n}": f"data/{n}" for n in (
-            "ruble_fx.json", "ruble_page.json", "cbr_fx_ops.json", "cny_volumes.json",
-            "exporters_need.json", "futoi_households.json", "oil_exports.json")},
+            "ruble_fx.json", "ruble_page.json", "cbr_fx_ops.json", "exporters_need.json", "oil_exports.json")},
         "pages": ["/ruble", "/api/ruble/page", "/api/ruble/fx", "/api/ruble/cbr_fx_ops"],
+    },
+    # Данные Мосбиржи для «Рубля» (FUTOI физлиц, объёмы юаня) — с 17.11.2026 публикует ОБЛАЧНАЯ МАШИНА
+    # (inflation/tools/run_moex_vm.sh, таймер moex по рабочим дням в 19:30). Mac этот раздел не публикует.
+    "moex": {
+        "files": {f"data/{n}": f"data/{n}" for n in ("futoi_households.json", "cny_volumes.json")},
+        "pages": ["/ruble", "/api/ruble/futoi", "/api/ruble/cny_volumes"],
     },
     "ngd": {"files": {"data/ngd_dashboard.json": "data/ngd_dashboard.json"}, "pages": ["/ngd", "/api/ngd"]},
     "cbr_models": {"files": {"data/cbr_models.json": "data/cbr_models.json"},
@@ -283,7 +288,7 @@ def save_manifest(m, tmpdir):
     bucket_put(path, MANIFEST_KEY)
 
 
-def _snapshot(m, section):
+def _snapshot(m, section):  # только файлы, которые сейчас входят в раздел
     return {"published_at": now_utc(),
             "files": {k: {f: m["files"][k].get(f) for f in ("version_id", "sha256", "as_of", "published_at")}
                       for k in SECTIONS[section]["files"] if k in m["files"]}}
@@ -482,6 +487,8 @@ def rollback(section):
         log(f"=== Откат раздела «{section}» к публикации {target['published_at']}")
         restored = {}
         for key, t in target["files"].items():
+            if key not in SECTIONS[section]["files"]:
+                continue  # файл перешёл в другой раздел (напр. FUTOI/юань из ruble в moex) — его не трогаем
             cur = m["files"].get(key, {})
             if cur.get("sha256") == t["sha256"]:
                 log(f"  без изменений  {key}")
