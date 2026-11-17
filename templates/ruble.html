@@ -89,12 +89,11 @@
   <div class="col-12">
     <div class="card glass shadow-soft">
       <div class="card-body">
-        <h5 class="card-title mb-1">Доля продажи валюты экспортерами: оценка по продажам валюты нефинансовыми компаниями</h5>
+        <h5 class="card-title mb-1">Продажи валюты нефинансовыми компаниями и доля от экспорта (лаг 1,5 мес.)</h5>
         <div class="small text-muted mb-2">
-          ЦБ не публикует долю продаж 29 крупнейших экспортеров с ноября 2026 г. Оценка по всем экспортерам = (продажи валюты
-          нефинансовыми компаниями / экспорт товаров) × <span id="fsrM"></span>; коэффициент подобран так, чтобы в авг–дек 2025 г.
-          оценка в среднем совпадала с долей 29 экспортеров. Продажи — ОРФР (сумма позиций нетто-продавцов), экспорт — ЦБ.
-          <span id="fsrEst"></span>
+          Замена доле продаж 29 крупнейших экспортеров (ЦБ не публикует с ноября 2026 г.). Доля = продажи валюты нефинансовыми
+          компаниями (ОРФР) / экспорт товаров со сдвигом 1,5 мес. (на месяц t — среднее за t−2 и t−1). Столбцы: продажи на уровне
+          авг–дек 2025 г. (<span id="fsrBase"></span> экспорта) и сверх него — оценка продаж посредников и прочих. <span id="fsrEst"></span>
         </div>
         <div id="chartRubFxSalesRatio" class="chart"></div>
       </div>
@@ -664,36 +663,36 @@
     const pct = v => v === null ? null : v * 100;
     const xs = d.months;  // начало месяца; xperiodalignment:'middle' ставит точку/столбец в середину месяца
     const estIdx = d.estimate.map((e, i) => e ? i : -1).filter(i => i >= 0);
-    document.getElementById('fsrM').textContent = d.m.toFixed(2).replace('.', ',');
+    document.getElementById('fsrBase').textContent = Math.round(d.k_base * 100) + '%';
     const fmtM = s => s.slice(5, 7) + '.' + s.slice(0, 4);
     document.getElementById('fsrEst').textContent = estIdx.length
-      ? `За ${estIdx.map(i => fmtM(d.months[i])).join(', ')} экспорт ещё не вышел — взято среднее за 3 мес.`
-      : '';
+      ? `За ${estIdx.map(i => fmtM(d.months[i])).join(', ')} экспорт частично оценён (ср. за 3 мес.).` : '';
+    const per = {xperiod:'M1', xperiodalignment:'middle'};
     const line = (y, name, color, extra) => Object.assign({
-      x: xs, y: y.map(pct), type:'scatter', mode:'lines+markers', name, connectgaps:false,
-      xperiod:'M1', xperiodalignment:'middle',
-      line:{width:2.4, color}, marker:{size:6, color}, yaxis:'y2',
+      x: xs, y: y.map(pct), type:'scatter', mode:'lines+markers', name, connectgaps:false, yaxis:'y2', ...per,
+      line:{width:2.6, color}, marker:{size:6, color},
       hovertemplate:'%{x|%m.%Y}: %{y:.0f}%<extra>' + name + '</extra>'}, extra || {});
     const traces = [
-      {x: xs, y: d.S, type:'bar', name:'Продажи валюты нефин. компаниями, млрд $ (лев. ось)',
-       xperiod:'M1', xperiodalignment:'middle',
-       marker:{color: d.estimate.map(e => e ? 'rgba(160,170,185,0.25)' : 'rgba(160,170,185,0.4)')},
-       hovertemplate:'%{x|%m.%Y}: %{y:.1f} млрд $<extra>Продажи нефин.</extra>'},
-      line(d.K, 'Доля продаж нефин. компаний от экспорта', '#2ec4b6', {line:{width:2, color:'#2ec4b6'}, marker:{size:5, color:'#2ec4b6'}}),
-      line(d.est, 'Доля продаж валюты экспортерами (оценка)', '#ffb347', {line:{width:3, color:'#ffb347'}}),
+      {x: xs, y: d.S_base, type:'bar', name:'Продажи нефин. компаний на уровне 2025 г., млрд $', ...per,
+       marker:{color:'rgba(160,170,185,0.45)'},
+       hovertemplate:'%{x|%m.%Y}: %{y:.1f} млрд $<extra>На уровне 2025 г.</extra>'},
+      {x: xs, y: d.S_excess, type:'bar', name:'Сверх уровня 2025 г. (посредники и прочие), млрд $', ...per,
+       marker:{color:'rgba(255,179,71,0.55)'},
+       customdata: d.S, hovertemplate:'%{x|%m.%Y}: +%{y:.1f} млрд $ (всего %{customdata:.1f})<extra>Сверх уровня 2025 г.</extra>'},
+      line(d.K_lag, 'Доля продаж нефин. компаний от экспорта (лаг 1,5 мес.)', '#2ec4b6', {line:{width:3, color:'#2ec4b6'}}),
       line(d.k29, 'Доля продаж валюты 29 крупнейшими экспортерами (ЦБ)', '#e05353', {line:{width:2, color:'#e05353', dash:'dash'}}),
     ];
     const layout = {
       margin:{l:56,r:56,t:8,b:42},
       paper_bgcolor:bgCard, plot_bgcolor:bgCard,
       font:{family:'Montserrat, system-ui', color:'white'},
+      barmode:'stack', bargap:0.35, hovermode:'x unified',
       xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}, dtick:'M1', tickformat:'%m.%y', ticklabelmode:'period'},
       yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'млрд $', zerolinecolor:grid,
              range:[0, Math.max(...d.S.filter(v => v !== null)) * 1.15]},
       yaxis2:{overlaying:'y', side:'right', showgrid:false, tickfont:{color:text80}, title:'%', ticksuffix:'%',
               zeroline:false, rangemode:'tozero'},
-      legend:{orientation:'h', x:0.02, y:1.14, xanchor:'left', yanchor:'bottom'},
-      hovermode:'x unified', bargap:0.35,
+      legend:{orientation:'h', x:0.02, y:1.14, xanchor:'left', yanchor:'bottom', traceorder:'normal'},
     };
     Plotly.react('chartRubFxSalesRatio', traces, layout, {displayModeBar:false, responsive:true});
   }
