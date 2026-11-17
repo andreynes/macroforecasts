@@ -89,11 +89,12 @@
   <div class="col-12">
     <div class="card glass shadow-soft">
       <div class="card-body">
-        <h5 class="card-title mb-1">Продажи валюты нефинансовыми компаниями и доля от экспорта (лаг 1,5 мес.)</h5>
+        <h5 class="card-title mb-1">Доля продажи валюты экспортерами: оценка по продажам нефинансовых компаний (лаг 1,5 мес.)</h5>
         <div class="small text-muted mb-2">
-          Замена доле продаж 29 крупнейших экспортеров (ЦБ не публикует с ноября 2026 г.). Доля = продажи валюты нефинансовыми
-          компаниями (ОРФР, сумма позиций нетто-продавцов) / экспорт товаров со сдвигом 1,5 мес. (на месяц t — среднее за t−2
-          и t−1). Столбцы — продажи валюты нефинансовыми компаниями, млрд $. <span id="fsrEst"></span>
+          Оценка = продажи валюты нефинансовыми компаниями (ОРФР) / (валютная экспортная выручка + рублевая выручка, сконвертированная
+          посредниками внутри страны); продажи посредников считаются продажами экспортеров. Конвертация = продажи − 29 крупнейших − остальные
+          экспортеры по доле 29 (ЦБ); с <span id="fsrRhoFrom"></span> — <span id="fsrRho"></span> рублевой выручки (ср. за 3 мес.).
+          Экспорт со сдвигом 1,5 мес. (среднее за t−2 и t−1). <span id="fsrEst"></span>
         </div>
         <div id="chartRubFxSalesRatio" class="chart"></div>
       </div>
@@ -663,6 +664,8 @@
     const pct = v => v === null ? null : v * 100;
     const xs = d.months;  // начало месяца; xperiodalignment:'middle' ставит точку/столбец в середину месяца
     const estIdx = d.estimate.map((e, i) => e ? i : -1).filter(i => i >= 0);
+    document.getElementById('fsrRho').textContent = Math.round(d.rho_tail * 100) + '%';
+    document.getElementById('fsrRhoFrom').textContent = d.rho_from.slice(5, 7) + '.' + d.rho_from.slice(0, 4);
     const fmtM = s => s.slice(5, 7) + '.' + s.slice(0, 4);
     document.getElementById('fsrEst').textContent = estIdx.length
       ? `За ${estIdx.map(i => fmtM(d.months[i])).join(', ')} экспорт частично оценён (ср. за 3 мес.).` : '';
@@ -675,7 +678,8 @@
       {x: xs, y: d.S, type:'bar', name:'Продажи валюты нефин. компаниями, млрд $ (лев. ось)', ...per,
        marker:{color:'rgba(160,170,185,0.45)'},
        hovertemplate:'%{x|%m.%Y}: %{y:.1f} млрд $<extra>Продажи нефин.</extra>'},
-      line(d.K_lag, 'Доля продаж нефин. компаний от экспорта (лаг 1,5 мес.)', '#2ec4b6', {line:{width:3, color:'#2ec4b6'}}),
+      line(d.share_est, 'Доля продажи валюты экспортерами, оценка (вкл. посредников)', '#ffb347', {line:{width:3, color:'#ffb347'}}),
+      line(d.K_lag, 'Доля продаж нефин. компаний от всего экспорта', '#2ec4b6', {line:{width:2, color:'#2ec4b6'}, marker:{size:5, color:'#2ec4b6'}}),
       line(d.k29, 'Доля продаж валюты 29 крупнейшими экспортерами (ЦБ)', '#e05353', {line:{width:2, color:'#e05353', dash:'dash'}}),
     ];
     const layout = {
