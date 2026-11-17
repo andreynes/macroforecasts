@@ -92,8 +92,8 @@
         <h5 class="card-title mb-1">Продажи валюты нефинансовыми компаниями и доля от экспорта (лаг 1,5 мес.)</h5>
         <div class="small text-muted mb-2">
           Замена доле продаж 29 крупнейших экспортеров (ЦБ не публикует с ноября 2026 г.). Доля = продажи валюты нефинансовыми
-          компаниями (ОРФР) / экспорт товаров со сдвигом 1,5 мес. (на месяц t — среднее за t−2 и t−1). Столбцы: продажи на уровне
-          авг–дек 2025 г. (<span id="fsrBase"></span> экспорта) и сверх него — оценка продаж посредников и прочих. <span id="fsrEst"></span>
+          компаниями (ОРФР, сумма позиций нетто-продавцов) / экспорт товаров со сдвигом 1,5 мес. (на месяц t — среднее за t−2
+          и t−1). Столбцы — продажи валюты нефинансовыми компаниями, млрд $. <span id="fsrEst"></span>
         </div>
         <div id="chartRubFxSalesRatio" class="chart"></div>
       </div>
@@ -663,7 +663,6 @@
     const pct = v => v === null ? null : v * 100;
     const xs = d.months;  // начало месяца; xperiodalignment:'middle' ставит точку/столбец в середину месяца
     const estIdx = d.estimate.map((e, i) => e ? i : -1).filter(i => i >= 0);
-    document.getElementById('fsrBase').textContent = Math.round(d.k_base * 100) + '%';
     const fmtM = s => s.slice(5, 7) + '.' + s.slice(0, 4);
     document.getElementById('fsrEst').textContent = estIdx.length
       ? `За ${estIdx.map(i => fmtM(d.months[i])).join(', ')} экспорт частично оценён (ср. за 3 мес.).` : '';
@@ -673,12 +672,9 @@
       line:{width:2.6, color}, marker:{size:6, color},
       hovertemplate:'%{x|%m.%Y}: %{y:.0f}%<extra>' + name + '</extra>'}, extra || {});
     const traces = [
-      {x: xs, y: d.S_base, type:'bar', name:'Продажи нефин. компаний на уровне 2025 г., млрд $', ...per,
+      {x: xs, y: d.S, type:'bar', name:'Продажи валюты нефин. компаниями, млрд $ (лев. ось)', ...per,
        marker:{color:'rgba(160,170,185,0.45)'},
-       hovertemplate:'%{x|%m.%Y}: %{y:.1f} млрд $<extra>На уровне 2025 г.</extra>'},
-      {x: xs, y: d.S_excess, type:'bar', name:'Сверх уровня 2025 г. (посредники и прочие), млрд $', ...per,
-       marker:{color:'rgba(255,179,71,0.55)'},
-       customdata: d.S, hovertemplate:'%{x|%m.%Y}: +%{y:.1f} млрд $ (всего %{customdata:.1f})<extra>Сверх уровня 2025 г.</extra>'},
+       hovertemplate:'%{x|%m.%Y}: %{y:.1f} млрд $<extra>Продажи нефин.</extra>'},
       line(d.K_lag, 'Доля продаж нефин. компаний от экспорта (лаг 1,5 мес.)', '#2ec4b6', {line:{width:3, color:'#2ec4b6'}}),
       line(d.k29, 'Доля продаж валюты 29 крупнейшими экспортерами (ЦБ)', '#e05353', {line:{width:2, color:'#e05353', dash:'dash'}}),
     ];
@@ -686,7 +682,7 @@
       margin:{l:56,r:56,t:8,b:42},
       paper_bgcolor:bgCard, plot_bgcolor:bgCard,
       font:{family:'Montserrat, system-ui', color:'white'},
-      barmode:'stack', bargap:0.35, hovermode:'x unified',
+      bargap:0.35, hovermode:'x unified',
       xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}, dtick:'M1', tickformat:'%m.%y', ticklabelmode:'period'},
       yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'млрд $', zerolinecolor:grid,
              range:[0, Math.max(...d.S.filter(v => v !== null)) * 1.15]},
