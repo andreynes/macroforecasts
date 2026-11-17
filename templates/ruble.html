@@ -662,8 +662,7 @@
   async function drawRubFxSalesRatio(){
     const d = await fetchJSON("{{ url_for('api_ruble_fx_sales_ratio') }}");
     const pct = v => v === null ? null : v * 100;
-    const mid = x => x.slice(0, 8) + '15';
-    const xs = d.months.map(mid);
+    const xs = d.months;  // начало месяца; xperiodalignment:'middle' ставит точку/столбец в середину месяца
     const estIdx = d.estimate.map((e, i) => e ? i : -1).filter(i => i >= 0);
     document.getElementById('fsrA').textContent = String(Math.round(d.a * 100)) + '%';
     const fmtM = s => s.slice(5, 7) + '.' + s.slice(0, 4);
@@ -672,10 +671,12 @@
       : '';
     const line = (y, name, color, extra) => Object.assign({
       x: xs, y: y.map(pct), type:'scatter', mode:'lines+markers', name, connectgaps:false,
+      xperiod:'M1', xperiodalignment:'middle',
       line:{width:2.4, color}, marker:{size:6, color}, yaxis:'y2',
       hovertemplate:'%{x|%m.%Y}: %{y:.0f}%<extra>' + name + '</extra>'}, extra || {});
     const traces = [
       {x: xs, y: d.S, type:'bar', name:'Продажи валюты нефин. компаниями, млрд $ (лев. ось)',
+       xperiod:'M1', xperiodalignment:'middle',
        marker:{color: d.estimate.map(e => e ? 'rgba(160,170,185,0.25)' : 'rgba(160,170,185,0.4)')},
        hovertemplate:'%{x|%m.%Y}: %{y:.1f} млрд $<extra>Продажи нефин.</extra>'},
       line(d.K, 'K: продажи / весь экспорт', '#2ec4b6', {line:{width:3, color:'#2ec4b6'}}),
@@ -686,7 +687,7 @@
       margin:{l:56,r:56,t:8,b:42},
       paper_bgcolor:bgCard, plot_bgcolor:bgCard,
       font:{family:'Montserrat, system-ui', color:'white'},
-      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}, dtick:'M1', tickformat:'%m.%y'},
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}, dtick:'M1', tickformat:'%m.%y', ticklabelmode:'period'},
       yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'млрд $', zerolinecolor:grid,
              range:[0, Math.max(...d.S.filter(v => v !== null)) * 1.15]},
       yaxis2:{overlaying:'y', side:'right', showgrid:false, tickfont:{color:text80}, title:'%', ticksuffix:'%',
