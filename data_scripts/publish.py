@@ -71,7 +71,7 @@ SECTIONS = {
     "ruble": {
         "files": {f"data/{n}": f"data/{n}" for n in (
             "ruble_fx.json", "ruble_page.json", "cbr_fx_ops.json", "exporters_need.json", "oil_exports.json", "fx_sales_ratio.json")},
-        "pages": ["/ruble", "/api/ruble/page", "/api/ruble/fx", "/api/ruble/cbr_fx_ops"],
+        "pages": ["/ruble", "/api/ruble/page", "/api/ruble/fx", "/api/ruble/cbr_fx_ops", "/api/ruble/fx_sales_ratio"],
     },
     # Данные Мосбиржи для «Рубля» (FUTOI физлиц, объёмы юаня) — с 17.11.2026 публикует ОБЛАЧНАЯ МАШИНА
     # (inflation/tools/run_moex_vm.sh, таймер moex по рабочим дням в 19:30). Mac этот раздел не публикует.
