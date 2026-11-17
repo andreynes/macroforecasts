@@ -89,6 +89,20 @@
   <div class="col-12">
     <div class="card glass shadow-soft">
       <div class="card-body">
+        <h5 class="card-title mb-1">Доля продажи экспортной выручки: оценка по продажам валюты нефинансовыми компаниями</h5>
+        <div class="small text-muted mb-2">
+          Замена показателю ЦБ по 29 крупнейшим экспортерам (не публикуется с ноября 2026 г.). K = продажи валюты нефинансовыми
+          компаниями (ОРФР) / весь экспорт товаров. Доля продаж валютной выручки = (продажи − a × рублевая выручка) / валютная выручка,
+          a = <span id="fsrA"></span> — доля рублевых расчётов через продажу валюты посредниками внутри страны (по доле 29 экспортеров).
+          Пунктир — без вычета посредников. Доля рубля — ЦБ; <span id="fsrEst"></span>
+        </div>
+        <div id="chartRubFxSalesRatio" class="chart"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="card glass shadow-soft">
+      <div class="card-body">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
           <div>
             <h5 class="card-title mb-1">Экспорт товаров и цена российской нефти — оба со сдвигом на 1,5 месяца</h5>
@@ -644,6 +658,45 @@
     renderRubExporters();
   }
 
+  // Доля продажи экспортной выручки по продажам нефинансовых компаний (data/fx_sales_ratio.json, пишет fx_sales_ratio.py)
+  async function drawRubFxSalesRatio(){
+    const d = await fetchJSON("{{ url_for('api_ruble_fx_sales_ratio') }}");
+    const pct = v => v === null ? null : v * 100;
+    const mid = x => x.slice(0, 8) + '15';
+    const xs = d.months.map(mid);
+    const estIdx = d.estimate.map((e, i) => e ? i : -1).filter(i => i >= 0);
+    document.getElementById('fsrA').textContent = String(Math.round(d.a * 100)) + '%';
+    const fmtM = s => s.slice(5, 7) + '.' + s.slice(0, 4);
+    document.getElementById('fsrEst').textContent = estIdx.length
+      ? `за ${estIdx.map(i => fmtM(d.months[i])).join(', ')} экспорт и доля рубля ещё не вышли — оценка (ср. за 3 мес.).`
+      : '';
+    const line = (y, name, color, extra) => Object.assign({
+      x: xs, y: y.map(pct), type:'scatter', mode:'lines+markers', name, connectgaps:false,
+      line:{width:2.4, color}, marker:{size:6, color},
+      hovertemplate:'%{x|%m.%Y}: %{y:.0f}%<extra>' + name + '</extra>'}, extra || {});
+    const traces = [
+      {x: xs, y: d.S, type:'bar', name:'Продажи валюты нефин. компаниями, млрд $ (пр. ось)', yaxis:'y2',
+       marker:{color: d.estimate.map(e => e ? 'rgba(160,170,185,0.25)' : 'rgba(160,170,185,0.4)')},
+       hovertemplate:'%{x|%m.%Y}: %{y:.1f} млрд $<extra>Продажи нефин.</extra>'},
+      line(d.K, 'K: продажи / весь экспорт', '#2ec4b6', {line:{width:3, color:'#2ec4b6'}}),
+      line(d.s_a, 'Доля продаж валютной выручки (за вычетом посредников)', '#ffb347'),
+      line(d.s_max, 'То же без вычета посредников', '#ffb347', {line:{width:1.5, color:'#ffb347', dash:'dot'}, marker:{size:4, color:'#ffb347'}}),
+      line(d.k29, 'Доля продаж 29 крупнейших экспортеров (ЦБ)', '#e05353', {line:{width:2, color:'#e05353', dash:'dash'}}),
+    ];
+    const layout = {
+      margin:{l:56,r:56,t:8,b:42},
+      paper_bgcolor:bgCard, plot_bgcolor:bgCard,
+      font:{family:'Montserrat, system-ui', color:'white'},
+      xaxis:{type:'date', gridcolor:grid, tickfont:{color:text80}, dtick:'M1', tickformat:'%m.%y'},
+      yaxis:{gridcolor:grid, tickfont:{color:text80}, title:'%', ticksuffix:'%', zerolinecolor:grid, rangemode:'tozero'},
+      yaxis2:{overlaying:'y', side:'right', showgrid:false, tickfont:{color:text80}, title:'млрд $', zeroline:false,
+              range:[0, Math.max(...d.S.filter(v => v !== null)) * 2.2]},
+      legend:{orientation:'h', x:0.02, y:1.14, xanchor:'left', yanchor:'bottom'},
+      hovermode:'x unified', bargap:0.35,
+    };
+    Plotly.react('chartRubFxSalesRatio', traces, layout, {displayModeBar:false, responsive:true});
+  }
+
   // Urals с лагом 1,5 мес. и экспорт товаров (данные — data/oil_exports.json, пишет oil_exports.py)
   let oilData = null;
   const oilStartInput = document.getElementById('oilStartDate');
@@ -1094,6 +1147,7 @@
   drawFutoi().catch(e => console.error(e));
   addPngButtons();
   drawRubExporters().catch(e => console.error(e));
+  drawRubFxSalesRatio().catch(e => console.error(e));
   drawRubOilExports().catch(e => console.error(e));
   drawRubCnyVolumes().catch(e => console.error(e));
   drawRubCbrOps().catch(e => console.error(e));

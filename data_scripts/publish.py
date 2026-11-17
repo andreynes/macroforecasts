@@ -70,7 +70,7 @@ STABLE_POLLS = 3  # сколько ответов подряд должны со
 SECTIONS = {
     "ruble": {
         "files": {f"data/{n}": f"data/{n}" for n in (
-            "ruble_fx.json", "ruble_page.json", "cbr_fx_ops.json", "exporters_need.json", "oil_exports.json")},
+            "ruble_fx.json", "ruble_page.json", "cbr_fx_ops.json", "exporters_need.json", "oil_exports.json", "fx_sales_ratio.json")},
         "pages": ["/ruble", "/api/ruble/page", "/api/ruble/fx", "/api/ruble/cbr_fx_ops"],
     },
     # Данные Мосбиржи для «Рубля» (FUTOI физлиц, объёмы юаня) — с 17.11.2026 публикует ОБЛАЧНАЯ МАШИНА

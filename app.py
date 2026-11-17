@@ -1018,6 +1018,18 @@ def api_ruble_exporters_need():
     except FileNotFoundError:
         return jsonify({"error": "Нет данных: запустите fx_compare.py в папке «Модель экспортеров»"}), 404
 
+FX_SALES_RATIO_FILE = "fx_sales_ratio.json"  # читается через _data_file()
+
+
+@app.route("/api/ruble/fx_sales_ratio")
+def api_ruble_fx_sales_ratio():
+    # Файл пишет «Рубль/Модель экспортеров/fx_sales_ratio.py» (доля продаж выручки по продажам нефинансовых компаний)
+    try:
+        with open(_data_file(FX_SALES_RATIO_FILE), encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных: запустите fx_sales_ratio.py в папке «Модель экспортеров»"}), 404
+
 OIL_EXPORTS_FILE = "oil_exports.json"  # читается через _data_file()
 
 

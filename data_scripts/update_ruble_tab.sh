@@ -42,6 +42,7 @@ step "2. Декомпозиция и баланс потоков"     "$SITE" "$
 step "3. Фьючерсы физлиц (ALGOPACK, только локально)"  "$SITE" "$PY" data_scripts/update_futoi.py
 step "4. Объём торгов юанем (ALGOPACK, только локально)" "$SITE" "$PY" data_scripts/update_cny_volumes.py
 step "5. Потребность экспортеров"           "$EXP"  "$PY" need_model.py
+step "5а. Доля продажи выручки (считалка)" "$EXP"  "$PY" fx_sales_ratio.py
 step "6. Нефть и экспорт"                   "$EXP"  "$PY" oil_exports.py
 step "7. Операции ЦБ на валютном рынке"     "$SITE" "$PY" data_scripts/update_cbr_fx_ops.py
 
