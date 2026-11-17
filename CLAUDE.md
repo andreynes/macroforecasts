@@ -92,7 +92,7 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
    (28.10.2026) меняется ТОЛЬКО с `--new-snapshot` по прямой просьбе.
 3. `update_futoi.py`, 4. `update_cny_volumes.py` — ALGOPACK (кэш `data/cache/`).
 5–6. `~/Desktop/Совкомбанк/Рубль/Модель экспортеров/need_model.py`, `oil_exports.py`.
-5а. `fx_sales_ratio.py` (там же) → `data/fx_sales_ratio.json` — график «Доля продажи экспортной выручки» (после экспортеров;
+5а. `fx_sales_ratio.py` (там же) → `data/fx_sales_ratio.json` — график «Доля продажи валюты экспортерами» (4 ряда: S, K, оценка = K×m с калибровкой на 2025, доля 29; после экспортеров;
    `/api/ruble/fx_sales_ratio`, в разделе publish `ruble`).
 7. `update_cbr_fx_ops.py` → `cbr_fx_ops.json` (факт ЦБ flikvid; прогноз БП — `forecast.bp_ops_forecast`; текущий месяц —
    Urals/Brent/курс MTD; `FNB_INVEST`). 8. проверка NaN. 9. (`--publish`) `./publish.sh ruble`.
