@@ -102,7 +102,7 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 1. `update_fx.py --model RMM` → `ruble_fx.json`: факт ЦБ; текущий месяц — MTD, если прошло >10 дней (`MTD_MIN_DAYS`);
    прогноз — RMM лист RUB стр. 273 (EUR/CNY через BoP_monthly).
 2. `update_ruble_data.py --model RMM --orfr <сводный ОРФР>` → `data/ruble_page.json` (блоки RUB_*). Снимок RUB_SNAPSHOT
-   (28.10.2026) меняется ТОЛЬКО с `--new-snapshot` по прямой просьбе.
+   (19.11.2026; дату задаёт `--today ГГГГ-ММ-ДД`) меняется ТОЛЬКО с `--new-snapshot` по прямой просьбе.
 3. `update_futoi.py`, 4. `update_cny_volumes.py` — ALGOPACK (кэш `data/cache/`).
 5–6. `~/Desktop/Совкомбанк/Рубль/Модель экспортеров/need_model.py`, `oil_exports.py`.
 5а. `fx_sales_ratio.py` (там же) → `data/fx_sales_ratio.json` — график «Продажи валюты нефин. компаниями и доля от экспорта (лаг 1,5 мес.)» (столбцы S всего; линии: оценка доли продажи экспортерами вкл. посредников = exporters_share(), K_lag, доля 29; после экспортеров;
