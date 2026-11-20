@@ -181,12 +181,16 @@ def _parallel(root: str, now: datetime) -> Dict:
     else:
         try:
             c = json.loads(cmp_raw)
-            out["compare"] = {"ok": bool(c.get("ok")), "checked_at": _fmt(_parse_ts(c.get("checked_at"))),
-                              "summary": c.get("summary") or ("в пределах критерия" if c.get("ok") else "вне критерия"),
+            ok = c.get("ok")  # null — опубликованной недели ещё нет (не ошибка)
+            out["compare"] = {"ok": ok, "color": "grey" if ok is None else ("green" if ok else "red"),
+                              "checked_at": _fmt(_parse_ts(c.get("checked_at"))),
+                              "summary": c.get("summary") or {None: "не с чем сравнить", True: "в пределах критерия",
+                                                              False: "вне критерия"}.get(ok, "—"),
                               "failed": [f"{x.get('group')}: {x.get('block')}.{x.get('column')} |Δ|={x.get('delta')}"
                                          for x in (c.get("checks") or []) if not x.get("ok")][:10]}
         except ValueError:
-            out["compare"] = {"ok": False, "checked_at": "—", "summary": "compare.json не читается", "failed": []}
+            out["compare"] = {"ok": False, "color": "red", "checked_at": "—", "summary": "compare.json не читается",
+                              "failed": []}
     return out
 
 

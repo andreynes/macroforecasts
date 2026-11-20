@@ -82,7 +82,7 @@
           <dt>Сверка с Mac</dt><dd>
             {% if p.compare is none %}<span class="st-light">нет итога сверки</span>
               <div class="st-sub">машина пока не пишет compare.json рядом с результатом</div>
-            {% else %}<span class="st-light {{ 'green' if p.compare.ok else 'red' }}">{{ p.compare.summary }}</span>
+            {% else %}<span class="st-light {{ p.compare.color }}">{{ p.compare.summary }}</span>
               <div class="st-sub">проверено {{ p.compare.checked_at }}</div>
               {% for f in p.compare.failed %}<div class="st-sub">{{ f }}</div>{% endfor %}
             {% endif %}</dd>
