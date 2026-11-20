@@ -33,11 +33,9 @@ _data_candidates = [
     os.path.join(BASE_DIR, "data", "macro_main_linked.xlsx"),
     os.path.join(BASE_DIR, "data", "macro_data.xlsx"),
 ]
-DATA_FILE = _pick_first_existing(_data_candidates)
-if not DATA_FILE:
-    raise FileNotFoundError(
-        "Не найден файл данных. Укажи DATA_FILE или положи 'macro_main_linked.xlsx' рядом/в data/."
-    )
+# Книги в образе нет (данные только в бакете): если её не видно при старте, не падаем — путь из DATA_FILE
+# (смонтированный бакет) проверяется заново при каждом чтении (_main_book), остальные вкладки работают.
+DATA_FILE = _pick_first_existing(_data_candidates) or _env_path or os.path.join(BASE_DIR, "macro_main_linked.xlsx")
 
 MAIN_SHEET = os.getenv("MAIN_SHEET", "main")
 EXPORT_FILE = os.getenv("EXPORT_FILE", DATA_FILE)

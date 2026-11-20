@@ -8,3 +8,11 @@ __pycache__/
 .venv/
 *.bak
 data/cache/
+
+# Данные — только из бакета (смонтирован в контейнер, см. deploy_yc.sh), копий в образе нет
+data/*.json
+macro_main_linked.xlsx
+analyst_forecasts.xlsx
+yield_forecast_data.xlsx
+Денежный рынок – Ставки_исправлено_v2.xlsx
+Условия кредитования ЦБ.xlsx

@@ -32,3 +32,12 @@ models/taylor_rule/data/raw/**/*.pdf
 # Резервные копии и кеши скриптов данных
 *.bak
 data/cache/
+
+# Данные сайта — только в бакете macro-site-data (публикует ./publish.sh из этих файлов на Mac/машине);
+# в git и образ не попадают. Файлы на диске остаются — их пишут расчёты и читает publish.sh.
+data/*.json
+macro_main_linked.xlsx
+analyst_forecasts.xlsx
+yield_forecast_data.xlsx
+Денежный рынок – Ставки_исправлено_v2.xlsx
+Условия кредитования ЦБ.xlsx

@@ -49,6 +49,10 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 - Раздел `moex` (futoi_households.json, cny_volumes.json) с 17.11.2026 публикует ОБЛАЧНАЯ МАШИНА (таймер moex,
   пн–пт 19:30 МСК, inflation/tools/run_moex_vm.sh); раздел `ruble` их не содержит, update_ruble_tab.sh считает их
   на Mac только локально. Откат раздела трогает только файлы, которые сейчас в нём.
+- С 20.11.2026 данных НЕТ ни в git, ни в образе (`.gitignore`, `.dockerignore`): `data/*.json` и 5 книг (macro_main_linked,
+  analyst_forecasts, yield_forecast_data, «Денежный рынок – Ставки_исправлено_v2», «Условия кредитования ЦБ») — только бакет.
+  На Mac/машине файлы лежат на диске (их пишут расчёты, читает publish.sh). Резервной копии из образа больше нет: нет
+  файла в бакете — у вкладки ошибка. Неиспользуемые Excel в корне (PBC…, «Данные по физикам», Минфин…) оставлены.
 - ВЫКЛАДКА ОБРАЗА ДАННЫЕ НЕ ОБНОВЛЯЕТ. Данные на сайт — только `./publish.sh <раздел>` (ruble, moex, ngd, cbr_models, macro,
   analysts, yield, inflation_weekly, inflation_monthly), откат — `./publish.sh --rollback <раздел>`. Логика — `data_scripts/publish.py`: проверка (JSON без
   NaN/Infinity, Excel с нужными листами; хоть один плох — ничего не грузится) → загрузка изменённых (SHA-256 против
