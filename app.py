@@ -972,6 +972,27 @@ def api_ngd():
     except FileNotFoundError:
         return jsonify({"error": "Нет данных НГД: запустите модель ngd_model.py"}), 404
 
+GDP_DATA_FILE = "gdp_activity.json"  # ЧЕРНОВИК (feature/gdp): data_scripts/gdp/build_gdp_json.py
+
+
+@app.route("/gdp")
+def gdp():
+    return render_template(
+        "gdp.html",
+        active_page="gdp",
+        page_title="ВВП и промышленность",
+        page_subtitle="Экономическая активность: ВВП, промышленное производство, мониторинг предприятий Банка России"
+    )
+
+
+@app.route("/api/gdp")
+def api_gdp():
+    try:
+        with open(_data_file(GDP_DATA_FILE), encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных: запустите data_scripts/gdp/build_gdp_json.py"}), 404
+
 CBR_MODELS_FILE = "cbr_models.json"  # читается через _data_file()
 
 
@@ -1303,7 +1324,7 @@ def diag():
 DATA_JSON_FILES = [
     RUBLE_FX_FILE, CBR_FX_OPS_FILE, CNY_VOLUMES_FILE, EXPORTERS_NEED_FILE, FUTOI_DATA_FILE,
     OIL_EXPORTS_FILE, FX_SALES_RATIO_FILE, RUBLE_PAGE_FILE, NGD_DATA_FILE, CBR_MODELS_FILE,
-    INFLATION_WEEKLY_FILE, INFLATION_MONTHLY_FILE,
+    INFLATION_WEEKLY_FILE, INFLATION_MONTHLY_FILE, GDP_DATA_FILE,
 ]
 DATA_EXCEL_ENV = {
     "macro_main_linked.xlsx": "DATA_FILE",

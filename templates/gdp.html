@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .gdp-eyebrow { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-80); font-weight: 600; }
+  .gdp-kpi-v { font-size: 2rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .gdp-kpi-v.pos { color: #8fd694; } .gdp-kpi-v.neg { color: #ff8a8a; }
+  .gdp-sub { font-size: .8rem; color: var(--text-80); }
+  .gdp-note { font-size: .8rem; color: var(--text-80); margin-top: .4rem; }
+  .gdp-chart { height: 320px; }
+  .gdp-draft { font-size: .78rem; padding: .25rem .7rem; border-radius: 999px; background: rgba(255,213,79,.12); color: #ffd54f; display: inline-block; }
+  .gdp-heat th, .gdp-heat td { font-size: .82rem; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; padding: .3rem .5rem; }
+  .gdp-heat th:first-child, .gdp-heat td:first-child { text-align: left; white-space: normal; min-width: 14rem; }
+  .gdp-heat tr.tot td { font-weight: 700; }
+  .gdp-section { font-size: 1.15rem; font-weight: 700; margin: 1.6rem 0 .8rem; }
+</style>
+
+<div class="mb-3"><span class="gdp-draft">Черновик раздела (этап 1): данные загружены вручную один раз, без автообновления</span></div>
+<div id="gdpError" class="alert alert-warning" hidden></div>
+
+<div class="row g-3 mb-1" id="gdpKpis"></div>
+
+<div class="gdp-section">ВВП</div>
+<div class="row g-3">
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">ВВП: % г/г и % кв/кв SAAR</h5>
+    <div class="gdp-sub">Росстат, квартальные оценки (первая оценка — через ~45 дней после квартала, затем уточнения). SAAR — из ряда с исключением сезонности Росстата.</div>
+    <div id="chGdp" class="gdp-chart"></div>
+  </div></div></div>
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">ВВП по использованию, % г/г</h5>
+    <div class="gdp-sub">Росстат, выходит позже ВВП производственным методом (~70 дней). Экспорт и импорт Росстат сейчас не публикует.</div>
+    <div id="chUse" class="gdp-chart"></div>
+  </div></div></div>
+  <div class="col-12"><div class="card glass shadow-soft"><div class="card-body">
+    <h5 class="card-title mb-1">Валовая добавленная стоимость по отраслям, % г/г</h5>
+    <div class="gdp-sub">Росстат, ОКВЭД2, последние 6 кварталов. Цвет — отклонение от нуля.</div>
+    <div class="table-responsive mt-2"><table class="table table-dark table-sm mb-0 gdp-heat" id="tbVds"></table></div>
+  </div></div></div>
+</div>
+
+<div class="gdp-section">Промышленное производство</div>
+<div class="row g-3">
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Индекс промпроизводства с исключением сезонности, 2023 = 100</h5>
+    <div class="gdp-sub">Росстат (JDemetra+), месяц, выходит ~в конце следующего месяца. Последние 4 года.</div>
+    <div id="chIppSa" class="gdp-chart"></div>
+  </div></div></div>
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Промпроизводство, % г/г</h5>
+    <div class="gdp-sub">Росстат, месяц, с 2021 года.</div>
+    <div id="chIppYoy" class="gdp-chart"></div>
+  </div></div></div>
+  <div class="col-12"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Промпроизводство по видам деятельности, % г/г</h5>
+    <div class="gdp-sub">Росстат, ОКВЭД2, последние 6 месяцев: разделы и основные отрасли обработки. Добычу нефти и газа Росстат не раскрывает.</div>
+    <div class="table-responsive mt-2"><table class="table table-dark table-sm mb-0 gdp-heat" id="tbIpp"></table></div>
+  </div></div></div>
+</div>
+
+<div class="gdp-section">Мониторинг предприятий Банка России</div>
+<div class="row g-3">
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Индикатор бизнес-климата, п.</h5>
+    <div class="gdp-sub">Сезонно скорректированные данные ЦБ: общий, текущие оценки и ожидания на 3 месяца. Выходит в середине месяца за прошлый месяц.</div>
+    <div id="chIbk" class="gdp-chart"></div>
+  </div></div></div>
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Спрос, выпуск и ценовые ожидания, баланс ответов</h5>
+    <div class="gdp-sub">Сезонно скорректированные балансы ответов («выросло» минус «снизилось»), экономика в целом.</div>
+    <div id="chDemand" class="gdp-chart"></div>
+  </div></div></div>
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Загрузка производственных мощностей, %</h5>
+    <div class="gdp-sub">Мониторинг ЦБ, квартал, сезонно скорректированные данные.</div>
+    <div id="chCu" class="gdp-chart"></div>
+  </div></div></div>
+</div>
+<div class="gdp-note mt-3" id="gdpFoot"></div>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const css = getComputedStyle(document.documentElement);
+  const bgCard = css.getPropertyValue('--card').trim() || '#171c2a';
+  const grid = css.getPropertyValue('--grid').trim() || '#263043';
+  const text80 = css.getPropertyValue('--text-80').trim() || '#b1b7c3';
+  const PAL = ['#2f80ed', '#ff72c0', '#4caf50', '#ffd54f', '#9333ea', '#26c6da'];
+  const MS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  const nf = (v, d = 1) => v == null ? '—' : v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const sg = (v, d = 1) => v == null ? '—' : (v > 0 ? '+' : '') + nf(v, d);
+  const mlab = m => { const [y, mm] = m.split('-'); return MS[+mm - 1] + ' ' + y; };
+  const qlab = q => q.replace(' Q', ' кв. ').replace(/(\d{4}) кв\. (\d)/, '$2 кв. $1');
+
+  function layout(extra) {
+    return Object.assign({
+      margin: { l: 46, r: 12, t: 10, b: 36 }, paper_bgcolor: bgCard, plot_bgcolor: bgCard,
+      font: { family: 'Montserrat, system-ui', color: 'white', size: 11 },
+      xaxis: { type: 'category', gridcolor: grid, tickfont: { color: text80 }, nticks: 10 },
+      yaxis: { gridcolor: grid, tickfont: { color: text80 }, zerolinecolor: text80 },
+      legend: { orientation: 'h', y: -0.18, font: { color: text80 } },
+      hoverlabel: { bgcolor: '#0f1220', font: { color: '#fff' } }, hovermode: 'x unified',
+    }, extra || {});
+  }
+  const plot = (el, tr, ex) => Plotly.react(el, tr, layout(ex), { displayModeBar: false, responsive: true, locale: 'ru' });
+  const line = (name, x, y, i, ex) => Object.assign({ type: 'scatter', mode: 'lines', name, x, y, line: { color: PAL[i], width: 2 },
+                                                      hovertemplate: '%{y:.1f}' }, ex || {});
+
+  function heat(v, scale) {
+    if (v == null) return '';
+    const a = Math.min(Math.abs(v) / scale, 1) * 0.55;
+    return `background:${v >= 0 ? `rgba(76,175,80,${a})` : `rgba(239,83,80,${a})`} !important`;
+  }
+  function table(el, cols, rows, scale) {
+    let h = `<thead><tr><th></th>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
+    rows.forEach((r, i) => {
+      h += `<tr class="${i === 0 ? 'tot' : ''}"><td>${r.code ? r.code + ' · ' : ''}${r.name}</td>` +
+        r.vals.map(v => `<td style="${heat(v, scale)}">${sg(v)}</td>`).join('') + '</tr>';
+    });
+    $(el).innerHTML = h + '</tbody>';
+  }
+
+  function kpis(D) {
+    const k = D.kpi, card = (eyebrow, v, sub) =>
+      `<div class="col-6 col-xl-3"><div class="card glass shadow-soft h-100"><div class="card-body">
+        <div class="gdp-eyebrow">${eyebrow}</div><div class="gdp-kpi-v ${v == null ? '' : v >= 0 ? 'pos' : 'neg'}">${sg(v)}%</div>
+        <div class="gdp-sub">${sub}</div></div></div></div>`;
+    let h = card(`ВВП, ${qlab(k.gdp.label)}`, k.gdp.yoy, 'г/г, оценка Росстата');
+    h += k.minec ? card(`ВВП, ${k.minec.month}`, k.minec.yoy,
+                        `г/г, оценка Минэкономразвития (${k.minec.prev_month}: ${sg(k.minec.prev_yoy)}%)`)
+                 : card('ВВП, месяц (МЭР)', null, 'нет данных');
+    h += card(`Промпроизводство, ${mlab(k.ipp.label)}`, k.ipp.yoy, `г/г; м/м с искл. сезонности ${sg(k.ipp.sa_mom)}%`);
+    h += `<div class="col-6 col-xl-3"><div class="card glass shadow-soft h-100"><div class="card-body">
+      <div class="gdp-eyebrow">Бизнес-климат ЦБ, ${mlab(k.ibk.label)}</div>
+      <div class="gdp-kpi-v">${nf(k.ibk.v)} п.</div><div class="gdp-sub">ИБК, SA; месяцем ранее ${nf(k.ibk.prev)} п.</div></div></div></div>`;
+    $('gdpKpis').innerHTML = h;
+  }
+
+  function render(D) {
+    kpis(D);
+    const g = D.gdp_q, gx = g.map(r => qlab(r.q));
+    plot('chGdp', [
+      { type: 'bar', name: '% г/г', x: gx, y: g.map(r => r.yoy), marker: { color: PAL[0] }, hovertemplate: '%{y:.1f}' },
+      line('% кв/кв SAAR', gx, g.map(r => r.saar), 1, { mode: 'lines+markers', marker: { size: 5 } }),
+    ]);
+    const u = D.gdp_use, ux = u.quarters.map(qlab);
+    plot('chUse', Object.entries(u.series).map(([k, v], i) => line(k, ux, v, i, k === 'ВВП' ? { line: { color: '#fff', width: 3 } } : {})));
+    table('tbVds', D.vds.quarters.map(qlab), D.vds.rows, 6);
+
+    const s = D.ipp_sa, sx = s.months.map(mlab);
+    plot('chIppSa', ['Промышленность', 'Добыча', 'Обработка', 'Электроэнергия, газ, пар'].map((k, i) =>
+      line(k, sx, s[k], i, k === 'Промышленность' ? { line: { color: '#fff', width: 3 } } : {})));
+    plot('chIppYoy', [{ type: 'bar', name: '% г/г', x: D.ipp_yoy.months.map(mlab), y: D.ipp_yoy.total,
+                        marker: { color: D.ipp_yoy.total.map(v => v >= 0 ? PAL[0] : '#ef5350') }, hovertemplate: '%{y:.1f}' }],
+         { showlegend: false });
+    table('tbIpp', D.ipp_table.months.map(mlab), D.ipp_table.rows, 10);
+
+    const c = D.cbr, cx = c.months.map(mlab);
+    plot('chIbk', [line('ИБК', cx, c['ИБК'], 0, { line: { color: '#fff', width: 3 } }),
+                   line('Текущие оценки', cx, c['ИБК: текущие оценки'], 0), line('Ожидания', cx, c['ИБК: ожидания'], 1)]);
+    plot('chDemand', [line('Спрос: изменение', cx, c['Спрос: изменение'], 0), line('Спрос: ожидания на 3 мес.', cx, c['Спрос: ожидания на 3 мес.'], 2),
+                      line('Выпуск: изменение', cx, c['Выпуск: изменение'], 4),
+                      line('Ценовые ожидания', cx, c['Ценовые ожидания'], 3, { line: { color: PAL[3], width: 2, dash: 'dot' } })]);
+    const q = D.capacity, qx = q.quarters.map(qlab);
+    plot('chCu', ['Экономика всего', 'Промышленность', 'Обработка'].map((k, i) => line(k, qx, q[k], i)),
+         { yaxis: { gridcolor: grid, tickfont: { color: text80 }, ticksuffix: '%' } });
+    $('gdpFoot').innerHTML = `Источники: Росстат (национальные счета, промышленное производство), Минэкономразвития («О текущей ситуации в российской экономике»), Банк России (мониторинг предприятий). Данные по ${D.data_as_of.slice(0, 7)}, собрано ${D.generated}.`;
+  }
+
+  fetch('/api/gdp').then(r => { if (!r.ok) { window.showDataLoadError && window.showDataLoadError(r.status); throw r.status; } return r.json(); })
+    .then(D => { if (D.error) { $('gdpError').textContent = D.error; $('gdpError').hidden = false; return; } render(D); })
+    .catch(() => {});
+})();
+</script>
+{% endblock %}
