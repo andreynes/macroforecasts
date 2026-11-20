@@ -66,7 +66,7 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 - На облачной машине: `PUBLISH_AUTH=instance` (доступ от сервисного аккаунта машины, без PUBLISHER_KEY),
   `SITE_AUTH_LOCKBOX_ID=e6q09c2gll0osrvbi873` (пароль сайта из Lockbox); `--dry-run` — всё, кроме загрузки и manifest.
 - `/diag/data` (под входом): для каждого файла — источник (бакет/образ), размер, mtime, sha256.
-- `/status` (под входом, `site_status.py`, кеш 5 мин): светофор по разделам из manifest.json (расписания и пороги — `SCHEDULES`),
+- `/status` (под входом, `site_status.py`, кеш 5 мин, в меню не выведена): светофор по разделам из manifest.json (расписания и пороги — `SCHEDULES`),
   кто опубликовал — поле `published_by` (пишет publish.py: `PUBLISHER_NAME`, иначе macro-calc при PUBLISH_AUTH=instance, иначе Mac),
   блок машины — папки parallel/macro-calc/ и backup/ смонтированного бакета (итог сверки — `compare.json` в папке расчёта, если есть).
 - «Обновлено» на главной — `published_at` книги macro_main_linked.xlsx из манифеста (МСК), нет манифеста — пусто.
@@ -78,8 +78,14 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 `ssh macro-calc` (84.252.129.65, пользователь macro, ключ `~/.ssh/macro_calc_ed25519`). Переносятся инфляция, графики
 бюллетеней ЦБ, Мосбиржа (futoi, cny_volumes); остальное — на Mac. Секреты — Lockbox `macro-site-auth`, `algopack-token`
 (читать по id). Подробно — CLAUDE.md папки «Инфляция», раздел «Облачная машина расчётов». Публикует всегда одна сторона.
+Сайт на машине — одна копия `~/macroforecasts` (git, только чтение; `git pull --ff-only`; данные в ней не в git):
+из неё публикуют moex и (после этапа 5) неделя, `SITE_DIR` в юнитах, `PUBLISHER_NAME=macro-calc` задан в юнитах явно.
+`~/site_old` (бывшая мини-копия) — удалить после этапа 5. Сверка параллельного расчёта — `compare.json` рядом с результатом
+(`compare_parallel.py --published --json`, повтор в чт 10:00, вручную `RECHECK_COMPARE=1`) — подробно в CLAUDE.md «Инфляции».
 
 ## Прочее
+- Ветка `feature/gdp` — черновик раздела «ВВП и промышленность» (`/gdp`, `data_scripts/gdp/`, источники — README там);
+  в main НЕ сливать без решения пользователя; перед `release_all.sh` убедиться, что текущая ветка — main.
 - `models/taylor_rule` — модель «Модели ЦБ» → `data/cbr_models.json` (см. README_RU.md).
 - `data_scripts/`, `data/*.json` (рубль, НГД и т.п.) — другие разделы; обновляются `data_scripts/update_ruble_tab.sh`, на сайт — `publish.sh`.
 
