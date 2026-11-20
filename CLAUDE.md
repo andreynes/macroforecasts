@@ -62,6 +62,9 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 - На облачной машине: `PUBLISH_AUTH=instance` (доступ от сервисного аккаунта машины, без PUBLISHER_KEY),
   `SITE_AUTH_LOCKBOX_ID=e6q09c2gll0osrvbi873` (пароль сайта из Lockbox); `--dry-run` — всё, кроме загрузки и manifest.
 - `/diag/data` (под входом): для каждого файла — источник (бакет/образ), размер, mtime, sha256.
+- `/status` (под входом, `site_status.py`, кеш 5 мин): светофор по разделам из manifest.json (расписания и пороги — `SCHEDULES`),
+  кто опубликовал — поле `published_by` (пишет publish.py: `PUBLISHER_NAME`, иначе macro-calc при PUBLISH_AUTH=instance, иначе Mac),
+  блок машины — папки parallel/macro-calc/ и backup/ смонтированного бакета (итог сверки — `compare.json` в папке расчёта, если есть).
 - «Обновлено» на главной — `published_at` книги macro_main_linked.xlsx из манифеста (МСК), нет манифеста — пусто.
 - `/export` (открыт всем) — новая книга только с листом `main` (значения, без других листов/связей/путей), имя прежнее,
   кеш по (путь, mtime) — `_export_main_only()`.

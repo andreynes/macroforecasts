@@ -14,6 +14,7 @@ from flask import (
 )
 
 from site_auth import init_auth
+import site_status
 from utils import yield_forecast as yf
 from utils import analyst_forecasts as af
 
@@ -1387,6 +1388,17 @@ def diag_data():
         "files": files,
         "manifest": {"found": manifest is not None, "updated_at": (manifest or {}).get("updated_at")},
     })
+
+@app.route("/status")
+def status_page():
+    # Под входом (не в PUBLIC_PATHS): свежесть разделов по manifest.json и состояние машины macro-calc; кеш 5 мин
+    return render_template(
+        "status.html",
+        active_page="status",
+        page_title="Статус портала",
+        page_subtitle="Свежесть данных по разделам и расчёты на машине macro-calc",
+        st=site_status.build_status(_load_manifest, DATA_DIR),
+    )
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5050"))

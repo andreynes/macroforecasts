@@ -62,6 +62,8 @@ YC = (os.environ.get("YC") or shutil.which("yc")
 WAIT = int(os.environ.get("PUBLISH_WAIT", "420"))
 INSTANCE_AUTH = os.environ.get("PUBLISH_AUTH", "") == "instance"
 SITE_AUTH_LOCKBOX_ID = os.environ.get("SITE_AUTH_LOCKBOX_ID", "")
+# Кто публикует — пишется в manifest.json (published_by), его показывает страница /status сайта
+PUBLISHER_NAME = os.environ.get("PUBLISHER_NAME") or ("macro-calc" if INSTANCE_AUTH else "Mac")
 MANIFEST_KEY = "data/manifest.json"
 HISTORY_LEN = 10
 STABLE_POLLS = 3  # сколько ответов подряд должны совпасть: у сайта несколько экземпляров контейнера
@@ -452,7 +454,8 @@ def publish(section, as_of_override=None, dry_run=False):
                 continue
             version = bucket_put(path, key)
             m["files"][key] = {"section": section, "published_at": now_utc(), "as_of": as_of, "sha256": digest,
-                               "size": os.path.getsize(path), "version_id": version}
+                               "size": os.path.getsize(path), "version_id": version,
+                               "published_by": PUBLISHER_NAME}
             changed[key] = digest
             log(f"  загружен       {key}")
         if dry_run:
@@ -502,7 +505,7 @@ def rollback(section):
             version = bucket_put(p, key)
             m["files"][key] = {"section": section, "published_at": now_utc(), "as_of": t.get("as_of"),
                                "sha256": t["sha256"], "size": os.path.getsize(p), "version_id": version,
-                               "rolled_back_to": t["published_at"]}
+                               "rolled_back_to": t["published_at"], "published_by": PUBLISHER_NAME}
             restored[key] = t["sha256"]
             log(f"  возвращён      {key}")
         hist.pop()  # отменённая публикация больше не считается последней

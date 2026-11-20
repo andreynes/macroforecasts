@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .st-light { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap; font-size: .86rem; }
+  .st-light::before { content: ""; width: .8rem; height: .8rem; border-radius: 50%; flex: none; background: #6b7280; }
+  .st-light.green::before  { background: #4caf50; box-shadow: 0 0 8px rgba(76,175,80,.7); }
+  .st-light.yellow::before { background: #ffd54f; box-shadow: 0 0 8px rgba(255,213,79,.6); }
+  .st-light.red::before    { background: #ef5350; box-shadow: 0 0 8px rgba(239,83,80,.7); }
+  .st-table td, .st-table th { font-size: .88rem; vertical-align: top; }
+  .st-table td:last-child { white-space: normal; min-width: 11rem; }
+  .st-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .st-sub { font-size: .78rem; color: var(--text-80); }
+  .st-files { font-size: .8rem; margin: .35rem 0 0; }
+  .st-files summary { cursor: pointer; color: var(--text-80); }
+  .st-files table td { padding: .1rem .5rem .1rem 0; font-size: .78rem; }
+  .st-kv { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; font-size: .9rem; }
+  .st-kv dt { color: var(--text-80); font-weight: 500; }
+  .st-kv dd { margin: 0; }
+</style>
+
+<div class="card glass shadow-soft mb-4">
+  <div class="card-body">
+    <h5 class="card-title mb-1">Разделы данных</h5>
+    <div class="st-sub mb-3">
+      {% if st.manifest_found %}По manifest.json бакета (изменён {{ st.manifest_updated }} МСК).{% else %}manifest.json не найден — данные берутся из образа.{% endif %}
+      Проверено {{ st.checked_at }} МСК, обновляется раз в 5 минут.
+    </div>
+    <div class="table-responsive">
+      <table class="table table-dark table-sm align-middle mb-2 st-table">
+        <thead><tr>
+          <th>Раздел</th><th>Последнее обновление, МСК</th><th>Кто опубликовал</th>
+          <th>Данные по</th><th>Возраст данных</th><th>Статус</th><th>Ожидаемая частота</th>
+        </tr></thead>
+        <tbody>
+        {% for r in st.sections %}
+          <tr>
+            <td>
+              <strong>{{ r.label }}</strong>
+              <details class="st-files"><summary>файлы ({{ r.files|length }})</summary>
+                <table>{% for f in r.files %}<tr>
+                  <td>{{ f.key }}</td><td class="st-num">{{ f.published }}</td>
+                  <td class="st-num">{{ f.as_of or "—" }}</td><td>{{ f.by }}{% if f.by_inferred %}*{% endif %}{% if f.rolled_back %} · откат{% endif %}</td>
+                </tr>{% endfor %}</table>
+              </details>
+            </td>
+            <td class="st-num">{{ r.published }}<div class="st-sub">{{ r.pub_age }} назад</div></td>
+            <td>{{ r.by }}{% if r.by_inferred %}*{% endif %}</td>
+            <td class="st-num">{{ r.as_of }}</td>
+            <td class="st-num">{{ r.data_age }}</td>
+            <td><span class="st-light {{ r.color }}">{{ r.status }}</span><div class="st-sub">{{ r.why }}</div></td>
+            <td>{{ r.schedule }}{% if r.proposed %}<div class="st-sub">порог предложен</div>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="st-sub">
+      * — поле «кто опубликовал» появится в manifest.json со следующей публикации раздела; до этого — по настройке
+      (moex — машина, остальное — Mac). Возраст данных — от последней даты в данных раздела до сегодня.
+      По расписанию: зелёный — опубликовано после последнего срока, жёлтый — пропущен один срок, красный — два и больше;
+      без расписания: по давности публикации.
+    </div>
+  </div>
+</div>
+
+<div class="card glass shadow-soft mb-4">
+  <div class="card-body">
+    <h5 class="card-title mb-3">Машина macro-calc</h5>
+    {% if not st.bucket %}
+      <div class="text-secondary">Бакет не смонтирован (локальный запуск) — блок доступен только на сайте.</div>
+    {% else %}
+    <div class="row g-4">
+      <div class="col-lg-7">
+        <div class="fw-semibold mb-2">Последний параллельный расчёт недели</div>
+        {% set p = st.parallel %}
+        {% if p.error %}<div class="text-secondary">{{ p.error }}</div>{% else %}
+        <dl class="st-kv">
+          <dt>Запуск</dt><dd class="st-num">{{ p.at }} МСК ({{ p.age }} назад){% if p.seconds %}, расчёт {{ p.seconds }} с{% endif %}</dd>
+          <dt>Неделя</dt><dd class="st-num">{{ p.week or "—" }}</dd>
+          <dt>Общий ИПЦ</dt><dd class="st-num">{{ p.headline or "—" }}</dd>
+          <dt>Аномалии</dt><dd>{% if p.anomaly %}<span class="st-light red">есть (🚩 в выводе)</span>{% else %}нет{% endif %}</dd>
+          <dt>Сверка с Mac</dt><dd>
+            {% if p.compare is none %}<span class="st-light">нет итога сверки</span>
+              <div class="st-sub">машина пока не пишет compare.json рядом с результатом</div>
+            {% else %}<span class="st-light {{ 'green' if p.compare.ok else 'red' }}">{{ p.compare.summary }}</span>
+              <div class="st-sub">проверено {{ p.compare.checked_at }}</div>
+              {% for f in p.compare.failed %}<div class="st-sub">{{ f }}</div>{% endfor %}
+            {% endif %}</dd>
+          <dt>Папка</dt><dd class="st-sub">parallel/macro-calc/{{ p.run }}/ · всего расчётов: {{ p.count }}</dd>
+        </dl>
+        {% endif %}
+      </div>
+      <div class="col-lg-5">
+        <div class="fw-semibold mb-2">Ночная копия</div>
+        {% set b = st.backup %}
+        {% if b.error %}<div class="text-secondary">{{ b.error }}</div>{% else %}
+        <dl class="st-kv">
+          <dt>Последняя</dt><dd><span class="st-light {{ b.color }}">{{ b.day }}</span></dd>
+          <dt>Файлы</dt><dd>{% for f in b.files %}<div class="st-num">{{ f.name }} — {{ f.size }}</div>{% endfor %}</dd>
+          <dt>Всего копий</dt><dd>{{ b.count }} (backup/&lt;дата&gt;/, ежедневно 03:30 МСК)</dd>
+        </dl>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
