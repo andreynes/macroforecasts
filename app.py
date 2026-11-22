@@ -972,7 +972,7 @@ def api_ngd():
     except FileNotFoundError:
         return jsonify({"error": "Нет данных НГД: запустите модель ngd_model.py"}), 404
 
-GDP_DATA_FILE = "gdp_activity.json"  # ЧЕРНОВИК (feature/gdp): data_scripts/gdp/build_gdp_json.py
+GDP_DATA_FILE = "gdp_activity.json"  # пишет run.sh в ~/Desktop/Совкомбанк/ВВП, на сайт — publish.sh gdp
 
 
 @app.route("/gdp")
@@ -980,8 +980,8 @@ def gdp():
     return render_template(
         "gdp.html",
         active_page="gdp",
-        page_title="ВВП и промышленность",
-        page_subtitle="Экономическая активность: ВВП, промышленное производство, мониторинг предприятий Банка России"
+        page_title="ВВП",
+        page_subtitle="Экономическая активность: ВВП и потенциал, промышленное производство, мониторинг предприятий Банка России"
     )
 
 
@@ -991,7 +991,7 @@ def api_gdp():
         with open(_data_file(GDP_DATA_FILE), encoding="utf-8") as f:
             return app.response_class(f.read(), mimetype="application/json")
     except FileNotFoundError:
-        return jsonify({"error": "Нет данных: запустите data_scripts/gdp/build_gdp_json.py"}), 404
+        return jsonify({"error": "Нет данных ВВП: запустите run.sh в папке ВВП и publish.sh gdp"}), 404
 
 CBR_MODELS_FILE = "cbr_models.json"  # читается через _data_file()
 
