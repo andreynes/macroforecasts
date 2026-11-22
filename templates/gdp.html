@@ -182,6 +182,7 @@
     const pot = R.map(r => r.potential);
     const kinds = R.map(r => r.kind);
     const firstEst = kinds.indexOf('estimate');
+    const shockIdx = R.map((r, i) => r.shock ? i : -1).filter(i => i > 0);
     const lastRoss = kinds.lastIndexOf('rosstat');
     plot('chPot', [
       line('ВВП SA, Росстат', x, ser(r => r.kind === 'rosstat'), 0, { line: { color: '#fff', width: 3 }, hovertemplate: '%{y:.2f}' }),
@@ -194,11 +195,17 @@
       line('Потенциал на продлении', x, pot.map((v, i) => i >= lastA ? v : null), 1,
            { line: { color: PAL[1], width: 1.5, dash: 'dot' }, hovertemplate: '%{y:.2f}', showlegend: false }),
     ], { yaxis: { gridcolor: grid, tickfont: { color: text80 }, tickformat: '.0f' },
-         shapes: lastA < R.length - 1 ? [{ type: 'rect', xref: 'x', yref: 'paper', x0: lastA + 0.5, x1: R.length - 0.5, y0: 0, y1: 1,
-                                            fillcolor: 'rgba(255,255,255,.04)', line: { width: 0 } }] : [] });
+         shapes: (lastA < R.length - 1 ? [{ type: 'rect', xref: 'x', yref: 'paper', x0: lastA + 0.5, x1: R.length - 0.5, y0: 0, y1: 1,
+                                             fillcolor: 'rgba(255,255,255,.04)', line: { width: 0 } }] : [])
+           .concat(shockIdx.map(i => ({ type: 'line', xref: 'x', yref: 'paper', x0: i - 0.5, x1: i - 0.5, y0: 0, y1: 1,
+                                        line: { color: EST, width: 1.5, dash: 'dot' } }))),
+         annotations: shockIdx.map(i => ({ xref: 'x', yref: 'paper', x: i - 0.5, y: 0.98, xanchor: 'right', yanchor: 'top',
+                                           text: 'шок предложения,<br>оценка ЦБ', showarrow: false, align: 'right',
+                                           font: { color: EST, size: 11 } })) });
     const m = P.method, fy = m.forecast_years || {};
+    const shTxt = (m.shocks || []).map(x => ` Учтён шок потенциала ${sg(x.level_pct, 0).replace("-", "−")}% с ${qroman(x.from)} (${String(x.source || '').startsWith('Банк России') ? 'оценка Банка России' : x.source}): HP по ряду без ступеньки, ступенька вычтена из тренда.`).join('');
     const fyTxt = Object.entries(fy).map(([y, v]) => `${y} — ${sg(v.annual_pct)}%${v.from_forecast ? '' : (typeof m.beyond_forecast === 'number' ? ' (долгосрочный темп)' : ' (за горизонтом прогноза — последний темп)')}`).join('; ');
-    $('potSub').innerHTML = `Потенциал — ${m.name} (λ = ${m.lambda}) по ${m.on} с ${qroman(m.start)}. Против проблемы конца ряда ряд продлён на ${m.extend_quarters} кв. прогнозом ВВП из «Макропрогнозов» (${fyTxt}); продление (серая зона) — только вход фильтра, не прогноз этой страницы. Метод и параметры — config.json расчёта.`;
+    $('potSub').innerHTML = `Потенциал — ${m.name} (λ = ${m.lambda}) по ${m.on} с ${qroman(m.start)}. Против проблемы конца ряда ряд продлён на ${m.extend_quarters} кв. прогнозом ВВП из «Макропрогнозов» (${fyTxt}); продление (серая зона) — только вход фильтра, не прогноз этой страницы.${shTxt} Метод и параметры — config.json расчёта.`;
 
     const G = P.rows.filter(r => r.q >= '2015' && r.gap != null), gx = G.map(r => qlab(r.q));
     const cbr = (P.cbr_gap && P.cbr_gap.quarters) || {};
