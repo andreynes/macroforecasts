@@ -8,6 +8,9 @@
   - официальные курсы ЦБ (USD, EUR, CNY).
 
 Тикеры: Si, USDRUBF (доллар), Eu, EURRUBF (евро), CR, CNYRUBF (юань); 1 контракт = 1000 ед. валюты.
+Только завершённые торговые дни: прошедшие даты и сегодняшняя — лишь после закрытия торгов (FUTOI_CLOSE: будни 23:50,
+выходные сессии 19:00 МСК); незавершённый текущий день в файл не попадает. data_as_of — последний завершённый день.
+Файл переписывается, только если изменились данные (иначе байт в байт прежний — publish.py ничего не загрузит).
 Пишет data/futoi_households.json: нетто-позиция физлиц (млрд $ по кросс-курсам ЦБ; net_rub — млрд руб.) и сумма её
 изменений за последние 4 недели (изменение в контрактах × курс ЦБ на дату — без переоценки).
 
@@ -19,7 +22,8 @@ import subprocess
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -32,6 +36,9 @@ FIRST_YEAR = 2020
 LOT = 1000
 FREE_LAG_DAYS = 15  # бесплатный доступ Мосбиржи закрывает последние 14 дней
 TOKEN_FILE = os.path.expanduser("~/.config/moex/algopack_token")
+MSK = ZoneInfo("Europe/Moscow")
+FUTOI_CLOSE = {"weekday": (23, 50), "weekend": (19, 0)}  # конец последней 5-минутки FUTOI, МСК
+CLOSE_MARGIN_MIN = 15  # запас после закрытия: данные последней 5-минутки появляются с задержкой
 
 
 def algopack_token():
@@ -82,7 +89,19 @@ def load_futoi():
     df = pd.DataFrame(rows)
     df = df[df.clgroup == "FIZ"]
     df["tradedate"] = pd.to_datetime(df.tradedate)
+    now = datetime.now(MSK)
+    if not day_complete(now.date(), now):  # текущий день ещё торгуется — его 5-минутка не итог дня
+        df = df[df.tradedate.dt.date < now.date()]
     return df.pivot_table(index="tradedate", columns="ticker", values="pos", aggfunc="last")
+
+
+def day_complete(day, now):
+    """Торговый день day завершён к моменту now (МСК): прошедшая дата — да; сегодня — после закрытия + запас."""
+    if day < now.date():
+        return True
+    h, m = FUTOI_CLOSE["weekend" if day.weekday() >= 5 else "weekday"]
+    close = datetime(day.year, day.month, day.day, h, m, tzinfo=MSK) + timedelta(minutes=CLOSE_MARGIN_MIN)
+    return now >= close
 
 
 def load_cbr_rates(start, end):
@@ -128,6 +147,7 @@ def build():
 
     return {
         "updated": date.today().isoformat(),
+        "data_as_of": days.max().strftime("%Y-%m-%d"),
         "last_date": days.max().strftime("%Y-%m-%d"),
         "dates": [d.strftime("%Y-%m-%d") for d in days],
         "net": num(net_usd, 3),
@@ -137,9 +157,23 @@ def build():
     }
 
 
+def write_if_changed(path, data):
+    """Записать, только если данные (всё, кроме updated) изменились; иначе файл остаётся байт в байт прежним."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            old = json.load(f)
+    except (OSError, ValueError):
+        old = None
+    if old is not None and {k: v for k, v in old.items() if k != "updated"} == {k: v for k, v in data.items() if k != "updated"}:
+        return False
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    os.replace(path + ".tmp", path)
+    return True
+
+
 if __name__ == "__main__":
     data = build()
-    with open(OUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-    print(f"{OUT_FILE}: {len(data['dates'])} дней, по {data['last_date']}, "
+    changed = write_if_changed(OUT_FILE, data)
+    print(f"{OUT_FILE}: {'обновлён' if changed else 'без изменений (файл не тронут)'}; {len(data['dates'])} дней, по {data['last_date']}, "
           f"нетто {data['net'][-1]} млрд $, за 4 недели {data['flow_4w'][-1]:+} млрд $")

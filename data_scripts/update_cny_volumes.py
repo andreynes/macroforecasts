@@ -4,6 +4,8 @@
 сумма за день переводится в доллары по официальному курсу USD/RUB ЦБ на дату. Ключ подписки —
 ~/.config/moex/algopack_token или переменная MOEX_ALGOPACK_TOKEN. Прошлые месяцы кэшируются в data/cache/cny_volumes/.
 Запуск: python data_scripts/update_cny_volumes.py → data/cny_volumes.json (вкладка «Рубль»).
+data_as_of — последний день с торгами; файл переписывается, только если изменились данные (иначе байт в байт прежний —
+publish.py ничего не загрузит; раньше менялось одно поле updated, и файл публиковался заново).
 """
 import json
 import os
@@ -94,14 +96,29 @@ def build():
     rate = usd.reindex(usd.index.union(rub.index)).ffill().reindex(rub.index)
     bn = rub.div(rate, axis=0) / 1e9
     num = lambda s: [round(float(v), 3) for v in s]
-    return {"updated": date.today().isoformat(), "dates": [f"{d:%Y-%m-%d}" for d in bn.index],
+    return {"updated": date.today().isoformat(), "data_as_of": f"{bn.index.max():%Y-%m-%d}",
+            "dates": [f"{d:%Y-%m-%d}" for d in bn.index],
             "tod": num(bn["tod"]), "tom": num(bn["tom"]),
             "tod_rub": num(rub["tod"] / 1e9), "tom_rub": num(rub["tom"] / 1e9)}
 
 
+def write_if_changed(path, data):
+    """Записать, только если данные (всё, кроме updated) изменились; иначе файл остаётся байт в байт прежним."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            old = json.load(f)
+    except (OSError, ValueError):
+        old = None
+    if old is not None and {k: v for k, v in old.items() if k != "updated"} == {k: v for k, v in data.items() if k != "updated"}:
+        return False
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    os.replace(path + ".tmp", path)
+    return True
+
+
 if __name__ == "__main__":
     data = build()
-    with open(OUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-    print(f"{OUT_FILE}: {len(data['dates'])} дней, {data['dates'][0]}…{data['dates'][-1]}; "
+    changed = write_if_changed(OUT_FILE, data)
+    print(f"{OUT_FILE}: {'обновлён' if changed else 'без изменений (файл не тронут)'}; {len(data['dates'])} дней, {data['dates'][0]}…{data['dates'][-1]}; "
           f"последний день TOD {data['tod'][-1]} + TOM {data['tom'][-1]} млрд $")

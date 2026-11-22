@@ -40,8 +40,12 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
   на каталог (yc 0.159 не умеет роли на бакет; в каталоге один бакет — при появлении второго сузить обе роли).
 - В бакете: `data/*.json` (11 файлов: ruble_fx, ruble_page, cbr_fx_ops, cny_volumes, exporters_need, futoi_households,
   oil_exports, ngd_dashboard, cbr_models, inflation_weekly, inflation_monthly), `excel/*.xlsx` (5 книг), `data/manifest.json`.
-- Дата данных в manifest — явное поле `data_as_of` в JSON (пишут ngd_model.py, oil_exports.py, скрипты инфляции);
-  нет поля — последняя дата в файле не позже сегодняшней.
+- Дата данных в manifest — явное поле `data_as_of` в JSON (пишут ngd_model.py, oil_exports.py, скрипты инфляции,
+  с 22.11.2026 update_futoi.py и update_cny_volumes.py); нет поля — последняя дата в файле не позже сегодняшней
+  (22.11.2026 так взялась дата из служебного поля `updated` — «данные по 22.11» у юаня без торгов).
+  ПЛАН (после этапа 5): publish.py не берёт дату из служебных полей (updated, generated и т.п.).
+- moex: update_futoi.py пишет только завершённые торговые дни (сегодня — после закрытия: будни 23:50, выходные 19:00 МСК
+  + 15 мин); оба скрипта переписывают файл, только если изменились данные (иначе байт в байт прежний → «загружать нечего»).
 - `app.py`: JSON — `_data_file(name)` (DATA_DIR=/mnt/site-data/data, иначе `data/` из образа); книги — переменные
   `DATA_FILE`, `ANALYST_FORECASTS_FILE`, `YIELD_FILE`, `IRS_FILE`, `CC_FILE`, нет файла — копия из образа с тем же именем
   (`_main_book()`, `af._analyst_file()`, `yf._cached_read_excel()`). Кеш книг по mtime на монтировании работает.
