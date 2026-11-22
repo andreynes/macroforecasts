@@ -203,7 +203,7 @@
                                            text: 'шок предложения,<br>оценка ЦБ', showarrow: false, align: 'right',
                                            font: { color: EST, size: 11 } })) });
     const m = P.method, fy = m.forecast_years || {};
-    const shTxt = (m.shocks || []).map(x => ` Учтён шок потенциала ${sg(x.level_pct, 0).replace("-", "−")}% с ${qroman(x.from)} (${String(x.source || '').startsWith('Банк России') ? 'оценка Банка России' : x.source}): HP по ряду без ступеньки, ступенька вычтена из тренда.`).join('');
+    const shTxt = (m.shocks || []).map(x => ` Учтён шок потенциала ${sg(x.level_pct, 0).replace("-", "−")}% с ${qroman(x.from)} (${String(x.source || '').startsWith('Банк России') ? 'оценка Банка России' : x.source}): ${m.shock_method === 'pre_filter' ? 'HP по ряду без ступеньки, ступенька вычтена из тренда' : 'HP по фактическому ряду, с квартала шока ступенька вычтена из тренда'}.`).join('');
     const fyTxt = Object.entries(fy).map(([y, v]) => `${y} — ${sg(v.annual_pct)}%${v.from_forecast ? '' : (typeof m.beyond_forecast === 'number' ? ' (долгосрочный темп)' : ' (за горизонтом прогноза — последний темп)')}`).join('; ');
     $('potSub').innerHTML = `Потенциал — ${m.name} (λ = ${m.lambda}) по ${m.on} с ${qroman(m.start)}. Против проблемы конца ряда ряд продлён на ${m.extend_quarters} кв. прогнозом ВВП из «Макропрогнозов» (${fyTxt}); продление (серая зона) — только вход фильтра, не прогноз этой страницы.${shTxt} Метод и параметры — config.json расчёта.`;
 
