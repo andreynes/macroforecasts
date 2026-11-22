@@ -196,7 +196,7 @@
          shapes: lastA < R.length - 1 ? [{ type: 'rect', xref: 'x', yref: 'paper', x0: lastA + 0.5, x1: R.length - 0.5, y0: 0, y1: 1,
                                             fillcolor: 'rgba(255,255,255,.04)', line: { width: 0 } }] : [] });
     const m = P.method, fy = m.forecast_years || {};
-    const fyTxt = Object.entries(fy).map(([y, v]) => `${y} — ${sg(v.annual_pct)}%${v.from_forecast ? '' : ' (за горизонтом прогноза — последний темп)'}`).join('; ');
+    const fyTxt = Object.entries(fy).map(([y, v]) => `${y} — ${sg(v.annual_pct)}%${v.from_forecast ? '' : (typeof m.beyond_forecast === 'number' ? ' (долгосрочный темп)' : ' (за горизонтом прогноза — последний темп)')}`).join('; ');
     $('potSub').innerHTML = `Потенциал — ${m.name} (λ = ${m.lambda}) по ${m.on} с ${qroman(m.start)}. Против проблемы конца ряда ряд продлён на ${m.extend_quarters} кв. прогнозом ВВП из «Макропрогнозов» (${fyTxt}); продление (серая зона) — только вход фильтра, не прогноз этой страницы. Метод и параметры — config.json расчёта.`;
 
     const G = P.rows.filter(r => r.q >= '2015' && r.gap != null), gx = G.map(r => qlab(r.q));
