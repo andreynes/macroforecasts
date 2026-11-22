@@ -84,8 +84,10 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 (`compare_parallel.py --published --json`, повтор в чт 10:00, вручную `RECHECK_COMPARE=1`) — подробно в CLAUDE.md «Инфляции».
 
 ## Прочее
-- Ветка `feature/gdp` — черновик раздела «ВВП и промышленность» (`/gdp`, `data_scripts/gdp/`, источники — README там);
-  в main НЕ сливать без решения пользователя; перед `release_all.sh` убедиться, что текущая ветка — main.
+- Ветка `feature/gdp` — вкладка «ВВП» (`/gdp`, `/api/gdp`, `templates/gdp.html`, в меню после «Рубля»; раздел `gdp` в
+  publish.py → `data/gdp_activity.json`). Данные считает репозиторий `~/Desktop/Совкомбанк/ВВП` (andreynes/gdp, `run.sh`;
+  см. его CLAUDE.md), источники — `data_scripts/gdp/README.md`. В main НЕ сливать без решения пользователя;
+  перед `release_all.sh` убедиться, что текущая ветка — main.
 - `models/taylor_rule` — модель «Модели ЦБ» → `data/cbr_models.json` (см. README_RU.md).
 - `data_scripts/`, `data/*.json` (рубль, НГД и т.п.) — другие разделы; обновляются `data_scripts/update_ruble_tab.sh`, на сайт — `publish.sh`.
 
