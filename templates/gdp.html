@@ -40,6 +40,7 @@
     <h6 class="mt-2 mb-1">Разрыв выпуска, % потенциального ВВП</h6>
     <div class="gdp-sub" id="gapSub"></div>
     <div id="chGap" class="gdp-chart-gap"></div>
+    <div class="gdp-note" id="gapCbr"></div>
   </div></div></div>
   <div class="col-12"><div class="card glass shadow-soft"><div class="card-body">
     <h5 class="card-title mb-1">Валовая добавленная стоимость по отраслям, % г/г</h5>
@@ -214,9 +215,12 @@
         marker: { size: 1, color: EST }, hovertemplate: cq.map(q => `${nf(cbr[q][0])} … ${nf(cbr[q][1])}`) });
     }
     plot('chGap', traces, { yaxis: { gridcolor: grid, tickfont: { color: text80 }, ticksuffix: '%', zerolinecolor: text80 }, bargap: 0.25 });
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const cg = P.cbr_gap || {};
+    const cbrNote = cg.text ? (cg.url ? `<a href="${esc(cg.url)}" target="_blank" rel="noopener">${esc(cg.text)}</a>` : esc(cg.text)) : '';
     $('gapSub').innerHTML = `Логарифм ВВП SA минус логарифм потенциала, × 100. ` +
-      (cq.length ? `Жёлтые отрезки — интервал оценки Банка России (${P.cbr_gap.report || 'Доклад о ДКП'}, ручной ввод).`
-                 : `Интервал разрыва Банка России из Доклада о ДКП — ручной ввод (cbr_gap в config.json), пока не заполнен.`);
+      (cq.length ? `Жёлтые отрезки — интервал оценки Банка России${cg.report ? ' (' + esc(cg.report) + ')' : ''}.` : '');
+    $('gapCbr').innerHTML = cbrNote;
   }
 
   function render(D) {
