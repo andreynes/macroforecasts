@@ -972,6 +972,27 @@ def api_ngd():
     except FileNotFoundError:
         return jsonify({"error": "Нет данных НГД: запустите модель ngd_model.py"}), 404
 
+CONSUMER_DATA_FILE = "consumer_activity.json"  # пишет build.py в ~/Desktop/Совкомбанк/Потребление; раздел publish — позже
+
+
+@app.route("/consumer")
+def consumer():
+    return render_template(
+        "consumer.html",
+        active_page="consumer",
+        page_title="Потребительская активность",
+        page_subtitle="Оборот розницы, услуг и общепита, доходы и зарплаты, потребительский кредит, настроения населения"
+    )
+
+
+@app.route("/api/consumer")
+def api_consumer():
+    try:
+        with open(_data_file(CONSUMER_DATA_FILE), encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Нет данных: запустите build.py в папке «Потребление»"}), 404
+
 CBR_MODELS_FILE = "cbr_models.json"  # читается через _data_file()
 
 
@@ -1303,7 +1324,7 @@ def diag():
 DATA_JSON_FILES = [
     RUBLE_FX_FILE, CBR_FX_OPS_FILE, CNY_VOLUMES_FILE, EXPORTERS_NEED_FILE, FUTOI_DATA_FILE,
     OIL_EXPORTS_FILE, FX_SALES_RATIO_FILE, RUBLE_PAGE_FILE, NGD_DATA_FILE, CBR_MODELS_FILE,
-    INFLATION_WEEKLY_FILE, INFLATION_MONTHLY_FILE,
+    INFLATION_WEEKLY_FILE, INFLATION_MONTHLY_FILE, CONSUMER_DATA_FILE,
 ]
 DATA_EXCEL_ENV = {
     "macro_main_linked.xlsx": "DATA_FILE",

@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .cs-eyebrow { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-80); font-weight: 600; }
+  .cs-kpi-v { font-size: 1.9rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .cs-kpi-v.pos { color: #8fd694; } .cs-kpi-v.neg { color: #ff8a8a; }
+  .cs-sub { font-size: .8rem; color: var(--text-80); }
+  .cs-note { font-size: .8rem; color: var(--text-80); margin-top: .4rem; }
+  .cs-chart { height: 320px; }
+  .cs-chart-sm { height: 240px; }
+  .cs-section { font-size: 1.15rem; font-weight: 700; margin: 1.6rem 0 .8rem; }
+  .cs-kpis > div { flex: 1 1 9rem; }
+  .cs-draft { font-size: .78rem; padding: .15rem .6rem; border-radius: 999px; background: rgba(255,213,79,.14); color: #ffd54f; }
+  .cs-todo { border: 1px dashed rgba(255,255,255,.18); }
+  .cs-todo li { font-size: .85rem; color: var(--text-80); margin-bottom: .3rem; }
+</style>
+
+<div class="d-flex align-items-center gap-2 mb-2"><span class="cs-draft">Черновик · этап 1</span>
+  <span class="cs-sub" id="csAsOf"></span></div>
+<div id="csError" class="alert alert-warning" hidden></div>
+
+<div class="row g-3 mb-1 cs-kpis" id="csKpis"></div>
+
+<div class="cs-section">Потребительский спрос</div>
+<div class="row g-3">
+  <div class="col-xl-7"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Оборот розницы, платных услуг и общепита, % г/г</h5>
+    <div class="cs-sub">МЭР («О текущей ситуации в российской экономике») по данным Росстата, в реальном выражении. Суммарный оборот — розница + платные услуги + общепит. Значение каждого месяца — из самого свежего обзора (МЭР уточняет прошлые месяцы).</div>
+    <div id="chAct" class="cs-chart"></div>
+  </div></div></div>
+  <div class="col-xl-5"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Потребление домохозяйств (ВВП) и суммарный оборот, % г/г</h5>
+    <div class="cs-sub">Кварталы. Расходы домохозяйств на конечное потребление — Росстат, ВВП по использованию (из раздела «ВВП»); суммарный оборот — МЭР.</div>
+    <div id="chHh" class="cs-chart"></div>
+  </div></div></div>
+</div>
+
+<div class="cs-section">Доходы и зарплаты</div>
+<div class="row g-3">
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Заработная плата, % г/г</h5>
+    <div class="cs-sub">Номинальная и реальная начисленная зарплата, месяц (МЭР по данным Росстата; выходит с лагом ~2 месяца).</div>
+    <div id="chWage" class="cs-chart"></div>
+  </div></div></div>
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Реальные денежные доходы, % г/г</h5>
+    <div class="cs-sub" id="incSub">Росстат, квартал: реальные и реальные располагаемые (за вычетом обязательных платежей) денежные доходы.</div>
+    <div id="chInc" class="cs-chart"></div>
+  </div></div></div>
+</div>
+
+<div class="cs-section">Потребительский кредит</div>
+<div class="row g-3">
+  <div class="col-xl-7"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Выдачи кредитов физлицам без жилищных, млрд руб. в месяц</h5>
+    <div class="cs-sub">Банк России: все кредиты физлицам (02_04) минус жилищные (02_07) — потребительские, автокредиты, кредитные карты (выборки по картам — заметная часть объёма). Линия — своя сезонная корректировка (x13).</div>
+    <div id="chLoans" class="cs-chart"></div>
+  </div></div></div>
+  <div class="col-xl-5"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Задолженность без жилищных кредитов</h5>
+    <div class="cs-sub">Банк России (02_05 минус 02_09), на конец месяца: трлн руб. и % г/г.</div>
+    <div id="chDebt" class="cs-chart"></div>
+  </div></div></div>
+</div>
+
+<div class="cs-section">Настроения и рынок труда</div>
+<div class="row g-3">
+  <div class="col-xl-7"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Потребительские настроения, п.</h5>
+    <div class="cs-sub">Опрос инФОМ по заказу Банка России, месяц: индекс потребительских настроений и индекс крупных покупок (100 — баланс оптимистов и пессимистов).</div>
+    <div id="chSent" class="cs-chart"></div>
+  </div></div></div>
+  <div class="col-xl-5"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Безработица, % рабочей силы (SA)</h5>
+    <div class="cs-sub">МЭР по данным Росстата, с исключением сезонности.</div>
+    <div id="chUnemp" class="cs-chart"></div>
+  </div></div></div>
+</div>
+
+<div class="cs-section">Что ещё будет на странице</div>
+<div class="card cs-todo"><div class="card-body"><ul class="mb-0">
+  <li><b>Оперативные расходы (недели)</b> — СберИндекс «Индекс потребительских расходов»: нужен способ получения данных (см. вопросы).</li>
+  <li><b>Уровни с исключением сезонности</b> — оборот розницы (продовольствие / непродовольственные), услуги, общепит в рублях и своя SA (x13), м/м SAAR — когда Росстат восстановит файлы раздела (сейчас старые файлы отвечают 404, новые выходят с 19.11).</li>
+  <li><b>Норма сбережений</b> — структура использования доходов (Росстат, квартал) и прирост вкладов физлиц (ЦБ).</li>
+</ul></div></div>
+<div class="cs-note mt-3" id="csFoot"></div>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const css = getComputedStyle(document.documentElement);
+  const bgCard = css.getPropertyValue('--card').trim() || '#171c2a';
+  const grid = css.getPropertyValue('--grid').trim() || '#263043';
+  const text80 = css.getPropertyValue('--text-80').trim() || '#b1b7c3';
+  const PAL = ['#2f80ed', '#ff72c0', '#4caf50', '#ffd54f', '#9333ea', '#26c6da'];
+  const MS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  const MF = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+  const nf = (v, d = 1) => v == null ? '—' : v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const sg = (v, d = 1) => v == null ? '—' : (v > 0 ? '+' : '') + nf(v, d);
+  const mlab = m => { const [y, mm] = m.split('-'); return MS[+mm - 1] + ' ' + y; };
+  const per = p => /Q/.test(p) ? p.replace(/(\d{4}) Q(\d)/, (_, y, n) => ['I', 'II', 'III', 'IV'][n - 1] + ' кв. ' + y)
+                               : (([y, m]) => MF[+m - 1] + ' ' + y)(p.split('-'));
+  const qlab = q => q.replace(/(\d{4}) Q(\d)/, (_, y, n) => ['I', 'II', 'III', 'IV'][n - 1] + ' кв. ' + y.slice(2));
+
+  function layout(extra) {
+    return Object.assign({
+      margin: { l: 46, r: 12, t: 10, b: 36 }, paper_bgcolor: bgCard, plot_bgcolor: bgCard,
+      font: { family: 'Montserrat, system-ui', color: 'white', size: 11 },
+      xaxis: { type: 'category', gridcolor: grid, tickfont: { color: text80 }, nticks: 10 },
+      yaxis: { gridcolor: grid, tickfont: { color: text80 }, zerolinecolor: text80 },
+      legend: { orientation: 'h', y: -0.18, font: { color: text80 } },
+      hoverlabel: { bgcolor: '#0f1220', font: { color: '#fff' } }, hovermode: 'x unified',
+    }, extra || {});
+  }
+  const plot = (el, tr, ex) => Plotly.react(el, tr, layout(ex), { displayModeBar: false, responsive: true, locale: 'ru' });
+  const line = (name, x, y, i, ex) => Object.assign({ type: 'scatter', mode: 'lines', name, x, y, connectgaps: false,
+    line: { color: PAL[i], width: 2 }, hovertemplate: '%{y:.1f}' }, ex || {});
+  const bar = (name, x, y, i, ex) => Object.assign({ type: 'bar', name, x, y, marker: { color: PAL[i] }, hovertemplate: '%{y:.1f}' }, ex || {});
+
+  function kpis(D) {
+    const SIGNED = ['% г/г'];
+    $('csKpis').innerHTML = D.kpi.map(k => {
+      const signed = SIGNED.includes(k.unit);
+      const cls = signed && k.value != null ? (k.value >= 0 ? 'pos' : 'neg') : '';
+      const v = signed ? sg(k.value) : nf(k.value);
+      const prev = k.prev != null ? ` · ранее ${sg(k.prev)}` : '';
+      return `<div class="col"><div class="card glass shadow-soft h-100"><div class="card-body">
+        <div class="cs-eyebrow">${k.name}</div>
+        <div class="cs-kpi-v ${cls}">${v}<span style="font-size:.9rem;font-weight:600"> ${k.unit === '% г/г' ? '%' : k.unit}</span></div>
+        <div class="cs-sub">${per(k.period)}, ${k.unit === '% г/г' ? 'г/г, ' : ''}${k.src}${prev}</div></div></div></div>`;
+    }).join('');
+  }
+
+  function render(D) {
+    $('csAsOf').textContent = `Данные по ${per(D.data_as_of)} · собрано ${D.generated.slice(0, 10).split('-').reverse().join('.')}`;
+    kpis(D);
+    const A = D.activity, x = A.months.map(mlab);
+    plot('chAct', [
+      line('Суммарный оборот', x, A.series.consumption_total, 0, { line: { color: PAL[0], width: 3 } }),
+      line('Розничная торговля', x, A.series.retail, 1),
+      line('Платные услуги', x, A.series.services, 2),
+      line('Общественное питание', x, A.series.catering, 3),
+    ]);
+    if (D.household) {
+      const H = D.household, AQ = D.activity_q;
+      const qs = H.quarters.filter(q => q >= '2022 Q1');
+      const ix = qs.map(q => H.quarters.indexOf(q));
+      const tot = qs.map(q => { const i = AQ.quarters.indexOf(q); return i < 0 ? null : AQ.series.consumption_total[i]; });
+      plot('chHh', [
+        bar('Потребление домохозяйств (ВВП)', qs.map(qlab), ix.map(i => H.series['Потребление домохозяйств'][i]), 0),
+        line('Суммарный оборот (МЭР)', qs.map(qlab), tot, 3, { mode: 'lines+markers' }),
+        line('ВВП', qs.map(qlab), ix.map(i => H.series['ВВП'][i]), 1, { line: { color: PAL[1], width: 1.5, dash: 'dot' } }),
+      ]);
+    }
+    const W = D.wages;
+    plot('chWage', [
+      line('Номинальная', W.months.map(mlab), W.series.nominal_wage, 0),
+      line('Реальная', W.months.map(mlab), W.series.real_wage, 2),
+    ]);
+    const I = D.income_q, qi = I.quarters.filter(q => q >= '2019 Q1'), ii = qi.map(q => I.quarters.indexOf(q));
+    plot('chInc', [
+      bar('Реальные денежные доходы', qi.map(qlab), ii.map(i => I.series.real_income[i]), 0),
+      bar('Реальные располагаемые', qi.map(qlab), ii.map(i => I.series.real_disp_income[i]), 5),
+    ], { barmode: 'group' });
+    if (D.credit) {
+      const C = D.credit, xm = C.months.map(mlab);
+      const tr = [bar('Выдачи (без сезонной корр.)', xm, C.new_loans, 0, { marker: { color: 'rgba(47,128,237,.45)' } })];
+      if (C.new_loans_sa) tr.push(line('С исключением сезонности (x13)', xm, C.new_loans_sa, 3, { line: { color: PAL[3], width: 2.5 } }));
+      plot('chLoans', tr, { hovertemplate: '%{y:.0f}' });
+      const xd = C.debt_months.map(mlab);
+      plot('chDebt', [
+        bar('Задолженность, трлн руб.', xd, C.debt.map(v => v == null ? null : v / 1000), 0, { marker: { color: 'rgba(47,128,237,.45)' }, hovertemplate: '%{y:.2f}' }),
+        line('% г/г (правая ось)', xd, C.debt_yoy, 1, { yaxis: 'y2' }),
+      ], { yaxis2: { overlaying: 'y', side: 'right', gridcolor: 'rgba(0,0,0,0)', tickfont: { color: PAL[1] }, zerolinecolor: text80 },
+           margin: { l: 46, r: 40, t: 10, b: 36 } });
+    }
+    if (D.sentiment) {
+      const S = D.sentiment, xs = S.months.map(mlab);
+      plot('chSent', [
+        line('Индекс потребительских настроений', xs, S.series.ipn, 0, { line: { color: PAL[0], width: 2.5 } }),
+        line('Индекс крупных покупок', xs, S.series.big, 3),
+      ]);
+    }
+    const U = D.unemployment;
+    plot('chUnemp', [line('Безработица SA', U.months.map(mlab), U.series.unemployment_sa, 1, { mode: 'lines+markers', marker: { size: 4 } })],
+         { yaxis: { gridcolor: grid, tickfont: { color: text80 }, rangemode: 'tozero' } });
+    $('csFoot').innerHTML = 'Источники: ' + Object.values(D.sources).filter(Boolean).join('; ') + '.';
+  }
+
+  fetch('/api/consumer', { credentials: 'same-origin' })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(render)
+    .catch(e => {
+      if (window.showDataLoadError) { window.showDataLoadError(e); return; }
+      $('csError').hidden = false; $('csError').textContent = 'Не удалось загрузить данные: ' + e.message;
+    });
+})();
+</script>
+{% endblock %}

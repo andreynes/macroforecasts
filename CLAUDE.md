@@ -90,6 +90,8 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 ## Прочее
 - Ветка `feature/gdp` — черновик раздела «ВВП и промышленность» (`/gdp`, `data_scripts/gdp/`, источники — README там);
   в main НЕ сливать без решения пользователя; перед `release_all.sh` убедиться, что текущая ветка — main.
+- Ветка `feature/consumer` — черновик вкладки «Потребительская активность» (`/consumer`, `/api/consumer`, `templates/consumer.html`,
+  данные `consumer_activity.json` пишет `~/Desktop/Совкомбанк/Потребление/build.py`); раздела в publish.py нет; в main НЕ сливать без решения.
 - `models/taylor_rule` — модель «Модели ЦБ» → `data/cbr_models.json` (см. README_RU.md).
 - `data_scripts/`, `data/*.json` (рубль, НГД и т.п.) — другие разделы; обновляются `data_scripts/update_ruble_tab.sh`, на сайт — `publish.sh`.
 
