@@ -35,6 +35,20 @@
   </div></div></div>
 </div>
 
+<div class="row g-3 mt-0" id="sbRow" hidden>
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">СберИндекс: индекс потребительских расходов, SA, дек. 2018 = 100</h5>
+    <div class="cs-sub" id="sbSub">СберИндекс, в реальном выражении, с исключением сезонности (ряд СберИндекса). Выходит раньше Росстата; загружается вручную (CSV с sberindex.ru).</div>
+    <div id="chSb" class="cs-chart"></div>
+  </div></div></div>
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">СберИндекс: темп роста расходов, %</h5>
+    <div class="cs-sub">3м/3м SAAR — три последних месяца к трём предыдущим, в годовом выражении; г/г — к тому же месяцу прошлого года. Последняя точка может уточняться.</div>
+    <div class="d-flex gap-1 flex-wrap my-1" id="sbBtns"></div>
+    <div id="chSbG" class="cs-chart"></div>
+  </div></div></div>
+</div>
+
 <div class="cs-section">Уровни Росстата с исключением сезонности</div>
 <div class="row g-3">
   <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
@@ -95,7 +109,7 @@
 
 <div class="cs-section">Что ещё будет на странице</div>
 <div class="card cs-todo"><div class="card-body"><ul class="mb-0">
-  <li><b>Оперативные расходы (недели)</b> — СберИндекс «Индекс потребительских расходов»: нужен способ получения данных (см. вопросы).</li>
+  <li><b>Недельные расходы</b> — СберИндекс (недельные ряды — в платной «СберИндекс.Про»); месячный индекс SA уже на странице (ручная выгрузка).</li>
   <li><b>м/м SA SAAR</b> — не показываем: даже на ряде с 2008 г. оценка последних месяцев пересматривается в среднем на 1,4–8 п.п.</li>
   <li><b>Норма сбережений</b> — структура использования доходов (Росстат, квартал) и прирост вкладов физлиц (ЦБ).</li>
 </ul></div></div>
@@ -167,6 +181,27 @@
         line('Суммарный оборот (МЭР)', qs.map(qlab), tot, 3, { mode: 'lines+markers' }),
         line('ВВП', qs.map(qlab), ix.map(i => H.series['ВВП'][i]), 1, { line: { color: PAL[1], width: 1.5, dash: 'dot' } }),
       ]);
+    }
+    if (D.sberindex) {
+      const B = D.sberindex, cats = Object.keys(B.series), xb = B.months.map(mlab);
+      $('sbRow').hidden = false;
+      $('sbSub').textContent += ` Данные по ${per(B.months[B.months.length - 1])}.`;
+      plot('chSb', cats.map((c, i) => line(c, xb, B.series[c].sa, i, c === 'Всего' ? { line: { color: PAL[i], width: 3 } } : {})));
+      let sc = 'Всего';
+      const i0 = Math.max(0, B.months.indexOf('2021-01'));
+      const drawSb = () => {
+        const s = B.series[sc], x = xb.slice(i0), n = x.length;
+        plot('chSbG', [
+          line('3м/3м SAAR', x, s.m3_saar.slice(i0).map((v, i) => i < n - 1 ? v : null), 0, { line: { color: PAL[0], width: 2.5 } }),
+          line('3м/3м SAAR — последняя точка', x, s.m3_saar.slice(i0).map((v, i) => i >= n - 2 ? v : null), 0,
+               { mode: 'lines+markers', line: { color: PAL[0], dash: 'dot' }, marker: { size: 7, symbol: 'circle-open' } }),
+          line('г/г', x, s.yoy.slice(i0), 3, { line: { color: PAL[3], width: 1.5, dash: 'dash' } }),
+        ]);
+        document.querySelectorAll('#sbBtns button').forEach(b => b.classList.toggle('active', b.dataset.c === sc));
+      };
+      $('sbBtns').innerHTML = cats.map(c => `<button class="btn btn-sm btn-outline-light" data-c="${c}">${c}</button>`).join('');
+      $('sbBtns').querySelectorAll('button').forEach(b => b.onclick = () => { sc = b.dataset.c; drawSb(); });
+      drawSb();
     }
     if (D.levels && D.levels.series) {
       const L = D.levels.series, keys = ['retail', 'services', 'catering', 'retail_food', 'retail_nonfood'].filter(k => L[k]);
