@@ -107,6 +107,9 @@
     padding: 18px 20px 14px;
     margin-bottom: 18px;
   }
+  .week-brief-text { margin: 8px 0 0; font-size: 15px; line-height: 1.55; color: var(--text-primary); max-width: 80ch; }
+  .week-brief-foot { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--text-muted); max-width: 80ch; }
+  .week-brief-foot:empty { display: none; }
 
   /* Stat tiles */
   .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
@@ -227,6 +230,12 @@
     </header>
 
     <div class="tiles" id="tiles"></div>
+
+    <div class="card week-brief" id="weekBrief" hidden>
+      <div class="chart-title">Коротко о неделе</div>
+      <p class="week-brief-text" id="weekBriefText"></p>
+      <p class="week-brief-foot" id="weekBriefFoot"></p>
+    </div>
 
     <div class="section-title">Недельная динамика и SAAR</div>
     <div class="filter-row">
@@ -480,6 +489,20 @@
 // Данные страницы — data/inflation_weekly.json (на сайт: publish.sh inflation_weekly), загрузка из /api/inflation/weekly.
 let ITOGO, MODEL_COMPARISON, SAAR_ALL, V5_SAAR, CBR_CMP, RAW_VS_CBR, DECOMP, DECOMP_CORE, DIFFUSION, SAAR_DIST, SAAR_DIST_1W, TRIMMED_CORE, CORE_SAAR_BAND_4W, CORE_SAAR_BAND_1W, CORE_BAND_SERIES_4W, CORE_BAND_SERIES_1W, COMPONENT_HISTORY, REVISIONS, YTD_CUMULATIVE, CATEGORY_WEEKLY;
 const INFLATION_DATA_URL = "{{ url_for('api_inflation_weekly') }}";
+// «Коротко о неделе» — data/inflation_commentary.json (commentary.py, публикуется в разделе inflation_weekly).
+// Показывается, только если разбор за ту же неделю, что последняя в ITOGO (старый разбор не выводится).
+function loadWeekBrief() {
+  fetch("{{ url_for('api_inflation_commentary') }}", {credentials: 'same-origin'})
+    .then(r => r.ok ? r.json() : null)
+    .then(c => {
+      const last = ITOGO && ITOGO.length ? ITOGO[ITOGO.length - 1].date : null;
+      if (!c || !c.latest || !c.latest.text || c.latest.week !== last) return;
+      document.getElementById('weekBriefText').textContent = c.latest.text;
+      document.getElementById('weekBriefFoot').textContent = c.latest.footnote || '';
+      document.getElementById('weekBrief').hidden = false;
+    })
+    .catch(() => {});
+}
 function initInflationPage() {
 (function () {
   const root = document.querySelector('.viz-root');
@@ -2197,6 +2220,7 @@ fetch(INFLATION_DATA_URL, {headers: {'Accept': 'application/json'}})
   .then(d => {
     ({ITOGO, MODEL_COMPARISON, SAAR_ALL, V5_SAAR, CBR_CMP, RAW_VS_CBR, DECOMP, DECOMP_CORE, DIFFUSION, SAAR_DIST, SAAR_DIST_1W, TRIMMED_CORE, CORE_SAAR_BAND_4W, CORE_SAAR_BAND_1W, CORE_BAND_SERIES_4W, CORE_BAND_SERIES_1W, COMPONENT_HISTORY, REVISIONS, YTD_CUMULATIVE, CATEGORY_WEEKLY} = d);
     initInflationPage();
+    loadWeekBrief();
   })
   .catch(e => console.error(e));
 </script>
