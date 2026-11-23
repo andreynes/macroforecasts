@@ -35,6 +35,22 @@
   </div></div></div>
 </div>
 
+<div class="cs-section">Уровни Росстата с исключением сезонности</div>
+<div class="row g-3">
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Реальный оборот с исключением сезонности, среднее 2023 = 100</h5>
+    <div class="cs-sub">Росстат (доклад «Социально-экономическое положение России»): индексы в сопоставимых ценах, внутри доклада — по м/м, между докладами — по г/г. Сезонная корректировка — своя: X-13ARIMA-SEATS, логарифмы, автомодель ARIMA, производственный календарь РФ, выбросы.</div>
+    <div id="chLvl" class="cs-chart"></div>
+  </div></div></div>
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Темп роста: 3м/3м SAAR и г/г, %</h5>
+    <div class="cs-sub">3м/3м SAAR — три последних месяца к трём предыдущим (SA), в годовом выражении; г/г — Росстат. Последние 3 точки — предварительно (пунктир, пустые маркеры): сезонная корректировка на конце ряда пересчитывается.</div>
+    <div class="d-flex gap-1 flex-wrap my-1" id="lvlBtns"></div>
+    <div id="chLvlG" class="cs-chart"></div>
+    <div class="cs-note" id="lvlDiag"></div>
+  </div></div></div>
+</div>
+
 <div class="cs-section">Доходы и зарплаты</div>
 <div class="row g-3">
   <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
@@ -52,12 +68,12 @@
 <div class="cs-section">Потребительский кредит</div>
 <div class="row g-3">
   <div class="col-xl-7"><div class="card glass shadow-soft h-100"><div class="card-body">
-    <h5 class="card-title mb-1">Выдачи кредитов физлицам без жилищных, млрд руб. в месяц</h5>
-    <div class="cs-sub">Банк России: все кредиты физлицам (02_04) минус жилищные (02_07) — потребительские, автокредиты, кредитные карты (выборки по картам — заметная часть объёма). Линия — своя сезонная корректировка (x13).</div>
+    <h5 class="card-title mb-1">Выдачи без ипотеки, включая кредитные карты, млрд руб. в месяц</h5>
+    <div class="cs-sub">Банк России: все кредиты физлицам (02_04) минус жилищные (02_07) — потребительские, автокредиты и выборки по кредитным картам. Линия — своя сезонная корректировка X-13ARIMA-SEATS с календарём РФ.</div>
     <div id="chLoans" class="cs-chart"></div>
   </div></div></div>
   <div class="col-xl-5"><div class="card glass shadow-soft h-100"><div class="card-body">
-    <h5 class="card-title mb-1">Задолженность без жилищных кредитов</h5>
+    <h5 class="card-title mb-1">Задолженность без ипотеки</h5>
     <div class="cs-sub">Банк России (02_05 минус 02_09), на конец месяца: трлн руб. и % г/г.</div>
     <div id="chDebt" class="cs-chart"></div>
   </div></div></div>
@@ -80,7 +96,7 @@
 <div class="cs-section">Что ещё будет на странице</div>
 <div class="card cs-todo"><div class="card-body"><ul class="mb-0">
   <li><b>Оперативные расходы (недели)</b> — СберИндекс «Индекс потребительских расходов»: нужен способ получения данных (см. вопросы).</li>
-  <li><b>Уровни с исключением сезонности</b> — оборот розницы (продовольствие / непродовольственные), услуги, общепит в рублях и своя SA (x13), м/м SAAR — когда Росстат восстановит файлы раздела (сейчас старые файлы отвечают 404, новые выходят с 19.11).</li>
+  <li><b>Длинная история уровней</b> — сейчас ряд с 2023 г.: доклады Росстата за 2019–2024 гг. недоступны после перестройки сайта. С длинным рядом — м/м SA SAAR (сейчас не показываем: ревизии большие).</li>
   <li><b>Норма сбережений</b> — структура использования доходов (Росстат, квартал) и прирост вкладов физлиц (ЦБ).</li>
 </ul></div></div>
 <div class="cs-note mt-3" id="csFoot"></div>
@@ -152,6 +168,33 @@
         line('ВВП', qs.map(qlab), ix.map(i => H.series['ВВП'][i]), 1, { line: { color: PAL[1], width: 1.5, dash: 'dot' } }),
       ]);
     }
+    if (D.levels && D.levels.series) {
+      const L = D.levels.series, keys = ['retail', 'services', 'catering', 'retail_food', 'retail_nonfood'].filter(k => L[k]);
+      const NAMES = { retail: 'Розница', services: 'Платные услуги', catering: 'Общепит', retail_food: 'Розница: продовольствие', retail_nonfood: 'Розница: непродовольственные' };
+      plot('chLvl', keys.map((k, i) => line(NAMES[k], L[k].months.map(mlab), L[k].sa, i,
+        { visible: i < 3 ? true : 'legendonly', hovertemplate: '%{y:.1f}' })));
+      let cur = 'retail';
+      const draw = () => {
+        const s = L[cur], x = s.months.map(mlab), n = s.months.length, p = s.preliminary_last || 3;
+        const g3 = s.sa_3m3m_saar, main = g3.map((v, i) => i < n - p ? v : null), pre = g3.map((v, i) => i >= n - p - 1 ? v : null);
+        const tr = [
+          line('3м/3м SAAR', x, main, 0, { line: { color: PAL[0], width: 2.5 } }),
+          line('3м/3м SAAR — предварительно', x, pre, 0, { mode: 'lines+markers', line: { color: PAL[0], width: 2, dash: 'dot' },
+            marker: { size: 7, symbol: 'circle-open', color: PAL[0] } }),
+          line('г/г (Росстат)', x, s.yoy, 3, { line: { color: PAL[3], width: 1.5, dash: 'dash' } }),
+        ];
+        if (s.show_mom) tr.splice(2, 0, line('м/м SAAR', x, s.sa_mom_saar, 1, { line: { color: PAL[1], width: 1 } }));
+        plot('chLvlG', tr);
+        const d = s.diag || {};
+        $('lvlDiag').textContent = `${NAMES[cur]}: ${d.decomposition || 'SEATS'}, ARIMA ${d.arima}; календарь: ${d.calendar && d.calendar.length ? 'рабочие дни' : 'незначим'}; `
+          + `остаточной сезонности нет (QS p = ${nf(d.qs_sa_p, 2)}); Q = ${nf(d.q, 2)}; ревизии м/м SAAR на истории 2008–2018 — в среднем ${nf(d.rev_mom_mean_hist)} п.п., 3м/3м — ${nf(d.rev_3m3m_mean_hist)} п.п.`
+          + (s.show_mom ? '' : ' Поэтому м/м SAAR не показываем.');
+        document.querySelectorAll('#lvlBtns button').forEach(b => b.classList.toggle('active', b.dataset.k === cur));
+      };
+      $('lvlBtns').innerHTML = keys.map(k => `<button class="btn btn-sm btn-outline-light" data-k="${k}">${NAMES[k]}</button>`).join('');
+      $('lvlBtns').querySelectorAll('button').forEach(b => b.onclick = () => { cur = b.dataset.k; draw(); });
+      draw();
+    }
     const W = D.wages;
     plot('chWage', [
       line('Номинальная', W.months.map(mlab), W.series.nominal_wage, 0),
@@ -164,8 +207,8 @@
     ], { barmode: 'group' });
     if (D.credit) {
       const C = D.credit, xm = C.months.map(mlab);
-      const tr = [bar('Выдачи (без сезонной корр.)', xm, C.new_loans, 0, { marker: { color: 'rgba(47,128,237,.45)' } })];
-      if (C.new_loans_sa) tr.push(line('С исключением сезонности (x13)', xm, C.new_loans_sa, 3, { line: { color: PAL[3], width: 2.5 } }));
+      const tr = [bar('Выдачи без ипотеки (без сезонной корр.)', xm, C.new_loans, 0, { marker: { color: 'rgba(47,128,237,.45)' } })];
+      if (C.new_loans_sa) tr.push(line('С исключением сезонности (X-13)', xm, C.new_loans_sa, 3, { line: { color: PAL[3], width: 2.5 } }));
       plot('chLoans', tr, { hovertemplate: '%{y:.0f}' });
       const xd = C.debt_months.map(mlab);
       plot('chDebt', [
