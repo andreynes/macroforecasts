@@ -10,14 +10,10 @@
   .cr-note { font-size: .8rem; color: var(--text-80); margin-top: .4rem; }
   .cr-chart { height: 320px; }
   .cr-section { font-size: 1.15rem; font-weight: 700; margin: 1.6rem 0 .8rem; }
-  .cr-draft { font-size: .78rem; padding: .15rem .6rem; border-radius: 999px; background: rgba(255,213,79,.14); color: #ffd54f; }
-  .cr-todo { border: 1px dashed rgba(255,255,255,.18); }
-  .cr-todo li { font-size: .85rem; color: var(--text-80); margin-bottom: .3rem; }
   .cr-btns .btn.active { background: rgba(255,255,255,.18); }
 </style>
 
-<div class="d-flex align-items-center gap-2 mb-2"><span class="cr-draft">Черновик · этап 1</span>
-  <span class="cr-sub" id="crAsOf"></span></div>
+<div class="d-flex align-items-center gap-2 mb-2"><span class="cr-sub" id="crAsOf"></span></div>
 <div id="crError" class="alert alert-warning" hidden></div>
 
 <div class="row g-3 mb-1 cr-kpis" id="crKpis"></div>
@@ -70,7 +66,7 @@
   </div></div></div>
   <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
     <h5 class="card-title mb-1">Реальные ставки, п.п.</h5>
-    <div class="cr-sub">Ключевая ставка минус инфляция: фактическая (ИПЦ г/г, Банк России) и ожидаемая населением на год вперёд (медиана инФОМ — завышена относительно факта, но важна для решений о сбережениях). Для компаний — ставка по кредитам свыше 1 года минус ИПЦ г/г.</div>
+    <div class="cr-sub">Ключевая ставка минус оценки инфляции. <b>Основная (белая линия)</b> — минус ожидания населения на год (медиана inFOM): важна для решений о сбережениях. Для сравнения: ожидания аналитиков на 12 мес. (макроопрос ЦБ), ожидания предприятий — рост цен на 3 мес. в годовом выражении (мониторинг ЦБ), текущий ИПЦ SAAR (3 мес., SA ЦБ), ИПЦ г/г; для компаний — ставка по кредитам свыше 1 года минус ИПЦ г/г.</div>
     <div id="chReal" class="cr-chart"></div>
   </div></div></div>
 </div>
@@ -84,13 +80,6 @@
   </div></div></div>
 </div>
 
-<div class="cr-section">Что ещё будет на странице</div>
-<div class="card cr-todo"><div class="card-body"><ul class="mb-0">
-  <li><b>Выдачи кредитов</b> — корпоративные и ипотека (рыночная / льготная, ДОМ.РФ) — с собственной SA.</li>
-  <li><b>Ликвидность банковского сектора</b> — структурный профицит/дефицит (ЦБ, по дням) и бюджетный канал помесячно.</li>
-  <li><b>Депозиты</b> — прирост вкладов физлиц без эскроу против ставок; норма сбережений.</li>
-  <li><b>Реальная ставка к ожиданиям аналитиков и предприятий</b> (опросы ЦБ) — вместо/вместе с ожиданиями населения.</li>
-</ul></div></div>
 <div class="cr-note mt-3" id="crFoot"></div>
 
 <script>
@@ -193,9 +182,13 @@
       : { hovertemplate: '%{y:.2f}', visible: /свыше 1 года|RUONIA/.test(k) && !/Вклады/.test(k) ? 'legendonly' : true })));
     const fr = R.series[rk.find(k => /FRMAX/.test(k))] || [];
     const frLast = R.months.filter((m, i) => fr[i] != null).pop();
-    if (frLast) $('ratesNote').textContent = `FRMAX в книге «Прогноза доходностей» — по ${mfull(frLast)}: книгу пора обновить (или брать FRMAX здесь напрямую с сайта ЦБ).`;
+    // FRMAX из книги «Прогноза доходностей»: предупреждение, только если она отстала больше чем на 2 месяца
+    const lagM = m => { const [y, mo] = m.split('-').map(Number), t = new Date(); return (t.getFullYear() - y) * 12 + t.getMonth() + 1 - mo; };
+    if (frLast && lagM(frLast) > 2) $('ratesNote').textContent = `FRMAX в книге «Прогноза доходностей» — по ${mfull(frLast)}: книгу пора обновить (data_scripts/update_frmax.py).`;
     const RR = D.real_rates, xr2 = RR.months.slice(r0).map(mlab);
-    plot('chReal', Object.keys(RR.series).map((k, i) => line(k, xr2, RR.series[k].slice(r0), [0, 3, 5][i])), {
+    plot('chReal', Object.keys(RR.series).map((k, i) => line(k.replace('Ключевая − ', 'КС − '), xr2, RR.series[k].slice(r0), i,
+      k === RR.base ? { line: { color: '#fff', width: 2.8 }, hovertemplate: '%{y:.2f}' }
+      : { hovertemplate: '%{y:.2f}', visible: /кредитам организациям|ИПЦ г\/г/.test(k) ? 'legendonly' : true })), {
       shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: 0, y1: 0, line: { color: text80, width: 1 } }] });
 
     // УБК

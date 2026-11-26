@@ -972,7 +972,7 @@ def api_ngd():
     except FileNotFoundError:
         return jsonify({"error": "Нет данных НГД: запустите модель ngd_model.py"}), 404
 
-CREDIT_DATA_FILE = "credit_money.json"  # пишет build.py в ~/Desktop/Совкомбанк/Кредит; раздел publish — позже
+CREDIT_DATA_FILE = "credit_money.json"  # расчёт andreynes/credit (машина ~/credit), на сайт — publish.sh credit
 
 
 @app.route("/credit")
@@ -980,7 +980,7 @@ def credit():
     return render_template(
         "credit.html",
         active_page="credit",
-        page_title="Кредит и деньги",
+        page_title="Кредит",
         page_subtitle="Денежная масса и кредит экономике, кредитный импульс, ставки и реальные ставки, условия кредитования"
     )
 

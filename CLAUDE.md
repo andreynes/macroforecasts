@@ -58,7 +58,7 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
   На Mac/машине файлы лежат на диске (их пишут расчёты, читает publish.sh). Резервной копии из образа больше нет: нет
   файла в бакете — у вкладки ошибка. Неиспользуемые Excel в корне (PBC…, «Данные по физикам», Минфин…) оставлены.
 - ВЫКЛАДКА ОБРАЗА ДАННЫЕ НЕ ОБНОВЛЯЕТ. Данные на сайт — только `./publish.sh <раздел>` (ruble, moex, ngd, cbr_models, macro,
-  analysts, yield, inflation_weekly, inflation_monthly), откат — `./publish.sh --rollback <раздел>`. Логика — `data_scripts/publish.py`: проверка (JSON без
+  analysts, yield, inflation_weekly, inflation_monthly, credit), откат — `./publish.sh --rollback <раздел>`. Логика — `data_scripts/publish.py`: проверка (JSON без
   NaN/Infinity, Excel с нужными листами; хоть один плох — ничего не грузится) → загрузка изменённых (SHA-256 против
   манифеста) под ключом macro-publisher → manifest.json (по файлу: published_at, as_of, sha256, version_id; по разделу —
   история 10 публикаций, первая — `baseline` того, что уже лежало) → вход /login и ожидание sha в `/diag/data`
@@ -90,8 +90,9 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 ## Прочее
 - Ветка `feature/gdp` — черновик раздела «ВВП и промышленность» (`/gdp`, `data_scripts/gdp/`, источники — README там);
   в main НЕ сливать без решения пользователя; перед `release_all.sh` убедиться, что текущая ветка — main.
-- Ветка `feature/credit` — черновик вкладки «Кредит и деньги» (`/credit`, `/api/credit` ← `data/credit_money.json`, расчёт —
-  `~/Desktop/Совкомбанк/Кредит`, см. его CLAUDE.md); в main НЕ сливать без решения пользователя.
+- Вкладка «Кредит» (`/credit`, `/api/credit` ← `data/credit_money.json`, под входом; с 26.11.2026 в main) — расчёт в репо
+  andreynes/credit (машина `~/credit`, Mac `~/Desktop/Совкомбанк/Кредит`, см. его CLAUDE.md), на сайт — `publish.sh credit`.
+  Реальные ставки: основная — КС минус ожидания населения (inFOM); для сравнения — аналитики, предприятия, ИПЦ SAAR, ИПЦ г/г.
 - `models/taylor_rule` — модель «Модели ЦБ» → `data/cbr_models.json` (см. README_RU.md).
 - `data_scripts/`, `data/*.json` (рубль, НГД и т.п.) — другие разделы; обновляются `data_scripts/update_ruble_tab.sh`, на сайт — `publish.sh`.
 

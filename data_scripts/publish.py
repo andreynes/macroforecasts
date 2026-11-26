@@ -93,6 +93,8 @@ SECTIONS = {
                          "pages": ["/inflation/weekly", "/api/inflation/weekly"]},
     "inflation_monthly": {"files": {"data/inflation_monthly.json": "data/inflation_monthly.json"},
                           "pages": ["/inflation/monthly", "/api/inflation/monthly"]},
+    # 26.11.2026: вкладка «Кредит» — расчёт andreynes/credit (машина ~/credit, run.sh)
+    "credit": {"files": {"data/credit_money.json": "data/credit_money.json"}, "pages": ["/credit", "/api/credit"]},
     "yield": {
         "files": {f"excel/{n}": n for n in (
             "yield_forecast_data.xlsx", "Денежный рынок – Ставки_исправлено_v2.xlsx", "Условия кредитования ЦБ.xlsx")},
