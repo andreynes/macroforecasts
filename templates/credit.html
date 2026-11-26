@@ -33,6 +33,12 @@
     <div class="small text-muted mb-2">Банк России, без валютной переоценки; бюджет — чистые требования к госуправлению.</div>
     <div id="chSrc" class="chart"></div>
   </div></div></div>
+  <div class="col-12"><div class="card glass shadow-soft"><div class="card-body">
+    <h5 class="card-title mb-1">Рост денежной массы с начала года, %</h5>
+    <div class="small text-muted mb-2">Банк России, остаток на конец месяца к концу декабря прошлого года.</div>
+    <div class="d-flex gap-1 flex-wrap mb-2 cr-btns" id="yBtns"></div>
+    <div id="chMoneyYtd" class="chart"></div>
+  </div></div></div>
 </div>
 
 <div class="cr-section">Кредит</div>
@@ -156,6 +162,21 @@
       buttons('mBtns', Object.keys(M.series), mk, drawM);
     };
     drawM('M2');
+    // рост с начала года: средние за периоды — пунктир, прошлый год — тонкая, текущий — белая
+    if (D.money_ytd) {
+      const MSY = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+      const drawY = k => {
+        // ключи-годы JS ставит впереди остальных — порядок задаём явно: средние, затем годы по возрастанию
+        const Y = D.money_ytd[k], yrs = Object.keys(Y).filter(n => /^\d{4}$/.test(n)).sort();
+        const names = Object.keys(Y).filter(n => !/^\d{4}$/.test(n)).concat(yrs), cur = yrs[yrs.length - 1];
+        const style = { 'Среднее 2017–2019': { color: PAL[7], width: 2, dash: 'dash' }, 'Среднее 2022–2025': { color: PAL[0], width: 2, dash: 'dash' } };
+        plot('chMoneyYtd', names.map((n, i) => line(n, MSY, Y[n], i, {
+          line: style[n] || (n === cur ? { color: '#fff', width: 3 } : { color: PAL[1], width: 2 }), hovertemplate: '%{y:.1f}%' })),
+          { xaxis: { type: 'category', gridcolor: grid, tickfont: { color: text80 } } });
+        buttons('yBtns', Object.keys(D.money_ytd), k, drawY);
+      };
+      drawY('M2');
+    }
     const S = D.sources, j0 = from(S.months, '2023-01'), xs = S.months.slice(j0).map(mlab);
     const comps = Object.keys(S.series).filter(k => !/M2X/.test(k));
     plot('chSrc', comps.map((k, i) => bar(sh(k), xs, S.series[k].slice(j0), [0, 3, 5, 7][i]))
