@@ -55,7 +55,7 @@
   </div></div></div>
   <div class="col-12 col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
     <h5 class="card-title mb-1">Темп кредита: SAAR и г/г, %</h5>
-    <div class="small text-muted mb-2">Своя сезонная корректировка (X-13); последние 2 точки — предварительные.</div>
+    <div class="small text-muted mb-2">Банк России; сезонная корректировка — своя (X-13).</div>
     <div class="d-flex gap-1 flex-wrap mb-2 cr-btns" id="cBtns"></div>
     <div id="chCredit" class="chart"></div>
     <details class="cr-more"><summary>Подробнее</summary><div class="cr-note" id="cDiag"></div></details>
@@ -207,10 +207,9 @@
     let ck = 'Корпоративные кредиты';
     const drawC = k => {
       ck = k; const s = C.series[k], n = xc.length, p = C.preliminary_last || 2;
-      const g = s.saar3.slice(k0), mainL = g.map((v, i) => i < n - p ? v : null), pre = g.map((v, i) => i >= n - p - 1 ? v : null);
+      const g = s.saar3.slice(k0);
       const tr = [
-        line('3м SAAR', xc, mainL, 0, { line: { color: PAL[0], width: 2.5 } }),
-        line('3м SAAR — предварительно', xc, pre, 0, { mode: 'lines+markers', line: { color: PAL[0], dash: 'dot' }, marker: { size: 7, symbol: 'circle-open' } }),
+        line('3м SAAR', xc, g, 0, { line: { color: PAL[0], width: 2.5 } }),
         line('г/г', xc, s.yoy.slice(k0), 3, { line: { color: PAL[3], width: 1.5, dash: 'dash' } }),
       ];
       if (C.show_mom[k]) tr.splice(2, 0, line('м/м SAAR', xc, s.mom_saar.slice(k0), 1, { line: { color: PAL[1], width: 1 } }));
