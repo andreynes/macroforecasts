@@ -7,7 +7,7 @@
     publish.sh <раздел> --dry-run              вхолостую: проверка файлов, что изменилось бы, вход на сайт —
                                                без загрузки в бакет и без записи manifest.json
 
-Разделы: ruble, moex, ngd, cbr_models, macro, analysts, yield, inflation_weekly, inflation_monthly (см. SECTIONS ниже).
+Разделы: ruble, moex, ngd, cbr_models, macro, analysts, yield, inflation_weekly, inflation_monthly, gdp (см. SECTIONS ниже).
 
 Шаги публикации:
   1. Проверка файлов: JSON разбирается и не содержит NaN/Infinity, Excel открывается и в нём есть нужные листы.
@@ -98,6 +98,8 @@ SECTIONS = {
                           "pages": ["/inflation/monthly", "/api/inflation/monthly"]},
     # 26.11.2026: вкладка «Кредит» — расчёт andreynes/credit (машина ~/credit, run.sh)
     "credit": {"files": {"data/credit_money.json": "data/credit_money.json"}, "pages": ["/credit", "/api/credit"]},
+    # ВВП: файл пишет run.sh из ~/Desktop/Совкомбанк/ВВП (репозиторий andreynes/gdp)
+    "gdp": {"files": {"data/gdp_activity.json": "data/gdp_activity.json"}, "pages": ["/gdp", "/api/gdp"]},
     "yield": {
         "files": {f"excel/{n}": n for n in (
             "yield_forecast_data.xlsx", "Денежный рынок – Ставки_исправлено_v2.xlsx", "Условия кредитования ЦБ.xlsx")},

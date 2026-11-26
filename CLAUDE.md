@@ -95,8 +95,9 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
 (`compare_parallel.py --published --json`, повтор в чт 10:00, вручную `RECHECK_COMPARE=1`) — подробно в CLAUDE.md «Инфляции».
 
 ## Прочее
-- Ветка `feature/gdp` — черновик раздела «ВВП и промышленность» (`/gdp`, `data_scripts/gdp/`, источники — README там);
-  в main НЕ сливать без решения пользователя; перед `release_all.sh` убедиться, что текущая ветка — main.
+- Вкладка «ВВП» (`/gdp`, `/api/gdp`, `templates/gdp.html`, под входом; с 26.11.2026 в main; раздел `gdp` в publish.py →
+  `data/gdp_activity.json`). Данные считает репозиторий andreynes/gdp (машина `~/gdp`, Mac `~/Desktop/Совкомбанк/ВВП`, `run.sh`;
+  см. его CLAUDE.md), источники — `data_scripts/gdp/README.md`.
 - Вкладка «Кредит» (`/credit`, `/api/credit` ← `data/credit_money.json`, под входом; с 26.11.2026 в main) — расчёт в репо
   andreynes/credit (машина `~/credit`, Mac `~/Desktop/Совкомбанк/Кредит`, см. его CLAUDE.md), на сайт — `publish.sh credit`.
   Реальные ставки: основная — КС минус ожидания населения (inFOM); для сравнения — аналитики, предприятия, ИПЦ SAAR, ИПЦ г/г.
