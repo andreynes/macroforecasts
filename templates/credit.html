@@ -43,13 +43,18 @@
 
 <div class="cr-section">Кредит</div>
 <div class="row g-4">
+  <div class="col-12"><div class="card glass shadow-soft"><div class="card-body">
+    <h5 class="card-title mb-1">Прирост кредитного портфеля с исключением валютной переоценки и сезонности, % SAAR</h5>
+    <div class="small text-muted mb-2">Кредиты компаниям и населению (без облигаций), м/м в годовом выражении; столбцы — вклады.</div>
+    <div id="chPortfolio" class="chart"></div>
+  </div></div></div>
   <div class="col-12 col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
     <h5 class="card-title mb-1">Кредит по сегментам, % г/г</h5>
     <div class="small text-muted mb-2">Банк России, с поправкой на валютную переоценку.</div>
     <div id="chCreditYoy" class="chart"></div>
   </div></div></div>
   <div class="col-12 col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
-    <h5 class="card-title mb-1">Темп кредита: 3м/3м SAAR и г/г, %</h5>
+    <h5 class="card-title mb-1">Темп кредита: SAAR и г/г, %</h5>
     <div class="small text-muted mb-2">Своя сезонная корректировка (X-13); последние 2 точки — предварительные.</div>
     <div class="d-flex gap-1 flex-wrap mb-2 cr-btns" id="cBtns"></div>
     <div id="chCredit" class="chart"></div>
@@ -183,8 +188,20 @@
       .concat([line('M2X г/г', xs, S.series['M2X, % г/г (операции)'].slice(j0), 1, { line: { color: '#fff', width: 2 } })]),
       { barmode: 'relative' });
 
+    // кредитный портфель: вклады столбцами (стопкой), итог — линия с подписью последнего значения
+    const P = D.portfolio;
+    if (P && P.months.length) {
+      const p0 = from(P.months, '2023-01'), xp = P.months.slice(p0).map(mlab), tot = P.total_saar.slice(p0);
+      const pk = Object.keys(P.contrib), last = tot.length - 1;
+      plot('chPortfolio', pk.map((k, i) => bar('Вклад: ' + k.toLowerCase(), xp, P.contrib[k].slice(p0), [0, 1][i], { hovertemplate: '%{y:.1f}' }))
+        .concat([line('Кредитный портфель, % SAAR', xp, tot, 0, { mode: 'lines+markers', line: { color: '#fff', width: 2.5 }, marker: { size: 4 } })]),
+        { barmode: 'relative',
+          annotations: [{ x: xp[last], y: tot[last], text: '<b>' + nf(tot[last]) + '</b>', showarrow: false, xanchor: 'left', xshift: 8,
+                          font: { color: '#fff', size: 13 }, bgcolor: '#0f1220', bordercolor: '#fff', borderpad: 3 }] });
+    }
+
     // кредит
-    const C = D.credit, segs = Object.keys(C.series), k0 = from(C.months, '2019-01'), xc = C.months.slice(k0).map(mlab);
+    const C = D.credit, segs = Object.keys(C.series), k0 = from(C.months, '2023-01'), xc = C.months.slice(k0).map(mlab);
     plot('chCreditYoy', segs.map((k, i) => line(k, xc, C.series[k].yoy.slice(k0), i,
       k === 'Кредит экономике' ? { line: { color: PAL[i], width: 3 } } : (k === 'Кредиты физлицам' ? { visible: 'legendonly' } : {}))));
     let ck = 'Корпоративные кредиты';
@@ -192,8 +209,8 @@
       ck = k; const s = C.series[k], n = xc.length, p = C.preliminary_last || 2;
       const g = s.saar3.slice(k0), mainL = g.map((v, i) => i < n - p ? v : null), pre = g.map((v, i) => i >= n - p - 1 ? v : null);
       const tr = [
-        line('3м/3м SAAR', xc, mainL, 0, { line: { color: PAL[0], width: 2.5 } }),
-        line('3м/3м SAAR — предварительно', xc, pre, 0, { mode: 'lines+markers', line: { color: PAL[0], dash: 'dot' }, marker: { size: 7, symbol: 'circle-open' } }),
+        line('3м SAAR', xc, mainL, 0, { line: { color: PAL[0], width: 2.5 } }),
+        line('3м SAAR — предварительно', xc, pre, 0, { mode: 'lines+markers', line: { color: PAL[0], dash: 'dot' }, marker: { size: 7, symbol: 'circle-open' } }),
         line('г/г', xc, s.yoy.slice(k0), 3, { line: { color: PAL[3], width: 1.5, dash: 'dash' } }),
       ];
       if (C.show_mom[k]) tr.splice(2, 0, line('м/м SAAR', xc, s.mom_saar.slice(k0), 1, { line: { color: PAL[1], width: 1 } }));
@@ -205,7 +222,7 @@
       buttons('cBtns', segs, ck, drawC);
     };
     drawC(ck);
-    const I = D.impulse, i1 = from(I.months, '2017-01'), xi = I.months.slice(i1).map(mlab);
+    const I = D.impulse, i1 = from(I.months, '2023-01'), xi = I.months.slice(i1).map(mlab);
     plot('chImp', [
       bar('Кредитный импульс, п.п. ВВП', xi, I.impulse_pp.slice(i1), 0, { marker: { color: I.impulse_pp.slice(i1).map(v => v >= 0 ? '#4caf50' : '#ff8a8a') } }),
       line(sh('Прирост кредита за 12 мес., % ВВП (правая ось)'), xi, I.flow12_pct_gdp.slice(i1), 3, { yaxis: 'y2' }),
@@ -213,7 +230,7 @@
          margin: { l: 48, r: 40, t: 10, b: 36 } });
 
     // ставки
-    const R = D.rates, r0 = from(R.months, '2019-01'), xr = R.months.slice(r0).map(mlab), rk = Object.keys(R.series);
+    const R = D.rates, r0 = from(R.months, '2023-01'), xr = R.months.slice(r0).map(mlab), rk = Object.keys(R.series);
     plot('chRates', rk.map((k, i) => line(sh(k), xr, R.series[k].slice(r0), i,
       k === 'Ключевая ставка' ? { line: { color: '#fff', width: 2.5, shape: 'hv' }, hovertemplate: '%{y:.2f}' }
       : { hovertemplate: '%{y:.2f}', visible: /свыше 1 года|RUONIA/.test(k) && !/Вклады/.test(k) ? 'legendonly' : true })));
@@ -229,7 +246,7 @@
       shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: 0, y1: 0, line: { color: text80, width: 1 } }] });
 
     // УБК
-    const U = D.ubk, q0 = Math.max(0, U.quarters.indexOf('2019-Q1')), xq = U.quarters.slice(q0).map(qlab);
+    const U = D.ubk, q0 = Math.max(0, U.quarters.indexOf('2023-Q1')), xq = U.quarters.slice(q0).map(qlab);
     const uk = Object.keys(U.series).filter(k => /УБК в целом/.test(k));
     plot('chUbk', uk.map((k, i) => bar(k.replace(': УБК в целом', ''), xq, U.series[k].slice(q0), [0, 5, 1][i])), { barmode: 'group' });
 
