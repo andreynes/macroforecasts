@@ -146,6 +146,41 @@
   };
   const sh = k => SHORT[k] || k;
 
+  // кнопка «Скачать PNG» над каждым графиком — как на «Рубле» (addPngButtons): в картинку добавляется заголовок карточки
+  function addPngButtons() {
+    document.querySelectorAll('div.chart').forEach(el => {
+      const body = el.closest('.card-body');
+      if (!body || body.querySelector('.png-btn')) return;
+      const titleEl = body.querySelector('.card-title');
+      const title = titleEl ? titleEl.textContent.trim() : el.id;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-outline-light btn-sm png-btn';
+      btn.textContent = 'Скачать PNG';
+      btn.title = 'Скачать график в PNG';
+      btn.style.cssText = 'padding:1px 10px; font-size:12px;';
+      const row = document.createElement('div');
+      row.className = 'd-flex justify-content-end mb-1';
+      row.appendChild(btn);
+      el.parentNode.insertBefore(row, el);
+      btn.addEventListener('click', async () => {
+        if (!el.layout) return;
+        const m = el.layout.margin || {};
+        const old = { title: el.layout.title || { text: '' }, 'margin.t': m.t ?? 10 };
+        const legendTop = el.layout.legend && el.layout.legend.y > 1 && el.layout.showlegend !== false ? 70 : 0;
+        try {
+          await Plotly.relayout(el, { title: { text: title, x: 0.01, xanchor: 'left', y: 0.99, yanchor: 'top', font: { size: 16, color: 'white' } },
+                                      'margin.t': (m.t ?? 10) + 44 + legendTop });
+          const name = title.replace(/[^0-9A-Za-zА-Яа-яЁё]+/g, '_').replace(/^_|_$/g, '').slice(0, 80);
+          await Plotly.downloadImage(el, { format: 'png', filename: name || 'credit_chart', scale: 2,
+                                           width: el.clientWidth, height: el.clientHeight + 44 + legendTop });
+        } finally {
+          await Plotly.relayout(el, old);
+        }
+      });
+    });
+  }
+
   function render(D) {
     $('crAsOf').textContent = `Кредит — по ${mfull(D.data_as_of)}, деньги и ставки — свежее · собрано ${D.generated.slice(0, 10).split('-').reverse().join('.')}`;
     $('crKpis').innerHTML = D.kpi.map(k => {
@@ -258,7 +293,7 @@
 
   fetch('/api/credit', { credentials: 'same-origin' })
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(render)
+    .then(D => { render(D); addPngButtons(); })
     .catch(e => {
       if (window.showDataLoadError) { window.showDataLoadError(e); return; }
       $('crError').hidden = false; $('crError').textContent = 'Не удалось загрузить данные: ' + e.message;
