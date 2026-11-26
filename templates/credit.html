@@ -45,7 +45,7 @@
 <div class="row g-4">
   <div class="col-12"><div class="card glass shadow-soft"><div class="card-body">
     <h5 class="card-title mb-1">Прирост кредитного портфеля с исключением валютной переоценки и сезонности, % SAAR</h5>
-    <div class="small text-muted mb-2">Кредиты компаниям и населению (без облигаций), м/м в годовом выражении; столбцы — вклады.</div>
+    <div class="small text-muted mb-2">Банк России («О развитии банковского сектора»); сезонность — средние по месяцам; столбцы — вклады.</div>
     <div id="chPortfolio" class="chart"></div>
   </div></div></div>
   <div class="col-12 col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
@@ -69,13 +69,13 @@
 
 <div class="cr-section">Ставки</div>
 <div class="row g-4">
-  <div class="col-12 col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
-    <h5 class="card-title mb-1">Ключевая ставка, RUONIA и ставки банков, % годовых</h5>
-    <div class="small text-muted mb-2">Банк России; ставки по новым кредитам и вкладам — с лагом ~1,5 мес.</div>
+  <div class="col-12"><div class="card glass shadow-soft"><div class="card-body">
+    <h5 class="card-title mb-1">Ключевая ставка и ставки банков, % годовых</h5>
+    <div class="small text-muted mb-2">Банк России; FRMAX — средняя максимальная ставка по вкладам 10 банков, привлекающих больше всего вкладов.</div>
     <div id="chRates" class="chart"></div>
     <div class="cr-note mt-2" id="ratesNote"></div>
   </div></div></div>
-  <div class="col-12 col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+  <div class="col-12"><div class="card glass shadow-soft"><div class="card-body">
     <h5 class="card-title mb-1">Реальные ставки, п.п.</h5>
     <div class="small text-muted mb-2">Ключевая ставка минус оценки инфляции; белая линия — основная.</div>
     <div id="chReal" class="chart"></div>
@@ -85,8 +85,8 @@
 <div class="cr-section">Условия кредитования</div>
 <div class="row g-4">
   <div class="col-12"><div class="card glass shadow-soft"><div class="card-body">
-    <h5 class="card-title mb-1">Индексы условий банковского кредитования, п.п.</h5>
-    <div class="small text-muted mb-2">Обследование банков ЦБ, квартал: больше нуля — ужесточение.</div>
+    <h5 class="card-title mb-1">Условия кредитования: изменение, баланс ответов</h5>
+    <div class="small text-muted mb-2">Мониторинг предприятий Банка России, ежемесячно; ниже нуля — условия ухудшились.</div>
     <div id="chUbk" class="chart"></div>
   </div></div></div>
 </div>
@@ -136,7 +136,7 @@
     'Ключевая ставка': 'Ключевая', 'RUONIA (среднее за месяц)': 'RUONIA',
     'Кредиты организациям до 1 года': 'Кредиты орг. до 1 г.', 'Кредиты организациям свыше 1 года': 'Кредиты орг. > 1 г.',
     'Кредиты физлицам (все)': 'Кредиты физлицам', 'Вклады физлиц до 1 года (кроме до востр.)': 'Вклады до 1 г.',
-    'Вклады физлиц свыше 1 года': 'Вклады > 1 г.', 'FRMAX (макс. ставка топ-10 банков)': 'FRMAX',
+    'Вклады физлиц свыше 1 года': 'Вклады > 1 г.',
     'Ключевая − ожидания населения (inFOM, на год)': 'к ожиданиям населения',
     'Ключевая − ожидания аналитиков (макроопрос ЦБ, на 12 мес.)': 'к ожиданиям аналитиков',
     'Ключевая − ожидания предприятий (рост цен на 3 мес., в год. выраж.)': 'к ожиданиям предприятий',
@@ -233,7 +233,7 @@
     const R = D.rates, r0 = from(R.months, '2023-01'), xr = R.months.slice(r0).map(mlab), rk = Object.keys(R.series);
     plot('chRates', rk.map((k, i) => line(sh(k), xr, R.series[k].slice(r0), i,
       k === 'Ключевая ставка' ? { line: { color: '#fff', width: 2.5, shape: 'hv' }, hovertemplate: '%{y:.2f}' }
-      : { hovertemplate: '%{y:.2f}', visible: /свыше 1 года|RUONIA/.test(k) && !/Вклады/.test(k) ? 'legendonly' : true })));
+      : { hovertemplate: '%{y:.2f}', visible: /свыше 1 года/.test(k) && !/Вклады/.test(k) ? 'legendonly' : true })));
     const fr = R.series[rk.find(k => /FRMAX/.test(k))] || [];
     const frLast = R.months.filter((m, i) => fr[i] != null).pop();
     // FRMAX из книги «Прогноза доходностей»: предупреждение, только если она отстала больше чем на 2 месяца
@@ -245,10 +245,14 @@
       : { hovertemplate: '%{y:.2f}', visible: /кредитам организациям|ИПЦ г\/г/.test(k) ? 'legendonly' : true })), {
       shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: 0, y1: 0, line: { color: text80, width: 1 } }] });
 
-    // УБК
-    const U = D.ubk, q0 = Math.max(0, U.quarters.indexOf('2023-Q1')), xq = U.quarters.slice(q0).map(qlab);
-    const uk = Object.keys(U.series).filter(k => /УБК в целом/.test(k));
-    plot('chUbk', uk.map((k, i) => bar(k.replace(': УБК в целом', ''), xq, U.series[k].slice(q0), [0, 5, 1][i])), { barmode: 'group' });
+    // условия кредитования — мониторинг предприятий (ежемесячно), линия
+    const LC = D.lending_conditions;
+    if (LC && LC.months.length) {
+      const l0 = from(LC.months, '2023-01');
+      plot('chUbk', [line('Условия кредитования, баланс ответов', LC.months.slice(l0).map(mlab), LC.values.slice(l0), 0,
+        { line: { color: '#fff', width: 2.5 } })],
+        { showlegend: false, shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: 0, y1: 0, line: { color: text80, width: 1 } }] });
+    }
 
     $('crFoot').innerHTML = 'Источники: ' + Object.values(D.sources_text).join('; ') + '.';
   }
