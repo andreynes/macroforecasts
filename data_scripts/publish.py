@@ -100,6 +100,8 @@ SECTIONS = {
     "credit": {"files": {"data/credit_money.json": "data/credit_money.json"}, "pages": ["/credit", "/api/credit"]},
     # ВВП: файл пишет run.sh из ~/Desktop/Совкомбанк/ВВП (репозиторий andreynes/gdp)
     "gdp": {"files": {"data/gdp_activity.json": "data/gdp_activity.json"}, "pages": ["/gdp", "/api/gdp"]},
+    # 26.11.2026: вкладка «Потребактивность» — расчёт andreynes/consumer (машина ~/consumer, build.py)
+    "consumer": {"files": {"data/consumer_activity.json": "data/consumer_activity.json"}, "pages": ["/consumer", "/api/consumer"]},
     "yield": {
         "files": {f"excel/{n}": n for n in (
             "yield_forecast_data.xlsx", "Денежный рынок – Ставки_исправлено_v2.xlsx", "Условия кредитования ЦБ.xlsx")},

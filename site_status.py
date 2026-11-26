@@ -26,6 +26,8 @@ SECTION_LABELS = {
     "analysts": "Прогнозы аналитиков",
     "yield": "Доходности (ОФЗ, ставки)",
     "gdp": "ВВП",
+    "credit": "Кредит",
+    "consumer": "Потребактивность",
 }
 
 # Ожидаемая частота. Расписания (kind != age): светофор по последнему сроку — зелёный, если опубликовано после
@@ -45,6 +47,8 @@ SCHEDULES: Dict[str, Dict] = {
     "analysts": {"kind": "age", "green_days": 35, "red_days": 62, "label": "вручную, ~раз в месяц"},
     "yield": {"kind": "age", "green_days": 35, "red_days": 62, "label": "вручную, ~раз в месяц"},
     "credit": {"kind": "age", "green_days": 35, "red_days": 62, "label": "машина, по выходу данных ЦБ (~20-го)"},
+    "gdp": {"kind": "age", "green_days": 35, "red_days": 62, "label": "машина, по выходу данных Росстата/МЭР/ЦБ"},
+    "consumer": {"kind": "age", "green_days": 35, "red_days": 62, "label": "машина, по выходу данных Росстата/ЦБ"},
 }
 
 # Кто публикует, если в manifest.json нет поля published_by (записи до 20.11.2026)
