@@ -18,11 +18,11 @@
 
 <div class="row g-3 mb-1 cr-kpis" id="crKpis"></div>
 
-<div class="cr-section">Деньги</div>
+<div class="cr-section">Денежная масса</div>
 <div class="row g-3">
   <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
-    <h5 class="card-title mb-1">Денежная масса: г/г и 3м/3м SAAR, %</h5>
-    <div class="cr-sub">Банк России, на конец месяца. M2 — национальное определение (наличные + рублёвые депозиты), M2X — с валютными депозитами. 3м/3м SAAR — по сезонно скорректированному ряду ЦБ (monetary_agg_SA): три последних месяца к трём предыдущим, в годовом выражении.</div>
+    <h5 class="card-title mb-1">Денежная масса: г/г и 3м SAAR, %</h5>
+    <div class="cr-sub">Банк России, на конец месяца. M2 — национальное определение (наличные + рублёвые депозиты), M2X — с валютными депозитами. 3м SAAR — по сезонно скорректированному ряду ЦБ (monetary_agg_SA): три последних месяца к трём предыдущим, в годовом выражении.</div>
     <div class="d-flex gap-1 flex-wrap my-1 cr-btns" id="mBtns"></div>
     <div id="chMoney" class="cr-chart"></div>
   </div></div></div>
@@ -132,15 +132,15 @@
     // деньги
     const M = D.money; let mk = 'M2';
     const drawM = k => {
-      mk = k; const s = M.series[k], i0 = from(M.months, '2019-01'), x = M.months.slice(i0).map(mlab);
+      mk = k; const s = M.series[k], i0 = from(M.months, '2023-01'), x = M.months.slice(i0).map(mlab);
       plot('chMoney', [
-        line('3м/3м SAAR (SA ЦБ)', x, s.saar3.slice(i0), 0, { line: { color: PAL[0], width: 2.5 } }),
+        line('3м SAAR', x, s.saar3.slice(i0), 0, { line: { color: PAL[0], width: 2.5 } }),
         line('г/г', x, s.yoy.slice(i0), 3, { line: { color: PAL[3], width: 1.5, dash: 'dash' } }),
       ]);
       buttons('mBtns', Object.keys(M.series), mk, drawM);
     };
     drawM('M2');
-    const S = D.sources, j0 = from(S.months, '2019-01'), xs = S.months.slice(j0).map(mlab);
+    const S = D.sources, j0 = from(S.months, '2023-01'), xs = S.months.slice(j0).map(mlab);
     const comps = Object.keys(S.series).filter(k => !/M2X/.test(k));
     plot('chSrc', comps.map((k, i) => bar(k, xs, S.series[k].slice(j0), [0, 3, 5, 7][i]))
       .concat([line('M2X, % г/г', xs, S.series['M2X, % г/г (операции)'].slice(j0), 1, { line: { color: '#fff', width: 2 } })]),
