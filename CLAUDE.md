@@ -20,6 +20,13 @@ URL: https://bba2agi0c621jbhicgod.containers.yandexcloud.net/ . Общий за�
   Месячный шаблон сайта содержит разделы, которых нет в локальном `dashboard_template_monthly.html` — не перегенерировать целиком.
 - Платформа сама сжимает ответы gzip (/api/inflation/weekly: 948 КБ → 200 КБ) — сжатие в app.py не нужно.
 
+## Этап 5 (неделю публикует ВМ) — ветка feature/stage5, НЕ слита (готовится к 26.11.2026)
+- `/api/inflation/commentary` (под входом) — `data/inflation_commentary.json` (commentary.py), в DATA_JSON_FILES (/diag/data);
+  раздел publish `inflation_weekly` — файл необязательный (`optional`: нет файла — раздел публикуется без него).
+- Блок «Коротко о неделе» над первым графиком `/inflation/weekly` — только если `latest.week` = последняя неделя ITOGO.
+- Переключение — `ops/stage5.sh --check|--on|--off [--dry-run]` в репозитории инфляции; разбор включается на ВМ (COMMENTARY=1),
+  только когда код сайта с этой веткой выложен (иначе publish ждал бы файл в /diag/data и падал).
+
 ## Выкладка
 С 14.11.2026 все накопленные правки (рубль, НГД, Метрика, data_scripts, data/*.json) закоммичены в `main` —
 рабочая папка и коммит совпадают. Точка отката до этого коммита — ветка `before-2026-11-14`.

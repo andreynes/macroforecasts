@@ -89,7 +89,10 @@ SECTIONS = {
               "pages": ["/", "/api/indicators", "/export"]},
     "analysts": {"files": {"excel/analyst_forecasts.xlsx": "analyst_forecasts.xlsx"},
                  "pages": ["/api/analyst_forecasts"]},
-    "inflation_weekly": {"files": {"data/inflation_weekly.json": "data/inflation_weekly.json"},
+    # inflation_commentary.json — текстовый разбор недели (этап 5): необязательный — нет файла, раздел публикуется без него
+    "inflation_weekly": {"files": {"data/inflation_weekly.json": "data/inflation_weekly.json",
+                                   "data/inflation_commentary.json": "data/inflation_commentary.json"},
+                         "optional": ["data/inflation_commentary.json"],
                          "pages": ["/inflation/weekly", "/api/inflation/weekly"]},
     "inflation_monthly": {"files": {"data/inflation_monthly.json": "data/inflation_monthly.json"},
                           "pages": ["/inflation/monthly", "/api/inflation/monthly"]},
@@ -426,6 +429,9 @@ def publish(section, as_of_override=None, dry_run=False):
     errors = []
     for key, rel in spec["files"].items():
         path = os.path.join(SITE_DIR, rel)
+        if key in spec.get("optional", ()) and not os.path.isfile(path):
+            log(f"  нет     {rel}  (необязательный — без него)")
+            continue
         try:
             as_of = check_file(path, spec.get("sheets", {}).get(os.path.basename(rel), ()))
             checked[key] = (path, as_of_override or as_of)

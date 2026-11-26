@@ -922,6 +922,7 @@ def inflation_monthly():
 
 INFLATION_WEEKLY_FILE = "inflation_weekly.json"    # читается через _data_file()
 INFLATION_MONTHLY_FILE = "inflation_monthly.json"  # читается через _data_file()
+INFLATION_COMMENTARY_FILE = "inflation_commentary.json"  # текстовый разбор недели (commentary.py, этап 5), необязательный
 
 
 @app.route("/api/inflation/weekly")
@@ -932,6 +933,16 @@ def api_inflation_weekly():
             return app.response_class(f.read(), mimetype="application/json")
     except FileNotFoundError:
         return jsonify({"error": "Нет данных недельной инфляции: запустите update_site_weekly.sh"}), 404
+
+@app.route("/api/inflation/commentary")
+def api_inflation_commentary():
+    # Под входом (не в PUBLIC_PATHS). Файл пишет commentary.py в run_add_week.sh (COMMENTARY=1), публикуется
+    # в разделе inflation_weekly. Нет файла — 404, блок «Коротко о неделе» на странице не показывается.
+    try:
+        with open(_data_file(INFLATION_COMMENTARY_FILE), encoding="utf-8") as f:
+            return app.response_class(f.read(), mimetype="application/json")
+    except FileNotFoundError:
+        return jsonify({"error": "Разбора недели нет"}), 404
 
 @app.route("/api/inflation/monthly")
 def api_inflation_monthly():
@@ -1303,7 +1314,7 @@ def diag():
 DATA_JSON_FILES = [
     RUBLE_FX_FILE, CBR_FX_OPS_FILE, CNY_VOLUMES_FILE, EXPORTERS_NEED_FILE, FUTOI_DATA_FILE,
     OIL_EXPORTS_FILE, FX_SALES_RATIO_FILE, RUBLE_PAGE_FILE, NGD_DATA_FILE, CBR_MODELS_FILE,
-    INFLATION_WEEKLY_FILE, INFLATION_MONTHLY_FILE,
+    INFLATION_WEEKLY_FILE, INFLATION_MONTHLY_FILE, INFLATION_COMMENTARY_FILE,
 ]
 DATA_EXCEL_ENV = {
     "macro_main_linked.xlsx": "DATA_FILE",
