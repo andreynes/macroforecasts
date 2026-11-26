@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .cr-eyebrow { font-size: .6rem; letter-spacing: .01em; text-transform: uppercase; color: var(--text-80); font-weight: 600; word-break: keep-all; hyphens: auto; }
+  .cr-kpi-v { font-size: 1.45rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cr-sub { font-size: .8rem; color: var(--text-80); }
+  .cr-kpis .cr-sub { font-size: .72rem; }
+  .cr-kpis > div { flex: 1 1 0; min-width: 7.6rem; }
+  .cr-kpis .card-body { padding: .7rem .75rem; }
+  .cr-note { font-size: .8rem; color: var(--text-80); margin-top: .4rem; }
+  .cr-chart { height: 320px; }
+  .cr-section { font-size: 1.15rem; font-weight: 700; margin: 1.6rem 0 .8rem; }
+  .cr-btns .btn.active { background: rgba(255,255,255,.18); }
+</style>
+
+<div class="d-flex align-items-center gap-2 mb-2"><span class="cr-sub" id="crAsOf"></span></div>
+<div id="crError" class="alert alert-warning" hidden></div>
+
+<div class="row g-3 mb-1 cr-kpis" id="crKpis"></div>
+
+<div class="cr-section">Деньги</div>
+<div class="row g-3">
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Денежная масса: г/г и 3м/3м SAAR, %</h5>
+    <div class="cr-sub">Банк России, на конец месяца. M2 — национальное определение (наличные + рублёвые депозиты), M2X — с валютными депозитами. 3м/3м SAAR — по сезонно скорректированному ряду ЦБ (monetary_agg_SA): три последних месяца к трём предыдущим, в годовом выражении.</div>
+    <div class="d-flex gap-1 flex-wrap my-1 cr-btns" id="mBtns"></div>
+    <div id="chMoney" class="cr-chart"></div>
+  </div></div></div>
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Источники роста M2X за 12 месяцев, п.п.</h5>
+    <div class="cr-sub">Банк России (credit_m2x, операции без валютной переоценки) в процентах от M2X год назад. Кредит экономике — банковский канал; чистые требования к госуправлению — бюджетный канал (расходование средств бюджета, ОФЗ у банков); чистые иностранные активы — покупки валюты ЦБ и банками.</div>
+    <div id="chSrc" class="cr-chart"></div>
+  </div></div></div>
+</div>
+
+<div class="cr-section">Кредит</div>
+<div class="row g-3">
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Кредит по сегментам, % г/г</h5>
+    <div class="cr-sub">Банк России: г/г с поправкой на валютную переоценку (credit_m2x); ипотека и потребкредит — задолженность физлиц (02_05, 02_09; с 2019 г.), потребкредит = все кредиты физлицам минус жилищные.</div>
+    <div id="chCreditYoy" class="cr-chart"></div>
+  </div></div></div>
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Темп кредита: 3м/3м SAAR и г/г, %</h5>
+    <div class="cr-sub">Сезонная корректировка — своя (X-13ARIMA-SEATS, логарифмы, автомодель, календарь РФ, выбросы 2020–2022) по индексу задолженности без валютной переоценки. Последние 2 точки — предварительно (пунктир). м/м SAAR показываем, только если ревизии последних 24 мес. в среднем ≤ 1,5 п.п.</div>
+    <div class="d-flex gap-1 flex-wrap my-1 cr-btns" id="cBtns"></div>
+    <div id="chCredit" class="cr-chart"></div>
+    <div class="cr-note" id="cDiag"></div>
+  </div></div></div>
+</div>
+<div class="row g-3 mt-0">
+  <div class="col-xl-12"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Кредитный импульс, п.п. ВВП</h5>
+    <div class="cr-sub">Изменение прироста кредита экономике за 12 мес. (операции, без переоценки) против того же прироста годом ранее, в % номинального ВВП за 4 квартала (Росстат; после последнего опубликованного квартала — его значение). Положительный импульс — кредит ускоряет спрос, отрицательный — тормозит. Линия — сам прирост кредита за 12 мес., % ВВП (правая ось).</div>
+    <div id="chImp" class="cr-chart"></div>
+  </div></div></div>
+</div>
+
+<div class="cr-section">Ставки</div>
+<div class="row g-3">
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Ключевая ставка, RUONIA и ставки банков, % годовых</h5>
+    <div class="cr-sub">Ключевая — книга «Макропрогнозов» (на конец месяца); RUONIA — среднее за месяц; средневзвешенные ставки по новым кредитам и вкладам в рублях — Банк России (выходят с лагом ~1,5 мес.); FRMAX — средняя максимальная ставка 10 крупнейших банков по вкладам (по декадам, из вкладки «Прогноз доходностей»).</div>
+    <div id="chRates" class="cr-chart"></div>
+    <div class="cr-note" id="ratesNote"></div>
+  </div></div></div>
+  <div class="col-xl-6"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Реальные ставки, п.п.</h5>
+    <div class="cr-sub">Ключевая ставка минус оценки инфляции. <b>Основная (белая линия)</b> — минус ожидания населения на год (медиана inFOM): важна для решений о сбережениях. Для сравнения: ожидания аналитиков на 12 мес. (макроопрос ЦБ), ожидания предприятий — рост цен на 3 мес. в годовом выражении (мониторинг ЦБ), текущий ИПЦ SAAR (3 мес., SA ЦБ), ИПЦ г/г; для компаний — ставка по кредитам свыше 1 года минус ИПЦ г/г.</div>
+    <div id="chReal" class="cr-chart"></div>
+  </div></div></div>
+</div>
+
+<div class="cr-section">Условия кредитования</div>
+<div class="row g-3">
+  <div class="col-xl-12"><div class="card glass shadow-soft h-100"><div class="card-body">
+    <h5 class="card-title mb-1">Индексы условий банковского кредитования, п.п.</h5>
+    <div class="cr-sub">Банк России, ежеквартальное обследование крупнейших банков: доля ужесточивших минус доля смягчивших условия (больше нуля — ужесточение). Индекс условий кредитования CC, на котором построена модель 3 вкладки «ОФЗ», здесь не дублируется — <a href="/ofz">см. «ОФЗ»</a>.</div>
+    <div id="chUbk" class="cr-chart"></div>
+  </div></div></div>
+</div>
+
+<div class="cr-note mt-3" id="crFoot"></div>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const css = getComputedStyle(document.documentElement);
+  const bgCard = css.getPropertyValue('--card').trim() || '#171c2a';
+  const grid = css.getPropertyValue('--grid').trim() || '#263043';
+  const text80 = css.getPropertyValue('--text-80').trim() || '#b1b7c3';
+  const PAL = ['#2f80ed', '#ff72c0', '#4caf50', '#ffd54f', '#9333ea', '#26c6da', '#ff9f43', '#a0a7b4'];
+  const MS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  const MF = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+  const nf = (v, d = 1) => v == null ? '—' : v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const sg = (v, d = 1) => v == null ? '—' : (v > 0 ? '+' : '') + nf(v, d);
+  const mlab = m => { const [y, mm] = m.split('-'); return MS[+mm - 1] + ' ' + y; };
+  const mfull = m => { const [y, mm] = m.split('-'); return MF[+mm - 1] + ' ' + y; };
+  const qlab = q => q.replace(/(\d{4})-Q(\d)/, (_, y, n) => ['I', 'II', 'III', 'IV'][n - 1] + ' кв. ' + y.slice(2));
+
+  function layout(extra) {
+    return Object.assign({
+      margin: { l: 46, r: 12, t: 10, b: 36 }, paper_bgcolor: bgCard, plot_bgcolor: bgCard,
+      font: { family: 'Montserrat, system-ui', color: 'white', size: 11 },
+      xaxis: { type: 'category', gridcolor: grid, tickfont: { color: text80 }, nticks: 10 },
+      yaxis: { gridcolor: grid, tickfont: { color: text80 }, zerolinecolor: text80 },
+      legend: { orientation: 'h', y: -0.18, font: { color: text80 } },
+      hoverlabel: { bgcolor: '#0f1220', font: { color: '#fff' } }, hovermode: 'x unified',
+    }, extra || {});
+  }
+  const plot = (el, tr, ex) => Plotly.react(el, tr, layout(ex), { displayModeBar: false, responsive: true, locale: 'ru' });
+  const line = (name, x, y, i, ex) => Object.assign({ type: 'scatter', mode: 'lines', name, x, y, connectgaps: false,
+    line: { color: PAL[i], width: 2 }, hovertemplate: '%{y:.1f}' }, ex || {});
+  const bar = (name, x, y, i, ex) => Object.assign({ type: 'bar', name, x, y, marker: { color: PAL[i] }, hovertemplate: '%{y:.1f}' }, ex || {});
+  const from = (months, start) => Math.max(0, months.indexOf(start));
+  const buttons = (el, keys, cur, onPick) => {
+    $(el).innerHTML = keys.map(k => `<button class="btn btn-sm btn-outline-light" data-k="${k}">${k}</button>`).join('');
+    $(el).querySelectorAll('button').forEach(b => b.onclick = () => onPick(b.dataset.k));
+    $(el).querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.k === cur));
+  };
+
+  function render(D) {
+    $('crAsOf').textContent = `Кредит — по ${mfull(D.data_as_of)}, деньги и ставки — свежее · собрано ${D.generated.slice(0, 10).split('-').reverse().join('.')}`;
+    $('crKpis').innerHTML = D.kpi.map(k => {
+      const rate = /ставка/i.test(k.label) && !/Реальная/.test(k.label);
+      const v = rate ? nf(k.value, 2) + '%' : (/импульс/.test(k.label) ? sg(k.value) : sg(k.value) + '%');
+      return `<div class="col"><div class="card glass shadow-soft h-100"><div class="card-body">
+        <div class="cr-eyebrow">${k.label}</div><div class="cr-kpi-v">${v}</div>
+        <div class="cr-sub">${mfull(k.month)}</div></div></div></div>`;
+    }).join('');
+
+    // деньги
+    const M = D.money; let mk = 'M2';
+    const drawM = k => {
+      mk = k; const s = M.series[k], i0 = from(M.months, '2019-01'), x = M.months.slice(i0).map(mlab);
+      plot('chMoney', [
+        line('3м/3м SAAR (SA ЦБ)', x, s.saar3.slice(i0), 0, { line: { color: PAL[0], width: 2.5 } }),
+        line('г/г', x, s.yoy.slice(i0), 3, { line: { color: PAL[3], width: 1.5, dash: 'dash' } }),
+      ]);
+      buttons('mBtns', Object.keys(M.series), mk, drawM);
+    };
+    drawM('M2');
+    const S = D.sources, j0 = from(S.months, '2019-01'), xs = S.months.slice(j0).map(mlab);
+    const comps = Object.keys(S.series).filter(k => !/M2X/.test(k));
+    plot('chSrc', comps.map((k, i) => bar(k, xs, S.series[k].slice(j0), [0, 3, 5, 7][i]))
+      .concat([line('M2X, % г/г', xs, S.series['M2X, % г/г (операции)'].slice(j0), 1, { line: { color: '#fff', width: 2 } })]),
+      { barmode: 'relative' });
+
+    // кредит
+    const C = D.credit, segs = Object.keys(C.series), k0 = from(C.months, '2019-01'), xc = C.months.slice(k0).map(mlab);
+    plot('chCreditYoy', segs.map((k, i) => line(k, xc, C.series[k].yoy.slice(k0), i,
+      k === 'Кредит экономике' ? { line: { color: PAL[i], width: 3 } } : (k === 'Кредиты физлицам' ? { visible: 'legendonly' } : {}))));
+    let ck = 'Корпоративные кредиты';
+    const drawC = k => {
+      ck = k; const s = C.series[k], n = xc.length, p = C.preliminary_last || 2;
+      const g = s.saar3.slice(k0), mainL = g.map((v, i) => i < n - p ? v : null), pre = g.map((v, i) => i >= n - p - 1 ? v : null);
+      const tr = [
+        line('3м/3м SAAR', xc, mainL, 0, { line: { color: PAL[0], width: 2.5 } }),
+        line('3м/3м SAAR — предварительно', xc, pre, 0, { mode: 'lines+markers', line: { color: PAL[0], dash: 'dot' }, marker: { size: 7, symbol: 'circle-open' } }),
+        line('г/г', xc, s.yoy.slice(k0), 3, { line: { color: PAL[3], width: 1.5, dash: 'dash' } }),
+      ];
+      if (C.show_mom[k]) tr.splice(2, 0, line('м/м SAAR', xc, s.mom_saar.slice(k0), 1, { line: { color: PAL[1], width: 1 } }));
+      plot('chCredit', tr);
+      const d = C.diag[k] || {}, rv = d.revisions || {};
+      $('cDiag').textContent = `${k}: ${d.decomposition || '—'}, ARIMA ${d.arima || '—'}; календарь: ${d.calendar && d.calendar.length ? d.calendar.join(', ') : 'незначим'}; `
+        + `остаточная сезонность: F-тест p = ${nf((d.resid_seasonality_f || {}).p, 2)}; ревизии м/м SAAR за 24 мес. — в среднем ${nf(rv.mom_saar_mean)} п.п.`
+        + (C.show_mom[k] ? '' : ' — поэтому м/м SAAR не показываем.');
+      buttons('cBtns', segs, ck, drawC);
+    };
+    drawC(ck);
+    const I = D.impulse, i1 = from(I.months, '2017-01'), xi = I.months.slice(i1).map(mlab);
+    plot('chImp', [
+      bar('Кредитный импульс, п.п. ВВП', xi, I.impulse_pp.slice(i1), 0, { marker: { color: I.impulse_pp.slice(i1).map(v => v >= 0 ? '#4caf50' : '#ff8a8a') } }),
+      line('Прирост кредита за 12 мес., % ВВП (правая ось)', xi, I.flow12_pct_gdp.slice(i1), 3, { yaxis: 'y2' }),
+    ], { yaxis2: { overlaying: 'y', side: 'right', gridcolor: 'rgba(0,0,0,0)', tickfont: { color: PAL[3] }, zeroline: false },
+         margin: { l: 46, r: 40, t: 10, b: 36 } });
+
+    // ставки
+    const R = D.rates, r0 = from(R.months, '2019-01'), xr = R.months.slice(r0).map(mlab), rk = Object.keys(R.series);
+    plot('chRates', rk.map((k, i) => line(k, xr, R.series[k].slice(r0), i,
+      k === 'Ключевая ставка' ? { line: { color: '#fff', width: 2.5, shape: 'hv' }, hovertemplate: '%{y:.2f}' }
+      : { hovertemplate: '%{y:.2f}', visible: /свыше 1 года|RUONIA/.test(k) && !/Вклады/.test(k) ? 'legendonly' : true })));
+    const fr = R.series[rk.find(k => /FRMAX/.test(k))] || [];
+    const frLast = R.months.filter((m, i) => fr[i] != null).pop();
+    // FRMAX из книги «Прогноза доходностей»: предупреждение, только если она отстала больше чем на 2 месяца
+    const lagM = m => { const [y, mo] = m.split('-').map(Number), t = new Date(); return (t.getFullYear() - y) * 12 + t.getMonth() + 1 - mo; };
+    if (frLast && lagM(frLast) > 2) $('ratesNote').textContent = `FRMAX в книге «Прогноза доходностей» — по ${mfull(frLast)}: книгу пора обновить (data_scripts/update_frmax.py).`;
+    const RR = D.real_rates, xr2 = RR.months.slice(r0).map(mlab);
+    plot('chReal', Object.keys(RR.series).map((k, i) => line(k.replace('Ключевая − ', 'КС − '), xr2, RR.series[k].slice(r0), i,
+      k === RR.base ? { line: { color: '#fff', width: 2.8 }, hovertemplate: '%{y:.2f}' }
+      : { hovertemplate: '%{y:.2f}', visible: /кредитам организациям|ИПЦ г\/г/.test(k) ? 'legendonly' : true })), {
+      shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: 0, y1: 0, line: { color: text80, width: 1 } }] });
+
+    // УБК
+    const U = D.ubk, q0 = Math.max(0, U.quarters.indexOf('2019-Q1')), xq = U.quarters.slice(q0).map(qlab);
+    const uk = Object.keys(U.series).filter(k => /УБК в целом/.test(k));
+    plot('chUbk', uk.map((k, i) => bar(k.replace(': УБК в целом', ''), xq, U.series[k].slice(q0), [0, 5, 1][i])), { barmode: 'group' });
+
+    $('crFoot').innerHTML = 'Источники: ' + Object.values(D.sources_text).join('; ') + '.';
+  }
+
+  fetch('/api/credit', { credentials: 'same-origin' })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(render)
+    .catch(e => {
+      if (window.showDataLoadError) { window.showDataLoadError(e); return; }
+      $('crError').hidden = false; $('crError').textContent = 'Не удалось загрузить данные: ' + e.message;
+    });
+})();
+</script>
+{% endblock %}

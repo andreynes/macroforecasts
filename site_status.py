@@ -33,7 +33,8 @@ SECTION_LABELS = {
 SCHEDULES: Dict[str, Dict] = {
     "inflation_weekly": {"kind": "weekly", "weekday": 2, "hm": (19, 0), "grace_h": 3,
                          "label": "ср 19:00 (повторы чт, пт)"},
-    "inflation_monthly": {"kind": "monthly", "day": 25, "hm": (19, 0), "grace_h": 48, "label": "25-е число, 19:00"},
+    "inflation_monthly": {"kind": "age", "green_days": 35, "red_days": 50,
+                          "label": "сама: релиз Росстата (ср/пт, 5–28 число) и бюллетень ЦБ (Mac)"},
     "moex": {"kind": "workdays", "hm": (19, 30), "grace_h": 2, "label": "пн–пт 19:30"},
     # Ниже — предложение (расписаний нет, публикуются вручную с Mac)
     "ruble": {"kind": "age", "green_days": 7, "red_days": 14, "label": "вручную, ~раз в неделю"},
@@ -42,6 +43,7 @@ SCHEDULES: Dict[str, Dict] = {
     "cbr_models": {"kind": "age", "green_days": 35, "red_days": 62, "label": "после «Макропрогнозов»"},
     "analysts": {"kind": "age", "green_days": 35, "red_days": 62, "label": "вручную, ~раз в месяц"},
     "yield": {"kind": "age", "green_days": 35, "red_days": 62, "label": "вручную, ~раз в месяц"},
+    "credit": {"kind": "age", "green_days": 35, "red_days": 62, "label": "машина, по выходу данных ЦБ (~20-го)"},
 }
 
 # Кто публикует, если в manifest.json нет поля published_by (записи до 20.11.2026)
